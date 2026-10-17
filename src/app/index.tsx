@@ -4,11 +4,9 @@ import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Cover } from '@/features/shelf/Cover';
+import { useLibrary } from '@/features/library/LibraryProvider';
 import { Chips } from '@/shared/Chips';
 import { colors, coverColors } from '@/shared/theme';
-
-// いまは見た目だけ。絞り込みや並べ替えはまだ効かない。
-const books = [{ id: 'sample', title: '走れメロス', author: '太宰 治', label: '小説' }];
 
 const kinds = [
   { id: 'all', label: 'すべて' },
@@ -28,6 +26,8 @@ export default function ShelfScreen() {
   const { width } = useWindowDimensions();
   const [kind, setKind] = useState('all');
   const [state, setState] = useState('all');
+  const { books: savedBooks, ready, warning } = useLibrary();
+  const books = kind === 'study' || !['all', 'want'].includes(state) ? [] : savedBooks;
 
   // 1段に並ぶ冊数を画面幅から決め、段ごとに棚板を敷く
   const perRow = Math.max(2, Math.floor((Math.min(width, 1000) - 48) / SLOT));
@@ -55,6 +55,9 @@ export default function ShelfScreen() {
           <Chips items={kinds} value={kind} onChange={setKind} />
           <Chips items={states} value={state} onChange={setState} variant="sub" />
         </View>
+        {warning ? <Text accessibilityRole="alert" style={styles.message}>{warning}</Text> : null}
+        {!ready && <Text style={styles.message}>本棚を読み込んでいます…</Text>}
+        {ready && books.length === 0 && <Text style={styles.message}>{savedBooks.length ? 'この条件の本はありません。' : '本棚はまだ空です。「本を追加」から青空文庫の作品を探しましょう。'}</Text>}
 
         {rows.map((row, r) => (
           <View key={r} style={styles.row}>
@@ -64,7 +67,7 @@ export default function ShelfScreen() {
                   <Cover
                     title={book.title}
                     author={book.author}
-                    label={book.label}
+                    label="小説"
                     color={coverColors[(r * perRow + i) % coverColors.length]}
                     onPress={() => router.push(`/book/${book.id}`)}
                   />
@@ -94,4 +97,5 @@ const styles = StyleSheet.create({
   covers: { flexDirection: 'row', paddingHorizontal: 14 },
   slot: { width: SLOT, alignItems: 'center' },
   board: { height: 10, backgroundColor: colors.wood, marginTop: -2 },
+  message: { color: colors.muted, fontSize: 14, lineHeight: 22, paddingVertical: 24 },
 });

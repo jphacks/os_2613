@@ -2,10 +2,11 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { colors } from '@/shared/theme';
+import { LibraryProvider } from '@/features/library/LibraryProvider';
 
 export default function RootLayout() {
   return (
-    <>
+    <LibraryProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -20,6 +21,6 @@ export default function RootLayout() {
         <Stack.Screen name="book/[id]" options={{ title: '' }} />
         <Stack.Screen name="add" options={{ presentation: 'modal', headerShown: false }} />
       </Stack>
-    </>
+    </LibraryProvider>
   );
 }
