@@ -14,6 +14,7 @@ export class ContinuousMixer {
   constructor(players, fallback, notify = () => {}, now = () => Date.now()) {
     this.players = players; this.fallback = fallback; this.notify = notify; this.now = now;
     this.active = 0; this.volume = 0.25; this.enabled = false;
+    this.duck = 1;
     this.current = 'fallback'; this.desired = 'fallback'; this.pending = null; this.stalledAt = null;
     players.forEach(player => { player.loop = true; player.volume = 0; });
   }
@@ -27,6 +28,7 @@ export class ContinuousMixer {
   }
   stop() { this.enabled = false; this.players.forEach(player => player.pause()); }
   setVolume(value) { this.volume = Math.max(0, Math.min(1, value)); this.apply(); }
+  setDucking(value) { if (this.duck !== value) { this.duck = value; this.apply(); } }
   request(id, source) {
     if (id === this.desired) return;
     this.desired = id;
@@ -43,7 +45,7 @@ export class ContinuousMixer {
   apply() {
     if (!this.enabled) { this.players.forEach(player => { player.volume = 0; }); return; }
     const t = this.pending?.fade === null || !this.pending ? 0 : Math.min(1, (this.now() - this.pending.fade) / 2000);
-    const level = this.volume * (this.players[2] ? 0.8 : 1);
+    const level = this.volume * (this.players[2] ? 0.8 : 1) * this.duck;
     this.players[this.active].volume = level * Math.cos(t * Math.PI / 2);
     this.players[1 - this.active].volume = level * Math.sin(t * Math.PI / 2);
     if (this.players[2]) this.players[2].volume = this.volume * 0.2;

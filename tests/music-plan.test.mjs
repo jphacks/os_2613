@@ -10,9 +10,22 @@ import { textUnits, validateScenes } from '../src/features/music/plan-model.mjs'
 
 const book = { title: '試験作品', text: '雨の中を走る。友の命がかかっていた。' };
 const scene = { kind: 'music', start: 0, end: book.text.length, label: '友への決意', reason: '友を助けるため走る切迫感に、低い弦の音を合わせる。', mood: 'tense', query: 'suspense ambient strings', candidates: [], selectedId: null };
-const planned = { scenes: [scene], usage: { input: 80, output: 40, total: 120 } };
+const planned = { scenes: [scene], cues: [], usage: { input: 80, output: 40, total: 120 } };
 const result = { scenes: [{ firstUnit: 0, lastUnit: 0, label: scene.label, reason: scene.reason, mood: scene.mood, query: scene.query }] };
 const track = { id: 42, name: 'Strings music', creator: 'artist', license: 'https://creativecommons.org/licenses/by/4.0/', url: 'https://freesound.org/people/artist/sounds/42/', audioUrl: 'https://cdn.freesound.org/previews/42.mp3' };
+
+test('重ねる環境音・効果音の位置と選択音源を共有保存し、再起動後も再分析しない', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'book-cue-save-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const cues = [{ id: 'rain', start: 0, end: book.text.length, mode: 'loop', kind: 'ambience', label: '雨', query: 'rain ambience', gain: 0.4,
+    candidates: [{ ...track, kind: 'ambience' }], selectedId: track.id }];
+  const service = createMusicPlanService({ directory, planner: async () => ({ ...planned, cues }) });
+  const generated = (await service.analyze(book)).plan;
+  const saved = await service.save(book, generated);
+  const restarted = createMusicPlanService({ directory, planner: () => assert.fail('paid twice') });
+  assert.deepEqual((await restarted.analyze(book)).plan.cues, cues);
+  assert.equal((await restarted.load(book)).revision, saved.revision);
+});
 
 test('本文を欠落・重複なく区切り、長文を黙って切り捨てない', () => {
   const text = ('あ'.repeat(600) + '\n😀').repeat(5);
@@ -30,7 +43,7 @@ test('OpenAIには本文だけを資料として1回送信し、構造化出力�
     calls++; assert.equal(url, 'https://api.openai.com/v1/responses');
     const body = JSON.parse(options.body);
     assert.equal(body.store, false); assert.equal(body.model, 'gpt-4.1-mini');
-    assert.equal(body.text.format.type, 'json_schema'); assert.equal(body.max_output_tokens, 6000);
+    assert.equal(body.text.format.type, 'json_schema'); assert.equal(body.max_output_tokens, 10000);
     assert.equal(JSON.parse(body.input).units[0].text, book.text);
     assert.ok(!options.body.includes('secret-test'));
     return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(result) }] }], usage: { input_tokens: 80, output_tokens: 40, total_tokens: 120 } });
