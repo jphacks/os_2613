@@ -17,10 +17,14 @@ export default function HorizontalStudyPage(props: Props) {
   const lines = useMemo(() => studyLines(text), [text]);
   const equations = useMemo(() => lines.map(line => mathSegments(line.text)), [lines]);
   const palette = studyPalette(paint.ink);
-  const figures = useMemo(() => (props.visuals ?? []).map(visual => {
-    const at = text.indexOf(visual.after);
-    return { visual, line: at < 0 ? -1 : lines.findIndex(line => line.start + line.text.length >= at + visual.after.length) };
-  }), [props.visuals, text, lines]);
+  const figures = useMemo(() => {
+    let searchFrom = 0;
+    return (props.visuals ?? []).map(visual => {
+      const at = text.indexOf(visual.after, searchFrom);
+      if (at >= 0) searchFrom = at + visual.after.length;
+      return { visual, line: at < 0 ? -1 : lines.findIndex(line => line.start + line.text.length >= at + visual.after.length) };
+    });
+  }, [props.visuals, text, lines]);
   useEffect(() => {
     if (!(window as any).ReactNativeWebView) return;
     for (const node of [document.documentElement, document.body, document.getElementById('root')]) {
@@ -69,22 +73,26 @@ export default function HorizontalStudyPage(props: Props) {
     <article style={{ maxWidth: 820, margin: '0 auto', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: display.lineHeight, overflowWrap: 'anywhere' }}>
       {mark(start)}
       {lines.map((line, i) => {
-        let offset = start + line.start;
+        const displayText = line.displayText ?? line.text;
+        const hiddenPrefixLength = line.text.length - displayText.length;
+        const sectionHeading = !!line.sectionTitle;
+        let offset = start + line.start + hiddenPrefixLength;
         const Tag = line.title ? 'h1' : line.heading ? 'h2' : 'p';
         const tone = palette[line.tone];
         // One rule below the whole mixed text/math line clears even deep subscripts.
         const sharedUnderline = equations[i].length > 0 && line.emphasis.length > 0;
-        return <Fragment key={i}><Tag data-line={offset} style={{ whiteSpace: 'pre-wrap', fontSize: line.title ? '1.55em' : line.heading ? '1.18em' : '1em', lineHeight: line.heading ? 1.65 : undefined,
-          fontWeight: line.heading || line.callout ? 750 : 400, margin: line.heading ? '1.25em 0 0.65em' : line.callout ? '1em 0 1.3em' : '0.55em 0', minHeight: line.text ? undefined : '0.6em',
-          color: line.heading ? (line.tone === 'neutral' ? paint.accent : tone) : line.tone === 'warning' ? tone : paint.ink,
-          border: line.callout ? `2px solid ${paint.accent}` : undefined, borderRadius: line.callout ? 10 : undefined,
-          borderLeft: line.callout ? `2px solid ${paint.accent}` : line.heading && !line.title ? `4px solid ${tone}` : undefined,
+        return <Fragment key={i}><Tag data-line={start + line.start} style={{ whiteSpace: 'pre-wrap', fontSize: line.title ? '1.55em' : line.heading ? '1.18em' : '1em', lineHeight: line.heading ? 1.65 : undefined,
+          fontWeight: line.heading || line.callout ? 750 : 400, margin: sectionHeading ? '1.8em 0 0.8em' : line.heading ? '1.25em 0 0.65em' : line.callout ? '1em 0 1.3em' : '0.55em 0', minHeight: line.text ? undefined : '0.6em',
+          color: sectionHeading ? paint.accent : line.heading ? (line.tone === 'neutral' ? paint.accent : tone) : line.tone === 'warning' ? tone : paint.ink,
+          border: line.callout ? `2px solid ${paint.accent}` : sectionHeading ? `1px solid ${paint.accent}` : undefined, borderRadius: line.callout || sectionHeading ? 10 : undefined,
+          borderLeft: line.callout ? `2px solid ${paint.accent}` : sectionHeading ? `5px solid ${paint.accent}` : line.heading && !line.title ? `4px solid ${tone}` : undefined,
           boxSizing: 'border-box', minWidth: 0,
-          padding: line.callout ? '14px 18px 18px' : undefined, background: line.callout ? paint.chosen : undefined,
-          paddingLeft: line.heading && !line.title ? 12 : line.callout ? 18 : undefined }}>
+          padding: sectionHeading ? '10px 14px' : line.callout ? '14px 18px 18px' : undefined, background: sectionHeading ? paint.chosen : line.callout ? paint.chosen : undefined,
+          paddingLeft: sectionHeading ? 14 : line.heading && !line.title ? 12 : line.callout ? 18 : undefined }}>
           {line.callout && <span style={{ display: 'block', fontSize: '0.72em', letterSpacing: '0.08em', fontWeight: 800, color: paint.accent, marginBottom: 8 }}>{({ formula: '覚えておきたい公式', definition: '大切な定義', keypoint: '重要ポイント' })[line.callout]}</span>}
+          {sectionHeading && <span style={{ display: 'block', fontSize: '0.68em', letterSpacing: '0.08em', fontWeight: 800, color: paint.accent, marginBottom: 2 }}>AI教材</span>}
           <span style={sharedUnderline ? { display: 'inline-block', maxWidth: '100%', borderBottom: `2px solid ${paint.accent}`, lineHeight: 1.4, paddingBottom: '0.03em' } : undefined}>
-          {Array.from(line.text).map((char, j) => {
+          {Array.from(displayText).map((char, j) => {
             const begin = offset; offset += char.length; const end = offset;
             const local = begin - start - line.start;
             const bold = line.emphasis.some(([a, b]) => local >= a && local < b);

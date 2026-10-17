@@ -20,6 +20,20 @@ export function mathMarkup(source, display = false) {
   } catch { return null; }
 }
 const powers = /(?:\\[a-zA-Z]+|\([^()\n]{1,120}\)|\d+(?:\.\d+)?|[a-zA-Zα-ωΑ-Ω][a-zA-Z0-9]*)(?:[_^](?:\{[^{}\n]{1,120}\}|\([^()\n]{1,120}\)|[+-]?\d+(?:\.\d+)?|[+-]?[a-zA-Zα-ωΑ-Ω]))+/g;
+// Saved lessons created before TeX delimiters were required often contain
+// equations inline in Japanese prose (for example, "関数 f(x)=x^2 とする").
+// Extract only Latin/math notation runs, then accept them when they contain an
+// equation/relation operator and no ordinary English words. Japanese text is
+// therefore a natural boundary, and prose such as "A/B" is left untouched.
+const relationRuns = /[A-Za-zα-ωΑ-Ωℓ∞∅ℝℕℤℚℂ0-9\\{}()[\].,+\-*/=<>≤≥≈≠∈∉⊂⊆∪∩→←↔×÷±∑∫√|!_^\s]{2,240}/gu;
+const mathWords = new Set(['lim', 'sin', 'cos', 'tan', 'log', 'ln', 'exp', 'sup', 'inf', 'max', 'min', 'arg', 'det', 'dim', 'ker', 'Re', 'Im', 'Pr']);
+function isInlineRelation(value) {
+  const hasRelation = /[=<>≤≥≈≠∈∉⊂⊆→←↔]/.test(value);
+  const hasArithmetic = /[+*×÷]/.test(value) || /[a-zα-ω0-9]\s*\/\s*[a-zα-ω0-9]/.test(value);
+  if ((!hasRelation && !hasArithmetic) || !/[A-Za-zα-ωΑ-Ωℓ0-9]/.test(value)) return false;
+  const words = value.match(/[A-Za-z]+/g) ?? [];
+  return words.every(word => word.length === 1 || mathWords.has(word));
+}
 export function mathSegments(text, formula = false) {
   const result = []; let cursor = 0;
   const add = (raw, begin, tex, display) => {
@@ -34,7 +48,26 @@ export function mathSegments(text, formula = false) {
       const markup = mathMarkup(value, false);
       if (markup) { add(value, from, value, false); return; }
     }
-    for (const match of value.matchAll(powers)) add(match[0], from + match.index, match[0], false);
+    const recognized = [];
+    for (const match of value.matchAll(relationRuns)) {
+      const raw = match[0], trimmed = raw.trim();
+      if (!isInlineRelation(trimmed)) continue;
+      const leading = raw.length - raw.trimStart().length;
+      const trailingPunctuation = trimmed.match(/[.,;:!?]+$/)?.[0] ?? '';
+      const expression = trimmed.slice(0, trimmed.length - trailingPunctuation.length).trimEnd();
+      if (!expression || !isInlineRelation(expression)) continue;
+      const start = from + match.index + leading;
+      const end = start + expression.length;
+      if (mathMarkup(expression)) recognized.push({ start, end });
+    }
+    // Prefer the complete relation (e.g. f(x)=x^2) over the smaller power
+    // expression it contains. The original text and its offsets stay intact.
+    for (const range of recognized) add(text.slice(range.start, range.end), range.start, text.slice(range.start, range.end), false);
+    for (const match of value.matchAll(powers)) {
+      const start = from + match.index, end = start + match[0].length;
+      if (recognized.some(range => start >= range.start && end <= range.end)) continue;
+      add(match[0], start, match[0], false);
+    }
   }
   const delimited = /\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|\$(?:\\.|[^$\\\n])+\$/g;
   for (const match of text.matchAll(delimited)) {
