@@ -1,1 +1,2 @@
-export function studyLines(text: string): { text: string; start: number; heading: boolean; title: boolean; important: boolean; emphasis: number[][]; tone: 'warning' | 'example' | 'summary' | 'neutral'; callout: 'formula' | 'definition' | 'keypoint' | null }[];
+export function studySectionNumber(chapterTitle: string, chapterIndex: number, partIndex: number): string;
+export function studyLines(text: string): { text: string; displayText: string; sectionTitle: string | null; start: number; heading: boolean; title: boolean; important: boolean; emphasis: number[][]; tone: 'warning' | 'example' | 'summary' | 'neutral'; callout: 'formula' | 'definition' | 'keypoint' | null }[];

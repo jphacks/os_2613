@@ -39,7 +39,8 @@ async function fixture(t, options = {}) {
     async lesson(unit) { calls.lesson++; return reply({ title: '関数の理解', sourceQuote: unit.text.slice(0, 30), beginner: '入門として前提知識と具体例から重要な概念を一つずつ学びます。理解確認と解答を含む説明です。', standard: '標準では定義の条件と適用範囲を確認して原文の専門的な説明に進みます。応用と理解確認の説明です。' }); },
     ...options,
   };
-  const make = (data = source) => createStudyService({ storage: artifactStorage(directory), provider, readSource: async () => data });
+  const illustrations = { async read() { return { complete: true, visuals: [] }; }, async generate() { return { complete: true, visuals: [] }; } };
+  const make = (data = source) => createStudyService({ storage: artifactStorage(directory), provider, illustrations, readSource: async () => data });
   return { directory, calls, make, service: make() };
 }
 test('全ページを欠落・重複なく区切り、サロゲートペアを切断しない', () => {
@@ -71,19 +72,24 @@ test('同時の作成をまとめ、同じ単元への二重課金を防ぐ', as
   assert.equal(calls.lesson, 1);
 });
 
-test('挿絵は明示した範囲と難易度だけに作り、章や難易度の切替では生成しない', async t => {
-  const { directory, service } = await fixture(t);
-  await service.generate('calculus', 0);
-  const calls = [];
-  const reader = createStudyService({ storage: artifactStorage(directory), readSource: async () => source,
-    illustrations: { read: async () => ({ complete: false, visuals: [] }), generate: async input => { calls.push(input); } } });
-  await reader.status('calculus'); assert.equal(calls.length, 0);
-  await reader.illustrate('calculus', 0, 0, 'beginner');
-  assert.equal(calls.length, 1); assert.equal(calls[0].level, 'beginner');
-  assert.ok(!calls[0].source.includes('微分は変化')); assert.ok(!('standard' in calls[0]));
-  await assert.rejects(reader.illustrate('calculus', 1, 0, 'beginner'), /INVALID_INPUT/);
-  await assert.rejects(reader.illustrate('calculus', 0, 0, 'original'), /INVALID_INPUT/);
-  assert.equal(calls.length, 1);
+test('教材作成時に初級・中級の挿絵を自動保存し、閲覧だけでは生成しない', async t => {
+  const { directory, calls, make } = await fixture(t);
+  const generated = new Set(), requests = [];
+  const illustrations = {
+    async read(input) { return { complete: generated.has(`${input.unit}:${input.level}`), visuals: [] }; },
+    async generate(input) { requests.push(input); generated.add(`${input.unit}:${input.level}`); return { complete: true, visuals: [] }; },
+  };
+  const reader = createStudyService({ storage: artifactStorage(directory), readSource: async () => source, provider: {
+    async lesson(unit) { calls.lesson++; return reply({ title: '関数の理解', sourceQuote: unit.text.slice(0, 30), beginner: '入門として前提知識と具体例から重要な概念を一つずつ学びます。理解確認と解答を含む説明です。', standard: '標準では定義の条件と適用範囲を確認して原文の専門的な説明に進みます。応用と理解確認の説明です。' }); },
+  }, illustrations });
+  await reader.status('calculus'); assert.equal(requests.length, 0);
+  const state = await reader.generate('calculus', 0);
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests.map(input => input.level), ['beginner', 'standard']);
+  assert.ok(requests.every(input => !input.source.includes('微分は変化')));
+  assert.equal(state.chapters[0].needsIllustrations, false);
+  await reader.status('calculus'); await make().generate('calculus', 0);
+  assert.equal(requests.length, 2); assert.equal(calls.lesson, 1);
 });
 
 test('保存済みの文章を再生成せず図解だけ明示的に追加して再利用する', async t => {
@@ -112,6 +118,25 @@ test('図解の増補は選んだ章だけで、増補後は再起動・連打�
   assert.equal(a.units[0].lesson.beginner, base.units[0].lesson.beginner);
   assert.ok(a.chapters[1].units.every(i => !a.units[i].lesson));
   await make().enhance('calculus', 0); assert.equal(extras, 1); assert.equal(calls.lesson, 1);
+});
+
+test('章の一部だけ教材がある場合も、作成済み区分へ補足資料を追加できる', async t => {
+  let extras = 0;
+  const { make } = await fixture(t, { async enrich() { extras++; return reply({ beginnerVisuals: [], standardVisuals: [] }); } });
+  const longSource = { ...source, hash: 'multi-unit-chapter', pages: [{ page: 1, text: '関数とは入力に対して出力を対応させる規則です。'.repeat(350) }],
+    chapters: [{ index: 0, firstPage: 1, lastPage: 1, title: '第1章 関数' }] };
+  const service = make(longSource);
+  const partial = await service.generate('calculus', 0);
+  assert.equal(partial.chapters[0].units.length, 2);
+  assert.equal(partial.chapters[0].complete, false);
+  assert.equal(partial.units.filter(unit => unit.lesson).length, 1);
+  const supplemented = await service.enhance('calculus', 0);
+  assert.equal(extras, 1);
+  assert.equal(supplemented.chapters[0].enhanced, true);
+  assert.equal(supplemented.chapters[0].complete, false);
+  assert.equal(supplemented.units.filter(unit => unit.lesson).length, 1);
+  await service.enhance('calculus', 0);
+  assert.equal(extras, 1);
 });
 
 test('旧版の増補を読むだけでは課金せず、新しい比較図は明示した時だけ保存する', async () => {
@@ -171,14 +196,20 @@ test('長い章の途中から再開しても別の章の本文をAPIに送ら�
   assert.equal(state.chapters[1].complete, false);
 });
 test('OpenAIはサーバーのヘッダーだけにキーを置き、2段階を一度に構造化出力する', async () => {
+  let instructions = '';
   const provider = createStudyProvider({ key: () => 'test-secret', fetcher: async (url, options) => {
     assert.equal(url, 'https://api.openai.com/v1/responses');
     assert.equal(options.headers.Authorization, 'Bearer test-secret');
     assert.ok(!options.body.includes('test-secret'));
-    const body = JSON.parse(options.body); assert.equal(body.store, false); assert.equal(body.text.format.strict, true);
+    const body = JSON.parse(options.body); instructions = body.instructions; assert.equal(body.store, false); assert.equal(body.text.format.strict, true);
     assert.ok(body.text.format.schema.required.includes('beginner')); assert.ok(body.text.format.schema.required.includes('standard'));
     assert.ok(body.text.format.schema.required.includes('beginnerVisuals')); assert.ok(body.text.format.schema.required.includes('standardVisuals'));
     return Response.json(reply({}));
   } });
   await provider.lesson(studyUnits(source.pages)[0], {});
+  assert.match(instructions, /【初級】/);
+  assert.match(instructions, /【中級】/);
+  assert.match(instructions, /原文外の定理や証明を足していないか/);
+  assert.match(instructions, /不自然な日本語や重複がないか/);
+  assert.match(instructions, /判読できない式は補わず/);
 });

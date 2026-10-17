@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { studyLines } from '../src/features/study/format.mjs';
+import { studyLines, studySectionNumber } from '../src/features/study/format.mjs';
+
+test('教材の区分番号は配列位置でなく、章見出しにある実際の章番号を使う', () => {
+  assert.equal(studySectionNumber('4 極限と連続 II', 8, 1), '4-2');
+  assert.equal(studySectionNumber('第４章 極限と連続', 8, 0), '4-1');
+  assert.equal(studySectionNumber('序論', 2, 0), '3-1');
+});
 
 test('教材のタイトル・見出し・要点・用語に表示上の強調を付ける', () => {
   const lines = studyLines('指数関数を学ぶ\n【説明】\n「指数関数」を考えます。\n【ポイント】\n定義には条件があります。例を確かめます。');
@@ -15,6 +21,14 @@ test('横書き用の装飾でも本文・改行・UTF16のしおり位置を変
   assert.equal(lines.map(line => line.text).join('\n'), text);
   for (const line of lines) assert.equal(text.slice(line.start, line.start + line.text.length), line.text);
   assert.equal(lines[1].start, 5);
+});
+
+test('区分見出しは原文と区別できる章-区分番号を表示し、内部マーカーの分だけ文字位置を保つ', () => {
+  const lines = studyLines('本文\n\n## 1-2\n\n説明');
+  assert.equal(lines[2].heading, true);
+  assert.equal(lines[2].displayText, '1-2');
+  assert.equal(lines[2].text.slice(lines[2].text.length - lines[2].displayText.length), '1-2');
+  assert.equal(lines[4].start, lines[2].start + lines[2].text.length + 2);
 });
 
 test('覚える公式を囲み、途中式・導出や具体例の式は囲まない', () => {

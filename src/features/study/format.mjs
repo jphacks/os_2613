@@ -1,4 +1,12 @@
 // Preserve UTF-16 offsets so existing reading guides and bookmarks remain valid.
+export function studySectionNumber(chapterTitle, chapterIndex, partIndex) {
+  const sourceNumber = /^\s*(?:第\s*)?([0-9０-９]+)(?:\s*章)?(?=$|[^0-9０-９])/.exec(chapterTitle)?.[1];
+  const chapterNumber = sourceNumber
+    ? sourceNumber.replace(/[０-９]/g, digit => String.fromCharCode(digit.charCodeAt(0) - 0xFEE0))
+    : String(chapterIndex + 1);
+  return `${chapterNumber}-${partIndex + 1}`;
+}
+
 export function studyLines(text) {
   let offset = 0, section = '', sectionParagraph = 0;
   const raw = text.split('\n'), groups = [];
@@ -15,7 +23,8 @@ export function studyLines(text) {
   }
   return groups.map((line, index) => {
     const start = offset; offset += line.length + 1;
-    const heading = index === 0 || /^\s*(?:【[^】]+】\s*$|#{1,3}\s)/.test(line);
+    const sectionTitle = /^\s*#{1,3}\s+(.+?)\s*$/.exec(line)?.[1] ?? null;
+    const heading = index === 0 || !!sectionTitle || /^\s*(?:【[^】]+】\s*$|#{1,3}\s)/.test(line);
     if (heading) { section = line; sectionParagraph = 0; }
     const content = !heading && !!line.trim();
     const firstParagraph = content && sectionParagraph === 0;
@@ -36,6 +45,6 @@ export function studyLines(text) {
       const end = line.search(/[。．：:]/);
       emphasis.push([0, Math.min(end < 0 ? line.length : end + 1, 90)]);
     }
-    return { text: line, start, heading, title: index === 0, important, emphasis, tone, callout };
+    return { text: line, displayText: sectionTitle ?? line, sectionTitle, start, heading, title: index === 0, important, emphasis, tone, callout };
   });
 }
