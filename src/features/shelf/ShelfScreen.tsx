@@ -1,8 +1,8 @@
 import { useAccount } from '@/features/account/AccountProvider';
 import { ReadingQuests } from '@/features/shelf/ReadingQuests';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { books } from '@/content/books';
@@ -51,7 +51,10 @@ export default function ShelfScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {!desktop && <View style={[styles.band, { minHeight: 56 }]} />}
+      {!desktop && <View style={styles.band}>
+        <Image source={require('../../../assets/images/dopabooks-mark-white.png')} accessibilityLabel="白いドパBOOKs シンボルマーク" resizeMode="contain" style={styles.brandMark} />
+        <Image source={require('../../../assets/images/dopabooks-wordmark.png')} accessibilityLabel="ドパBOOKS" resizeMode="contain" style={styles.brandWordmark} />
+      </View>}
 
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.head}>
@@ -99,7 +102,9 @@ export default function ShelfScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
-  band: { backgroundColor: colors.accent, paddingHorizontal: 24, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  band: { minHeight: 64, backgroundColor: colors.accent, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brandMark: { width: 56, height: 42 },
+  brandWordmark: { width: 150, height: 27 },
   statsIcon: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, padding: 4 },
   statsBook: { width: 7, backgroundColor: colors.surface, borderRadius: 1.5, overflow: 'hidden', alignItems: 'center' },
   statsSpine: { width: 7, height: 2, marginTop: 3, backgroundColor: colors.accent, opacity: 0.45 },
