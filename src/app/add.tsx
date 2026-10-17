@@ -1,3 +1,4 @@
+import { NavigationButton } from '@/shared/NavigationButton';
 import { useAccount } from '@/features/account/AccountProvider';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -83,7 +84,7 @@ export default function AddScreen() {
       await addBook(data as SavedBook);
       complete('add');
       void recordAdded((data as SavedBook).id); // 分析画面の「追加した本」用
-      if (!controller.signal.aborted) setMessage(`「${data.title}」を本棚に追加しました。`);
+      if (!controller.signal.aborted) router.dismissTo('/shelf');
     } catch (reason) {
       if (!controller.signal.aborted) setError(reason instanceof Error && reason.message.includes('ください') ? reason.message : '追加できません。通信を確認して再試行してください。');
     } finally { if (!controller.signal.aborted) setAdding(null); }
@@ -98,9 +99,7 @@ export default function AddScreen() {
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <View style={styles.headRow}>
             <Text style={styles.eyebrow}>ADD A BOOK</Text>
-            <Pressable onPress={() => router.back()}>
-              <Text style={styles.close}>閉じる</Text>
-            </Pressable>
+            <NavigationButton close label="閉じる" onPress={() => router.back()} />
           </View>
           <Text style={styles.title}>本を追加</Text>
 

@@ -1,0 +1,1382 @@
+{
+  "version": 3,
+  "hash": "da18cac741bb6d7afabdd640a5422a087c2d434c63f7099fa55db6fee1777aab",
+  "title": "走れメロス",
+  "revision": "b061d19c-4a36-41d3-974b-8b8dc5ff2825",
+  "scenes": [
+    {
+      "start": 0,
+      "end": 500,
+      "kind": "ambience",
+      "label": "夕暮れの寂しい市",
+      "reason": "日没後の市はひっそりと寂しく、以前の賑わいも消えている。遠い町のざわめきで不穏さを控えめに支える。",
+      "mood": "calm",
+      "query": "quiet distant city ambience",
+      "candidates": [
+        {
+          "id": 332785,
+          "name": "city ambience, pedestrian subway, at entrance, night, distant traffic, trains and railway station announcements - Stereo preview.wav",
+          "creator": "be_a_hero_not_a_patriot",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/be_a_hero_not_a_patriot/sounds/332785/",
+          "audioUrl": "https://cdn.freesound.org/previews/332/332785_5804919-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 711133,
+          "name": "AMBTraf_Calm City traffic.Clean.Distance 50m.Park.Autumn.Evening_EM",
+          "creator": "newlocknew",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/newlocknew/sounds/711133/",
+          "audioUrl": "https://cdn.freesound.org/previews/711/711133_5828667-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 711132,
+          "name": "AMBTraf_Calm City traffic.Clean.Distance 25m.Park.Autumn.Evening_EM",
+          "creator": "newlocknew",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/newlocknew/sounds/711132/",
+          "audioUrl": "https://cdn.freesound.org/previews/711/711132_5828667-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 332785
+    },
+    {
+      "start": 500,
+      "end": 1053,
+      "kind": "music",
+      "label": "王の恐怖を知る",
+      "reason": "老爺から王の虐殺と人質制度を聞き、メロスの不安が激怒へ変わる。低く張りつめた弦で危機を示す。",
+      "mood": "tense",
+      "query": "dark suspense ambient strings",
+      "candidates": [
+        {
+          "id": 727435,
+          "name": "Digital Mystery Ambiance",
+          "creator": "TheoJT",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/TheoJT/sounds/727435/",
+          "audioUrl": "https://cdn.freesound.org/previews/727/727435_6627602-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 400367,
+          "name": "strings 19",
+          "creator": "phantastonia",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/phantastonia/sounds/400367/",
+          "audioUrl": "https://cdn.freesound.org/previews/400/400367_5137631-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 400366,
+          "name": "strings 14",
+          "creator": "phantastonia",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/phantastonia/sounds/400366/",
+          "audioUrl": "https://cdn.freesound.org/previews/400/400366_5137631-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 400367
+    },
+    {
+      "start": 1053,
+      "end": 2493,
+      "kind": "music",
+      "label": "王城での対決",
+      "reason": "短剣を持って捕らえられ、王と正面から対峙する。互いの信念が衝突する場面に威厳ある緊張を置く。",
+      "mood": "tense",
+      "query": "cinematic suspense strings",
+      "candidates": [
+        {
+          "id": 434069,
+          "name": "suspense strings intro.aif",
+          "creator": "oymaldonado",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/oymaldonado/sounds/434069/",
+          "audioUrl": "https://cdn.freesound.org/previews/434/434069_108576-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 266009,
+          "name": "Suspense strings",
+          "creator": "Toivo161",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Toivo161/sounds/266009/",
+          "audioUrl": "https://cdn.freesound.org/previews/266/266009_1871962-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 789277,
+          "name": "Cinematic Strings and Piano",
+          "creator": "Matio888",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Matio888/sounds/789277/",
+          "audioUrl": "https://cdn.freesound.org/previews/789/789277_16936704-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 434069
+    },
+    {
+      "start": 2493,
+      "end": 3284,
+      "kind": "ambience",
+      "label": "友との別れと村への帰還",
+      "reason": "深夜の王城で友と再会し、縄打たれた友を残して出発する。初夏の満天の星と村の羊の気配を薄く重ねる。",
+      "mood": "sad",
+      "query": "quiet night village ambience",
+      "candidates": [
+        {
+          "id": 573769,
+          "name": "calm night city 9.28PM 210317_0272.wav",
+          "creator": "klankbeeld",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/klankbeeld/sounds/573769/",
+          "audioUrl": "https://cdn.freesound.org/previews/573/573769_1648170-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 733807,
+          "name": "Fountain stream - spinning",
+          "creator": "Salomé_Lubczanski",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Salom%C3%A9_Lubczanski/sounds/733807/",
+          "audioUrl": "https://cdn.freesound.org/previews/733/733807_7796757-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 567491,
+          "name": "calm night city 9.24PM 210317_0272.wav",
+          "creator": "klankbeeld",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/klankbeeld/sounds/567491/",
+          "audioUrl": "https://cdn.freesound.org/previews/567/567491_1648170-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": null
+    },
+    {
+      "start": 3284,
+      "end": 4142,
+      "kind": "ambience",
+      "label": "雨の祝宴",
+      "reason": "結婚式の最中に雨が激しくなり、狭い家で村人が歌い拍手する。豪雨を主役に、束の間の幸福を包む。",
+      "mood": "bright",
+      "query": "heavy rain house ambience",
+      "candidates": [
+        {
+          "id": 788020,
+          "name": "House Day - Heavy Rain, Plastic Roof",
+          "creator": "RealSquink",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/RealSquink/sounds/788020/",
+          "audioUrl": "https://cdn.freesound.org/previews/788/788020_12262933-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 361860,
+          "name": "Japan_Ina_Alps_Heavy_Rain_Traditional_Farmhouse_3_24bit_96KHz.wav",
+          "creator": "RutgerMuller",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/RutgerMuller/sounds/361860/",
+          "audioUrl": "https://cdn.freesound.org/previews/361/361860_179538-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 788019,
+          "name": "House Day - Medium Rain, Heavy Wind, Plastic Roof",
+          "creator": "RealSquink",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/RealSquink/sounds/788019/",
+          "audioUrl": "https://cdn.freesound.org/previews/788/788019_12262933-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 788020
+    },
+    {
+      "start": 4142,
+      "end": 4605,
+      "kind": "ambience",
+      "label": "雨中の出発",
+      "reason": "眠りから起きたメロスが小降りの雨の中を走り出す。継続する雨で、祝宴から使命へ戻る切迫感を支える。",
+      "mood": "tense",
+      "query": "light rain outdoors ambience",
+      "candidates": [
+        {
+          "id": 755995,
+          "name": "Outdoor Patio Night/Evening Ambience with Light Rain and Traffic (Stereo Ambience)",
+          "creator": "EvanBoyerman",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/EvanBoyerman/sounds/755995/",
+          "audioUrl": "https://cdn.freesound.org/previews/755/755995_6823432-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 688706,
+          "name": "Rain Tarp Close Outdoors",
+          "creator": "Geoff-Bremner-Audio",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Geoff-Bremner-Audio/sounds/688706/",
+          "audioUrl": "https://cdn.freesound.org/previews/688/688706_10643461-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 502880,
+          "name": "Outdoors_Day_LightRain_01.wav",
+          "creator": "MrFossy",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/MrFossy/sounds/502880/",
+          "audioUrl": "https://cdn.freesound.org/previews/502/502880_129727-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 502880
+    },
+    {
+      "start": 4605,
+      "end": 5325,
+      "kind": "ambience",
+      "label": "氾濫した川",
+      "reason": "豪雨で橋が破壊され、濁流が道を阻む。激流の轟音を前面に置き、渡河の決意まで危機を持続させる。",
+      "mood": "tense",
+      "query": "violent swollen river ambience",
+      "candidates": [
+        {
+          "id": 425877,
+          "name": "water river Guber natural water dam close perspective stereoM10.wav",
+          "creator": "Soundholder",
+          "license": "https://creativecommons.org/licenses/by/3.0/",
+          "url": "https://freesound.org/people/Soundholder/sounds/425877/",
+          "audioUrl": "https://cdn.freesound.org/previews/425/425877_4421503-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 425876,
+          "name": "water river Guber natural water dam distant perspective stereoM10.wav",
+          "creator": "Soundholder",
+          "license": "https://creativecommons.org/licenses/by/3.0/",
+          "url": "https://freesound.org/people/Soundholder/sounds/425876/",
+          "audioUrl": "https://cdn.freesound.org/previews/425/425876_4421503-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 425875,
+          "name": "water river Guber small stream detailed stereoM10.wav",
+          "creator": "Soundholder",
+          "license": "https://creativecommons.org/licenses/by/3.0/",
+          "url": "https://freesound.org/people/Soundholder/sounds/425875/",
+          "audioUrl": "https://cdn.freesound.org/previews/425/425875_4421503-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 425877
+    },
+    {
+      "start": 5325,
+      "end": 5992,
+      "kind": "music",
+      "label": "山賊と灼熱の峠",
+      "reason": "濁流を越えた直後に山賊に襲われ、撃退後は暑さと疲労で倒れる。激しい弦から重い悲哀へ落とす。",
+      "mood": "tense",
+      "query": "dramatic action strings",
+      "candidates": [
+        {
+          "id": 435743,
+          "name": "cressendo strings .aif",
+          "creator": "oymaldonado",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/oymaldonado/sounds/435743/",
+          "audioUrl": "https://cdn.freesound.org/previews/435/435743_108576-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 588709,
+          "name": "Dramatic Action",
+          "creator": "tyops",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/tyops/sounds/588709/",
+          "audioUrl": "https://cdn.freesound.org/previews/588/588709_3914271-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 789290,
+          "name": "Epic Soundtrack with Choir and Strings for Video Games",
+          "creator": "Matio888",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Matio888/sounds/789290/",
+          "audioUrl": "https://cdn.freesound.org/previews/789/789290_16936704-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 435743
+    },
+    {
+      "start": 5992,
+      "end": 7242,
+      "kind": "music",
+      "label": "信実を失いかける",
+      "reason": "疲れ果てたメロスが約束を諦め、友を裏切る自分を責める。深い喪失感をチェロの低音で描く。",
+      "mood": "sad",
+      "query": "dramatic melancholic cello",
+      "candidates": [
+        {
+          "id": 443086,
+          "name": "Mini Emotional Ambient",
+          "creator": "tyops",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/tyops/sounds/443086/",
+          "audioUrl": "https://cdn.freesound.org/previews/443/443086_3914271-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 861539,
+          "name": "Emotional/Sad/Tragic String Orchestral BGM Background Music",
+          "creator": "EvanBoyerman",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/EvanBoyerman/sounds/861539/",
+          "audioUrl": "https://cdn.freesound.org/previews/861/861539_6823432-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 737741,
+          "name": "Melancholic violin",
+          "creator": "Gustavo_Alivera",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Gustavo_Alivera/sounds/737741/",
+          "audioUrl": "https://cdn.freesound.org/previews/737/737741_16024318-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": null
+    },
+    {
+      "start": 7242,
+      "end": 7874,
+      "kind": "ambience",
+      "label": "泉と再起",
+      "reason": "泉の水を飲んで疲労が回復し、信頼に報いる希望を取り戻す。湧き水と斜陽の静けさを背景にする。",
+      "mood": "bright",
+      "query": "small forest spring water",
+      "candidates": [
+        {
+          "id": 137069,
+          "name": "small-mountain-spring1.wav",
+          "creator": "dcsimon",
+          "license": "https://creativecommons.org/licenses/by/3.0/",
+          "url": "https://freesound.org/people/dcsimon/sounds/137069/",
+          "audioUrl": "https://cdn.freesound.org/previews/137/137069_288829-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 656430,
+          "name": "Small waterfall in a cave.wav",
+          "creator": "AbsynthFactory",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/AbsynthFactory/sounds/656430/",
+          "audioUrl": "https://cdn.freesound.org/previews/656/656430_8415824-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 165285,
+          "name": "Nolde Forest - Small Stream.wav",
+          "creator": "movingplaid",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/movingplaid/sounds/165285/",
+          "audioUrl": "https://cdn.freesound.org/previews/165/165285_593444-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 137069
+    },
+    {
+      "start": 7874,
+      "end": 8989,
+      "kind": "music",
+      "label": "日没への最後の疾走",
+      "reason": "信じられているから走ると決意し、血を吐きながら刑場へ急ぐ。残された時間を押し切る強い弦楽で高揚させる。",
+      "mood": "tense",
+      "query": "urgent heroic orchestral strings",
+      "candidates": [
+        {
+          "id": 541062,
+          "name": "Winterstorm I: A Cinematic and ambient soundscape",
+          "creator": "kjartan_abel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/kjartan_abel/sounds/541062/",
+          "audioUrl": "https://cdn.freesound.org/previews/541/541062_6738752-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 757891,
+          "name": "Mysterious/Suspenseful Background Drama Music with Acoustic Guitar",
+          "creator": "EvanBoyerman",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/EvanBoyerman/sounds/757891/",
+          "audioUrl": "https://cdn.freesound.org/previews/757/757891_6823432-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 532935,
+          "name": "Escape to a Peaceful World with Sunny Dream: A warm, Relaxation Song",
+          "creator": "kjartan_abel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/kjartan_abel/sounds/532935/",
+          "audioUrl": "https://cdn.freesound.org/previews/532/532935_6738752-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": null
+    },
+    {
+      "start": 8989,
+      "end": 9431,
+      "kind": "ambience",
+      "label": "刑場の群衆",
+      "reason": "刑場で友が吊り上げられ、メロスの到着に群衆がどよめく。集団のざわめきを重ね、救出の瞬間を際立たせる。",
+      "mood": "tense",
+      "query": "ancient crowd murmur ambience",
+      "candidates": [
+        {
+          "id": 440107,
+          "name": "M Short applause - staggered.wav",
+          "creator": "Processaurus",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Processaurus/sounds/440107/",
+          "audioUrl": "https://cdn.freesound.org/previews/440/440107_2000259-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 440094,
+          "name": "S Long Applause - alt.wav",
+          "creator": "Processaurus",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Processaurus/sounds/440094/",
+          "audioUrl": "https://cdn.freesound.org/previews/440/440094_2000259-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 440093,
+          "name": "S Long Applause - alt staggered.wav",
+          "creator": "Processaurus",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Processaurus/sounds/440093/",
+          "audioUrl": "https://cdn.freesound.org/previews/440/440093_2000259-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": null
+    },
+    {
+      "start": 9431,
+      "end": 10061,
+      "kind": "music",
+      "label": "友情の勝利",
+      "reason": "二人が殴り合い、抱き合って信実を確かめ、王も仲間入りを願う。涙と歓声へ開く希望の長調に切り替える。",
+      "mood": "bright",
+      "query": "uplifting orchestral strings major key",
+      "candidates": [
+        {
+          "id": 744879,
+          "name": "Soft Piano and Acoustic Guitar",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/744879/",
+          "audioUrl": "https://cdn.freesound.org/previews/744/744879_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 873537,
+          "name": "Slow_Memory_80BPM",
+          "creator": "SignatureSoundsOrg",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/SignatureSoundsOrg/sounds/873537/",
+          "audioUrl": "https://cdn.freesound.org/previews/873/873537_19205925-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 735624,
+          "name": "Sierra Serenade",
+          "creator": "city11",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/city11/sounds/735624/",
+          "audioUrl": "https://cdn.freesound.org/previews/735/735624_92171-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": null
+    }
+  ],
+  "cues": [
+    {
+      "id": "cue-1",
+      "start": 1096,
+      "end": 1114,
+      "mode": "once",
+      "kind": "effect",
+      "label": "捕縛",
+      "query": "sudden arrest struggle",
+      "gain": 0.55,
+      "candidates": [],
+      "selectedId": null
+    },
+    {
+      "id": "cue-2",
+      "start": 2461,
+      "end": 2476,
+      "mode": "once",
+      "kind": "effect",
+      "label": "地団駄",
+      "query": "angry foot stomp",
+      "gain": 0.65,
+      "candidates": [
+        {
+          "id": 43360,
+          "name": "Foot Stomp.wav",
+          "creator": "digifishmusic",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/digifishmusic/sounds/43360/",
+          "audioUrl": "https://cdn.freesound.org/previews/43/43360_29541-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 46521,
+          "name": "stomp2.WAV",
+          "creator": "stomachache",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/stomachache/sounds/46521/",
+          "audioUrl": "https://cdn.freesound.org/previews/46/46521_177850-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 46520,
+          "name": "stomp1.WAV",
+          "creator": "stomachache",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/stomachache/sounds/46520/",
+          "audioUrl": "https://cdn.freesound.org/previews/46/46520_177850-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 43360
+    },
+    {
+      "id": "cue-4",
+      "start": 2612,
+      "end": 2627,
+      "mode": "once",
+      "kind": "effect",
+      "label": "縄を掛ける",
+      "query": "rope tying sound",
+      "gain": 0.55,
+      "candidates": [
+        {
+          "id": 724416,
+          "name": "Cleat Knotting on Boat",
+          "creator": "paulprit",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/paulprit/sounds/724416/",
+          "audioUrl": "https://cdn.freesound.org/previews/724/724416_8682843-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 724416
+    },
+    {
+      "id": "cue-5",
+      "start": 2998,
+      "end": 3008,
+      "mode": "once",
+      "kind": "effect",
+      "label": "倒れ込む",
+      "query": "body falling floor",
+      "gain": 0.65,
+      "candidates": [
+        {
+          "id": 261294,
+          "name": "Body falling to floor 2",
+          "creator": "JakLocke",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/JakLocke/sounds/261294/",
+          "audioUrl": "https://cdn.freesound.org/previews/261/261294_4877546-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 261292,
+          "name": "Body falling to floor 4",
+          "creator": "JakLocke",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/JakLocke/sounds/261292/",
+          "audioUrl": "https://cdn.freesound.org/previews/261/261292_4877546-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 261297,
+          "name": "Body falling to floor 6",
+          "creator": "JakLocke",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/JakLocke/sounds/261297/",
+          "audioUrl": "https://cdn.freesound.org/previews/261/261297_4877546-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 261294
+    },
+    {
+      "id": "cue-6",
+      "start": 3292,
+      "end": 4355,
+      "mode": "loop",
+      "kind": "ambience",
+      "label": "雨の降り始め",
+      "query": "rain starting outdoors",
+      "gain": 0.35,
+      "candidates": [
+        {
+          "id": 722946,
+          "name": "Raindrops on Air-con, Sprinkle",
+          "creator": "Hinoki.owo",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Hinoki.owo/sounds/722946/",
+          "audioUrl": "https://cdn.freesound.org/previews/722/722946_13801325-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 745438,
+          "name": "Waterfall To Creek",
+          "creator": "BRAINWAVEOfficial",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/BRAINWAVEOfficial/sounds/745438/",
+          "audioUrl": "https://cdn.freesound.org/previews/745/745438_16013862-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 722946
+    },
+    {
+      "id": "cue-7",
+      "start": 3305,
+      "end": 4355,
+      "mode": "loop",
+      "kind": "ambience",
+      "label": "豪雨",
+      "query": "heavy rain storm",
+      "gain": 0.45,
+      "candidates": [
+        {
+          "id": 321172,
+          "name": "Ambience, Rain, Heavy, B.wav",
+          "creator": "InspectorJ",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/InspectorJ/sounds/321172/",
+          "audioUrl": "https://cdn.freesound.org/previews/321/321172_5121236-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 321171,
+          "name": "Ambience, Rain, Heavy, C.wav",
+          "creator": "InspectorJ",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/InspectorJ/sounds/321171/",
+          "audioUrl": "https://cdn.freesound.org/previews/321/321171_5121236-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 321173,
+          "name": "Ambience, Rain, Heavy, A.wav",
+          "creator": "InspectorJ",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/InspectorJ/sounds/321173/",
+          "audioUrl": "https://cdn.freesound.org/previews/321/321173_5121236-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 321172
+    },
+    {
+      "id": "cue-8",
+      "start": 3397,
+      "end": 3402,
+      "mode": "once",
+      "kind": "effect",
+      "label": "祝宴の拍手",
+      "query": "single hand clap",
+      "gain": 0.45,
+      "candidates": [
+        {
+          "id": 404553,
+          "name": "Clap, Single, 7.wav",
+          "creator": "InspectorJ",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/InspectorJ/sounds/404553/",
+          "audioUrl": "https://cdn.freesound.org/previews/404/404553_5121236-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 404552,
+          "name": "Clap, Single, 5.wav",
+          "creator": "InspectorJ",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/InspectorJ/sounds/404552/",
+          "audioUrl": "https://cdn.freesound.org/previews/404/404552_5121236-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 404551,
+          "name": "Clap, Single, 9.wav",
+          "creator": "InspectorJ",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/InspectorJ/sounds/404551/",
+          "audioUrl": "https://cdn.freesound.org/previews/404/404551_5121236-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 404553
+    },
+    {
+      "id": "cue-9",
+      "start": 4340,
+      "end": 4605,
+      "mode": "loop",
+      "kind": "ambience",
+      "label": "雨中の疾走",
+      "query": "running footsteps rain",
+      "gain": 0.6,
+      "candidates": [
+        {
+          "id": 579766,
+          "name": "MuddyFootsteps2.WAV",
+          "creator": "OldGrump",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/OldGrump/sounds/579766/",
+          "audioUrl": "https://cdn.freesound.org/previews/579/579766_9435714-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 579766
+    },
+    {
+      "id": "cue-11",
+      "start": 4805,
+      "end": 5325,
+      "mode": "loop",
+      "kind": "ambience",
+      "label": "橋を壊す濁流",
+      "query": "violent river rushing",
+      "gain": 0.55,
+      "candidates": [
+        {
+          "id": 674100,
+          "name": "River bank, water flowing, flapping, with distant motor, birds sometimes recorded in Amazon rainforest",
+          "creator": "felix.blume",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/felix.blume/sounds/674100/",
+          "audioUrl": "https://cdn.freesound.org/previews/674/674100_1661766-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 496332,
+          "name": "River_flowing water.wav",
+          "creator": "Yhymsound",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Yhymsound/sounds/496332/",
+          "audioUrl": "https://cdn.freesound.org/previews/496/496332_8754476-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 616924,
+          "name": "210307 Humber River, flowing with ice, water.wav",
+          "creator": "TRP",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/TRP/sounds/616924/",
+          "audioUrl": "https://cdn.freesound.org/previews/616/616924_97550-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 674100
+    },
+    {
+      "id": "cue-12",
+      "start": 5202,
+      "end": 5218,
+      "mode": "once",
+      "kind": "effect",
+      "label": "川へ飛び込む",
+      "query": "large water splash",
+      "gain": 0.7,
+      "candidates": [
+        {
+          "id": 442773,
+          "name": "Big Water Splash",
+          "creator": "qubodup",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/qubodup/sounds/442773/",
+          "audioUrl": "https://cdn.freesound.org/previews/442/442773_71257-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 615776,
+          "name": "water.mp3",
+          "creator": "Khaotix523",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Khaotix523/sounds/615776/",
+          "audioUrl": "https://cdn.freesound.org/previews/615/615776_3667967-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 583348,
+          "name": "Rock Splash",
+          "creator": "Fission9",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Fission9/sounds/583348/",
+          "audioUrl": "https://cdn.freesound.org/previews/583/583348_9395330-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 442773
+    },
+    {
+      "id": "cue-13",
+      "start": 5485,
+      "end": 5495,
+      "mode": "once",
+      "kind": "effect",
+      "label": "山賊の出現",
+      "query": "sudden group movement",
+      "gain": 0.5,
+      "candidates": [
+        {
+          "id": 861702,
+          "name": "Riding on a Roller Coaster",
+          "creator": "Robo9418",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Robo9418/sounds/861702/",
+          "audioUrl": "https://cdn.freesound.org/previews/861/861702_15176424-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 455772,
+          "name": "footsteps large crowd int metro subway steps good smooth movement Montreal, Canada.flac",
+          "creator": "kyles",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/kyles/sounds/455772/",
+          "audioUrl": "https://cdn.freesound.org/previews/455/455772_612689-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 675075,
+          "name": "S24-27 Marching slowly with cityscape reverb; loop.wav",
+          "creator": "craigsmith",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/craigsmith/sounds/675075/",
+          "audioUrl": "https://cdn.freesound.org/previews/675/675075_2524442-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 455772
+    },
+    {
+      "id": "cue-14",
+      "start": 5683,
+      "end": 5691,
+      "mode": "once",
+      "kind": "effect",
+      "label": "棍棒を振り上げる",
+      "query": "club swing whoosh",
+      "gain": 0.6,
+      "candidates": [
+        {
+          "id": 595067,
+          "name": "Golf club swinging,OWI.wav",
+          "creator": "JaredPaulOW",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/JaredPaulOW/sounds/595067/",
+          "audioUrl": "https://cdn.freesound.org/previews/595/595067_12596087-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 427823,
+          "name": "Whoosh #1",
+          "creator": "Kinoton",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Kinoton/sounds/427823/",
+          "audioUrl": "https://cdn.freesound.org/previews/427/427823_2247456-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 160756,
+          "name": "fast-swing-air-woosh",
+          "creator": "CosmicEmbers",
+          "license": "https://creativecommons.org/licenses/by/3.0/",
+          "url": "https://freesound.org/people/CosmicEmbers/sounds/160756/",
+          "audioUrl": "https://cdn.freesound.org/previews/160/160756_2895542-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 427823
+    },
+    {
+      "id": "cue-15",
+      "start": 5757,
+      "end": 5761,
+      "mode": "once",
+      "kind": "effect",
+      "label": "一撃",
+      "query": "heavy impact hit",
+      "gain": 0.7,
+      "candidates": [
+        {
+          "id": 752078,
+          "name": "heavy_metal_hit_w_loud_ringout_noises_01_08242024",
+          "creator": "Artninja",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Artninja/sounds/752078/",
+          "audioUrl": "https://cdn.freesound.org/previews/752/752078_10996917-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 789386,
+          "name": "Custom_TMNT_2012_inspired_LowEndHeavyImpactPunch_with_and_without_whip_cracks_02192025",
+          "creator": "Artninja",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Artninja/sounds/789386/",
+          "audioUrl": "https://cdn.freesound.org/previews/789/789386_10996917-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 829590,
+          "name": "custom_heavy_whoosh_punch_kick_thud_impact_sound_10022025",
+          "creator": "Artninja",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Artninja/sounds/829590/",
+          "audioUrl": "https://cdn.freesound.org/previews/829/829590_10996917-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 789386
+    },
+    {
+      "id": "cue-16",
+      "start": 5889,
+      "end": 5902,
+      "mode": "once",
+      "kind": "effect",
+      "label": "膝を折る",
+      "query": "body collapsing ground",
+      "gain": 0.65,
+      "candidates": [
+        {
+          "id": 261297,
+          "name": "Body falling to floor 6",
+          "creator": "JakLocke",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/JakLocke/sounds/261297/",
+          "audioUrl": "https://cdn.freesound.org/previews/261/261297_4877546-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 261296,
+          "name": "Body falling to floor 7",
+          "creator": "JakLocke",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/JakLocke/sounds/261296/",
+          "audioUrl": "https://cdn.freesound.org/previews/261/261296_4877546-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 261294,
+          "name": "Body falling to floor 2",
+          "creator": "JakLocke",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/JakLocke/sounds/261294/",
+          "audioUrl": "https://cdn.freesound.org/previews/261/261294_4877546-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 261297
+    },
+    {
+      "id": "cue-17",
+      "start": 7378,
+      "end": 7393,
+      "mode": "once",
+      "kind": "effect",
+      "label": "泉の水を飲む",
+      "query": "hands drinking water",
+      "gain": 0.45,
+      "candidates": [
+        {
+          "id": 389218,
+          "name": "Drinking Water with Hand.wav",
+          "creator": "pugaeme",
+          "license": "https://creativecommons.org/licenses/by/3.0/",
+          "url": "https://freesound.org/people/pugaeme/sounds/389218/",
+          "audioUrl": "https://cdn.freesound.org/previews/389/389218_5778180-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 389218
+    },
+    {
+      "id": "cue-18",
+      "start": 7875,
+      "end": 7890,
+      "mode": "once",
+      "kind": "effect",
+      "label": "人波をかき分ける",
+      "query": "crowd pushing movement",
+      "gain": 0.6,
+      "candidates": [
+        {
+          "id": 861702,
+          "name": "Riding on a Roller Coaster",
+          "creator": "Robo9418",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Robo9418/sounds/861702/",
+          "audioUrl": "https://cdn.freesound.org/previews/861/861702_15176424-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 455772,
+          "name": "footsteps large crowd int metro subway steps good smooth movement Montreal, Canada.flac",
+          "creator": "kyles",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/kyles/sounds/455772/",
+          "audioUrl": "https://cdn.freesound.org/previews/455/455772_612689-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 675075,
+          "name": "S24-27 Marching slowly with cityscape reverb; loop.wav",
+          "creator": "craigsmith",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/craigsmith/sounds/675075/",
+          "audioUrl": "https://cdn.freesound.org/previews/675/675075_2524442-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 455772
+    },
+    {
+      "id": "cue-19",
+      "start": 7948,
+      "end": 7955,
+      "mode": "once",
+      "kind": "effect",
+      "label": "小川を飛び越える",
+      "query": "small stream splash",
+      "gain": 0.55,
+      "candidates": [
+        {
+          "id": 561895,
+          "name": "Liquid, pour, splash, stream, water, short pour with small drop in background_96Khz_Mono_ZoomH4n_NT5.wav",
+          "creator": "MattRuthSound",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/MattRuthSound/sounds/561895/",
+          "audioUrl": "https://cdn.freesound.org/previews/561/561895_7107243-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 468526,
+          "name": "small rock dropped into creek.wav",
+          "creator": "JPBILLINGSLEYJR",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/JPBILLINGSLEYJR/sounds/468526/",
+          "audioUrl": "https://cdn.freesound.org/previews/468/468526_9786444-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 544728,
+          "name": "waterstick 9.wav",
+          "creator": "larapoe",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/larapoe/sounds/544728/",
+          "audioUrl": "https://cdn.freesound.org/previews/544/544728_7005958-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 561895
+    },
+    {
+      "id": "cue-20",
+      "start": 8963,
+      "end": 8979,
+      "mode": "once",
+      "kind": "effect",
+      "label": "刑場へ突入",
+      "query": "running crowd rush",
+      "gain": 0.7,
+      "candidates": [
+        {
+          "id": 369834,
+          "name": "01-35 Footsteps, Wood, Socks, Running 2.wav",
+          "creator": "SpliceSound",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/SpliceSound/sounds/369834/",
+          "audioUrl": "https://cdn.freesound.org/previews/369/369834_1480854-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 682771,
+          "name": "Running footsteps on pavement.WAV",
+          "creator": "thomasanthony321",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/thomasanthony321/sounds/682771/",
+          "audioUrl": "https://cdn.freesound.org/previews/682/682771_14662423-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 459965,
+          "name": "Footsteps while running on wood",
+          "creator": "florianreichelt",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/florianreichelt/sounds/459965/",
+          "audioUrl": "https://cdn.freesound.org/previews/459/459965_6253486-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 369834
+    },
+    {
+      "id": "cue-21",
+      "start": 9172,
+      "end": 9184,
+      "mode": "once",
+      "kind": "effect",
+      "label": "群衆をかき分ける",
+      "query": "crowd parting movement",
+      "gain": 0.65,
+      "candidates": [
+        {
+          "id": 861702,
+          "name": "Riding on a Roller Coaster",
+          "creator": "Robo9418",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Robo9418/sounds/861702/",
+          "audioUrl": "https://cdn.freesound.org/previews/861/861702_15176424-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 455772,
+          "name": "footsteps large crowd int metro subway steps good smooth movement Montreal, Canada.flac",
+          "creator": "kyles",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/kyles/sounds/455772/",
+          "audioUrl": "https://cdn.freesound.org/previews/455/455772_612689-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 675075,
+          "name": "S24-27 Marching slowly with cityscape reverb; loop.wav",
+          "creator": "craigsmith",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/craigsmith/sounds/675075/",
+          "audioUrl": "https://cdn.freesound.org/previews/675/675075_2524442-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 455772
+    },
+    {
+      "id": "cue-22",
+      "start": 9236,
+      "end": 9255,
+      "mode": "once",
+      "kind": "effect",
+      "label": "磔台へ駆け上がる",
+      "query": "wooden platform climbing",
+      "gain": 0.6,
+      "candidates": [
+        {
+          "id": 369834,
+          "name": "01-35 Footsteps, Wood, Socks, Running 2.wav",
+          "creator": "SpliceSound",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/SpliceSound/sounds/369834/",
+          "audioUrl": "https://cdn.freesound.org/previews/369/369834_1480854-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 682771,
+          "name": "Running footsteps on pavement.WAV",
+          "creator": "thomasanthony321",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/thomasanthony321/sounds/682771/",
+          "audioUrl": "https://cdn.freesound.org/previews/682/682771_14662423-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 459965,
+          "name": "Footsteps while running on wood",
+          "creator": "florianreichelt",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/florianreichelt/sounds/459965/",
+          "audioUrl": "https://cdn.freesound.org/previews/459/459965_6253486-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 369834
+    },
+    {
+      "id": "cue-23",
+      "start": 9277,
+      "end": 9431,
+      "mode": "loop",
+      "kind": "ambience",
+      "label": "群衆のどよめき",
+      "query": "crowd murmur swelling",
+      "gain": 0.45,
+      "candidates": [
+        {
+          "id": 481778,
+          "name": "Crowd Cheering - Soft Cheering 2.wav",
+          "creator": "GregorQuendel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/GregorQuendel/sounds/481778/",
+          "audioUrl": "https://cdn.freesound.org/previews/481/481778_8432823-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 481777,
+          "name": "Crowd Cheering - Soft Cheering and Chatter.wav",
+          "creator": "GregorQuendel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/GregorQuendel/sounds/481777/",
+          "audioUrl": "https://cdn.freesound.org/previews/481/481777_8432823-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 481774,
+          "name": "Crowd Cheering - Ambience.wav",
+          "creator": "GregorQuendel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/GregorQuendel/sounds/481774/",
+          "audioUrl": "https://cdn.freesound.org/previews/481/481774_8432823-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 481778
+    },
+    {
+      "id": "cue-24",
+      "start": 9468,
+      "end": 9481,
+      "mode": "once",
+      "kind": "effect",
+      "label": "右頬への平手打ち",
+      "query": "sharp slap impact",
+      "gain": 0.7,
+      "candidates": [
+        {
+          "id": 621939,
+          "name": "belt snap",
+          "creator": "clothespeg",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/clothespeg/sounds/621939/",
+          "audioUrl": "https://cdn.freesound.org/previews/621/621939_13451617-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 810193,
+          "name": "slap face",
+          "creator": "mokasza",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/mokasza/sounds/810193/",
+          "audioUrl": "https://cdn.freesound.org/previews/810/810193_17437502-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 810193
+    },
+    {
+      "id": "cue-25",
+      "start": 9592,
+      "end": 9618,
+      "mode": "once",
+      "kind": "effect",
+      "label": "友への平手打ち",
+      "query": "strong slap impact",
+      "gain": 0.7,
+      "candidates": [
+        {
+          "id": 815785,
+          "name": "Slap in the Face",
+          "creator": "Ultra-Edward",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Ultra-Edward/sounds/815785/",
+          "audioUrl": "https://cdn.freesound.org/previews/815/815785_16786392-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 264197,
+          "name": "face_slap.ogg",
+          "creator": "insanity54",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/insanity54/sounds/264197/",
+          "audioUrl": "https://cdn.freesound.org/previews/264/264197_464940-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 807517,
+          "name": "FGHTImpt-Blue Snowball Microphone, CU_Swish, Face Slap_Nicholas Judy_TDC",
+          "creator": "designerschoice",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/designerschoice/sounds/807517/",
+          "audioUrl": "https://cdn.freesound.org/previews/807/807517_6951162-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 815785
+    },
+    {
+      "id": "cue-27",
+      "start": 9866,
+      "end": 9898,
+      "mode": "loop",
+      "kind": "ambience",
+      "label": "群衆の歓声",
+      "query": "crowd cheering ambience",
+      "gain": 0.55,
+      "candidates": [
+        {
+          "id": 462897,
+          "name": "FridaysForFutureAugsburg18Jan2019.wav",
+          "creator": "alexschmidtmeister",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/alexschmidtmeister/sounds/462897/",
+          "audioUrl": "https://cdn.freesound.org/previews/462/462897_4149435-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 745599,
+          "name": "240626_135822_FR_Noisy_audience_chatting_and_cheering",
+          "creator": "kevp888",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/kevp888/sounds/745599/",
+          "audioUrl": "https://cdn.freesound.org/previews/745/745599_9034501-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 424296,
+          "name": "Boston Garden Celtics Ambience.m4a",
+          "creator": "Douglas711",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Douglas711/sounds/424296/",
+          "audioUrl": "https://cdn.freesound.org/previews/424/424296_3609277-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 745599
+    }
+  ],
+  "usage": {
+    "input": 10971,
+    "output": 3562,
+    "total": 14533
+  }
+}

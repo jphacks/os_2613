@@ -10,8 +10,8 @@ import { textUnits, validateScenes } from '../src/features/music/plan-model.mjs'
 
 const book = { title: '試験作品', text: '雨の中を走る。友の命がかかっていた。' };
 const scene = { kind: 'music', start: 0, end: book.text.length, label: '友への決意', reason: '友を助けるため走る切迫感に、低い弦の音を合わせる。', mood: 'tense', query: 'suspense ambient strings', candidates: [], selectedId: null };
-const planned = { scenes: [scene], cues: [], usage: { input: 80, output: 40, total: 120 } };
-const result = { scenes: [{ firstUnit: 0, lastUnit: 0, label: scene.label, reason: scene.reason, mood: scene.mood, query: scene.query }] };
+const planned = { scenes: [scene], cues: [], timingVersion: 2, usage: { input: 80, output: 40, total: 120 } };
+const result = { scenes: [{ firstUnit: 0, lastUnit: 0, quote: '雨の中', label: scene.label, reason: scene.reason, mood: scene.mood, query: scene.query }] };
 const track = { id: 42, name: 'Strings music', creator: 'artist', license: 'https://creativecommons.org/licenses/by/4.0/', url: 'https://freesound.org/people/artist/sounds/42/', audioUrl: 'https://cdn.freesound.org/previews/42.mp3' };
 
 test('重ねる環境音・効果音の位置と選択音源を共有保存し、再起動後も再分析しない', async t => {
@@ -87,8 +87,8 @@ test('不正な本文と外部Originを拒否し、API内部の秘密をエラ�
 test('有料の分析結果の境界の隙間・重複・検索語の記号を追加APIなしで補正する', () => {
   const longBook = { ...book, text: 'あ'.repeat(1800) };
   const data = { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ scenes: [
-    { ...result.scenes[0], firstUnit: 1, lastUnit: 1, query: 'dark / strings & music' },
-    { ...result.scenes[0], firstUnit: 3, lastUnit: 99 },
+    { ...result.scenes[0], firstUnit: 1, lastUnit: 1, quote: 'あ', query: 'dark / strings & music' },
+    { ...result.scenes[0], firstUnit: 3, lastUnit: 99, quote: 'あ' },
   ] }) }] }] };
   const normalized = normalizeMusicResult(data, longBook);
   assert.equal(normalized.scenes[0].start, 0);

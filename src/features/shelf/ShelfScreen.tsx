@@ -1,8 +1,9 @@
+import BookReviews from '@/features/reviews/BookReviews';
 import { useAccount } from '@/features/account/AccountProvider';
 import { ReadingQuests } from '@/features/shelf/ReadingQuests';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { books } from '@/content/books';
@@ -32,6 +33,15 @@ export default function ShelfScreen() {
   const { prefs } = useAccount();
   const { width } = useWindowDimensions();
   const desktop = Platform.OS === 'web' && width >= 900;
+  const [hoverDetails, setHoverDetails] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const media = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const update = () => setHoverDetails(media.matches);
+    update(); media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [kind, setKind] = useState('all');
   const [state, setState] = useState('all');
   const { books: savedBooks, ready, warning } = useLibrary();
@@ -84,6 +94,8 @@ export default function ShelfScreen() {
                     color={coverColors[(r * perRow + i) % coverColors.length]}
                     width={Math.min(112, slot - 12)}
                     onPress={() => router.push(`/book/${book.id}`)}
+                    onDetails={() => setDetailId(book.id)}
+                    hoverDetails={hoverDetails}
                   />
                 </View>
               ))}
@@ -93,11 +105,19 @@ export default function ShelfScreen() {
         ))}
       </ScrollView>
       <ReadingQuests />
+      <Modal visible={detailId !== null} transparent animationType="fade" onRequestClose={() => setDetailId(null)}>
+        <View style={styles.detailOverlay}>
+          <Pressable accessibilityRole="button" accessibilityLabel="本の紹介を閉じる" onPress={() => setDetailId(null)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+          <View style={styles.detailPanel}>{detailId && <BookReviews key={detailId} bookId={detailId} close={() => setDetailId(null)} />}</View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  detailOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16, backgroundColor: 'rgba(30,38,31,0.24)' },
+  detailPanel: { width: '100%', maxWidth: 680, height: '86%', maxHeight: 780, backgroundColor: colors.paper, borderRadius: 22, overflow: 'hidden', boxShadow: '0 12px 48px rgba(25,36,27,0.18)' },
   safe: { flex: 1, backgroundColor: colors.paper },
   band: { backgroundColor: colors.accent, paddingHorizontal: 24, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   statsIcon: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, padding: 4 },

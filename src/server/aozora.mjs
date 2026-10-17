@@ -134,9 +134,29 @@ export function createAozoraService({ fetcher = fetch, cachePath = null, maxAgeM
     }
     return pending;
   }
-  return {
-    async search(query, field, page) { return searchCatalog(await catalog(), query, field, page); },
-    async importBook(id) {
+  const imports = new Map();
+  async function fetchBook(id) {
+    const file = cachePath ? `${dirname(cachePath)}/book-${id}.json` : null;
+    if (file) {
+      try {
+        const info = await stat(file);
+        if (info.size < 5 * 1024 * 1024 && Date.now() - info.mtimeMs < maxAgeMs) {
+          const cached = JSON.parse(await readFile(file, 'utf8'));
+          const entry = (await catalog()).find(book => book.aozoraId === id);
+          if (entry && cached.id === entry.id && cached.htmlUrl === entry.htmlUrl && typeof cached.text === 'string' && typeof cached.importedAt === 'string') return cached;
+        }
+      } catch { /* キャッシュなしなら公式本文から取得する。 */ }
+    }
+    const book = await fetchOriginal(id);
+    if (file) {
+      const temp = `${file}.${randomUUID()}.tmp`;
+      try { await mkdir(dirname(file), { recursive: true }); await writeFile(temp, JSON.stringify(book)); await rename(temp, file); }
+      catch { /* 保存できなくても取得した作品を返す。 */ }
+      finally { await unlink(temp).catch(() => {}); }
+    }
+    return book;
+  }
+  async function fetchOriginal(id) {
       const entry = (await catalog()).find(book => book.aozoraId === id);
       if (!entry) throw new Error('取り込み可能な作品が見つかりません。もう一度検索してください。');
       const bytes = await download(entry.htmlUrl, fetcher, 4 * 1024 * 1024);
@@ -145,6 +165,18 @@ export function createAozoraService({ fetcher = fetch, cachePath = null, maxAgeM
       if (text.length > 1000000) throw new Error('本文が長すぎます。短い作品を選んでください。');
       const { names, reading, encoding: _, ...book } = entry;
       return { ...book, text, importedAt: new Date().toISOString() };
+  }
+  return {
+    async search(query, field, page) { return searchCatalog(await catalog(), query, field, page); },
+    async describe(id) { const entry = (await catalog()).find(book => book.aozoraId === id); if (!entry) throw new Error('作品が見つかりません。'); return { id: entry.id, title: entry.title, author: entry.author }; },
+    async importBook(id) {
+      const saved = imports.get(id);
+      if (saved && saved.expires > Date.now()) return saved.promise;
+      const item = { expires: Date.now() + maxAgeMs, promise: null };
+      item.promise = fetchBook(id).catch(error => { if (imports.get(id) === item) imports.delete(id); throw error; });
+      imports.set(id, item);
+      if (imports.size > 8) imports.delete(imports.keys().next().value);
+      return item.promise;
     },
   };
 }

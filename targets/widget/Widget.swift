@@ -19,7 +19,7 @@ private enum Palette {
   static let page = Color(red: 1.0, green: 0.992, blue: 0.973)       // #FFFDF8 紙
   static let ink = Color(red: 0.161, green: 0.180, blue: 0.161)      // #292E29 文字
   static let body = Color(red: 0.239, green: 0.259, blue: 0.239)     // #3D423D 本文
-  static let muted = Color(red: 0.549, green: 0.565, blue: 0.529)    // #8C9087 補足
+  static let muted = Color(red: 0.420, green: 0.435, blue: 0.404)    // #6B6F67 補足（著者名など。読みやすいよう濃いめ）
   static let green = Color(red: 0.220, green: 0.380, blue: 0.286)    // #386149 本棚の緑（表紙・進み具合）
   static let label = Color(red: 0.220, green: 0.380, blue: 0.286)    // #386149 見出し
   static let track = Color(red: 0.902, green: 0.886, blue: 0.847)    // #E6E2D8 進み具合の地
@@ -138,13 +138,13 @@ struct Eyebrow: View {
 struct ProgressBar: View {
   let value: Double
   var body: some View {
-    GeometryReader { geo in
-      ZStack(alignment: .leading) {
-        Capsule().fill(Palette.track)
-        Capsule().fill(Palette.green).frame(width: max(5, geo.size.width * min(1, max(0, value / 100))))
+    // 大きさを測る部品（GeometryReader）は使わず、緑の棒を左端基準で横に縮めて表す（描画を軽くするため）
+    Capsule().fill(Palette.track)
+      .overlay(alignment: .leading) {
+        Capsule().fill(Palette.green)
+          .scaleEffect(x: min(1, max(0.03, value / 100)), y: 1, anchor: .leading)
       }
-    }
-    .frame(height: 5)
+      .frame(height: 5)
   }
 }
 
@@ -187,12 +187,14 @@ struct PaperShape: Shape {
 struct PageEdges: Shape {
   func path(in rect: CGRect) -> Path {
     var path = Path()
-    let count = 16
+    let count = 9
     for i in 1..<count {
       let y = rect.minY + rect.height * CGFloat(i) / CGFloat(count)
       // 右端の間隔を中央へ20%寄せ、紙の束の奥行きを表す。
       let end = rect.midY + (y - rect.midY) * 0.80
+      // 紙の左端から右端近く（帯の幅14）まではまっすぐ、そこから斜めに真ん中へ寄せる（紙の形と同じ帯の幅）
       path.move(to: CGPoint(x: rect.minX, y: y))
+      path.addLine(to: CGPoint(x: rect.maxX - 14, y: y))
       path.addLine(to: CGPoint(x: rect.maxX, y: end))
     }
     return path
@@ -206,11 +208,11 @@ struct TopViewBackground: View {
       Palette.green
       // 紙と線は同じ高さ・収束率を使う。上下の外側は背景の緑のまま残す。
       ZStack(alignment: .trailing) {
-        PaperShape(band: 26, ratio: 0.80).fill(Palette.page)
-        PageEdges().stroke(Palette.edge, lineWidth: 1)
-          .frame(width: 26)
+        PaperShape(band: 14, ratio: 0.80).fill(Palette.page)
+        // ページの線：紙の左端から右端まで通す。文字と重なるので、ごく薄くする
+        PageEdges().stroke(Palette.pageLine.opacity(0.45), lineWidth: 1)
       }
-      .clipShape(PaperShape(band: 26, ratio: 0.80))
+      .clipShape(PaperShape(band: 14, ratio: 0.80))
       .padding(.leading, 18).padding(.vertical, 6)
 
     }
@@ -286,7 +288,7 @@ struct MediumView: View {
       Spacer(minLength: 0)
       ProgressFooter(value: book.progress)
     }
-    .padding(.top, 18).padding(.bottom, 16).padding(.leading, 30).padding(.trailing, 32)
+    .padding(.top, 18).padding(.bottom, 16).padding(.leading, 30).padding(.trailing, 34)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(TopViewBackground())
   }
@@ -305,13 +307,13 @@ struct LargeView: View {
         Text(book.author).font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
         Text(book.summary.isEmpty ? "しおりの位置" : "前回までのあらすじ")
           .font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label).padding(.top, 8)
-        Text(parts.0).font(.system(size: 14.5)).foregroundStyle(Palette.body).lineSpacing(5)
+        Text(parts.0).font(.system(size: 14.5)).foregroundStyle(Palette.body).lineSpacing(5).lineLimit(7)
         Spacer(minLength: 0)
       }
       .padding(.leading, 14).padding(.trailing, 12)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       VStack(alignment: .leading, spacing: 5) {
-        Text(parts.1).font(.system(size: 14.5)).foregroundStyle(Palette.body).lineSpacing(5)
+        Text(parts.1).font(.system(size: 14.5)).foregroundStyle(Palette.body).lineSpacing(5).lineLimit(9)
         Spacer(minLength: 0)
         ProgressBar(value: book.progress)
         HStack(spacing: 8) {
@@ -328,34 +330,77 @@ struct LargeView: View {
   }
 }
 
-// しおりがまだ無いときに出す「名作の書き出し」（青空文庫で読める、著作権の切れた作品）。日替わりで1つ。
-private let openings: [(text: String, title: String, author: String)] = [
-  ("メロスは激怒した。", "走れメロス", "太宰 治"),
-  ("吾輩は猫である。名前はまだ無い。", "吾輩は猫である", "夏目 漱石"),
-  ("親譲りの無鉄砲で小供の時から損ばかりしている。", "坊っちゃん", "夏目 漱石"),
-  ("ある日の暮方の事である。一人の下人が、羅生門の下で雨やみを待っていた。", "羅生門", "芥川 龍之介"),
-  ("恥の多い生涯を送って来ました。", "人間失格", "太宰 治"),
-  ("山路を登りながら、こう考えた。", "草枕", "夏目 漱石"),
+// しおりがまだ無いときに出す「今日のおすすめ」（青空文庫で読める、著作権の切れた作品）。日替わりで1冊。
+// 星の評価は、のちに SNS の評価と連動させる。アプリが App Group のキー "recommendations" に
+// 同じ形の配列を書いたらそちらを使い、無ければ下の仮の一覧を使う（仮の評価は目安の値）。
+struct Recommendation: Codable {
+  let title: String
+  let author: String
+  let blurb: String
+  let rating: Double   // 星の数（0〜5）
+  let reviews: Int     // 評価の件数
+}
+
+private let builtinRecommendations: [Recommendation] = [
+  Recommendation(title: "走れメロス", author: "太宰 治", blurb: "友を人質に、三日で戻ると誓った男の全力疾走。", rating: 4.5, reviews: 0),
+  Recommendation(title: "吾輩は猫である", author: "夏目 漱石", blurb: "名前のない猫が、人間たちの暮らしを見つめる。", rating: 4.0, reviews: 0),
+  Recommendation(title: "坊っちゃん", author: "夏目 漱石", blurb: "無鉄砲な新米教師が、田舎の学校で大暴れ。", rating: 4.0, reviews: 0),
+  Recommendation(title: "羅生門", author: "芥川 龍之介", blurb: "雨の夜、行き場を失った下人が下した決断。", rating: 4.5, reviews: 0),
+  Recommendation(title: "注文の多い料理店", author: "宮沢 賢治", blurb: "山奥の洋食店。扉を開けるたびに増える注文。", rating: 4.5, reviews: 0),
+  Recommendation(title: "蜘蛛の糸", author: "芥川 龍之介", blurb: "地獄に垂らされた一本の糸と、人の心。", rating: 4.0, reviews: 0),
 ]
 
-// しおりがまだ無いとき：名作の書き出しと、しおりの使い方の案内
+private func todaysRecommendation() -> Recommendation {
+  var list = builtinRecommendations
+  if let data = UserDefaults(suiteName: groupId)?.data(forKey: "recommendations"),
+     let saved = try? JSONDecoder().decode([Recommendation].self, from: data), !saved.isEmpty {
+    list = saved
+  }
+  let day = Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
+  return list[day % list.count]
+}
+
+// 星の評価（★を5つ並べ、評価の分だけ塗る。半分の星にも対応）
+struct Stars: View {
+  let rating: Double
+  let size: CGFloat
+  var body: some View {
+    HStack(spacing: 2) {
+      ForEach(0..<5, id: \.self) { i in
+        let fill = min(1, max(0, rating - Double(i)))
+        Image(systemName: fill >= 1 ? "star.fill" : fill >= 0.5 ? "star.leadinghalf.filled" : "star")
+          .font(.system(size: size)).foregroundStyle(Palette.green)
+      }
+      Text(String(format: "%.1f", rating)).font(.system(size: size)).foregroundStyle(Palette.body).padding(.leading, 3)
+    }
+  }
+}
+
+// しおりがまだ無いとき：今日のおすすめの本と、星の評価
 struct NoBookView: View {
   let family: WidgetFamily
   var body: some View {
-    let day = Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
-    let pick = openings[day % openings.count]
+    let pick = todaysRecommendation()
     let small = family == .systemSmall
-    VStack(alignment: .leading, spacing: 6) {
-      Eyebrow(text: "今日の書き出し")
-      Text(pick.text)
-        .font(.system(size: small ? 13 : 16, weight: .medium))
-        .foregroundStyle(Palette.ink).lineSpacing(3).lineLimit(small ? 4 : 3)
-      Text("— \(pick.author)『\(pick.title)』").font(.system(size: 10)).foregroundStyle(Palette.muted).lineLimit(1)
-      Spacer(minLength: 0)
-      if !small {
-        Text("本にしおりを挟むと、ここに前回までのあらすじが出ます").font(.system(size: 11)).foregroundStyle(Palette.muted)
+    // 小は題名・作者・星を大きめにし、星は著者のすぐ下に置いて、まとまりを見出しの下の上下中央に置く
+    VStack(alignment: .leading, spacing: small ? 6 : 5) {
+      Eyebrow(text: "今日のおすすめ")
+      if small { Spacer(minLength: 0) }
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Text(pick.title).font(.system(size: small ? 18 : 17, weight: .semibold)).foregroundStyle(Palette.ink).lineLimit(small ? 2 : 1)
+        if !small { Text(pick.author).font(.system(size: 12)).foregroundStyle(Palette.body).lineLimit(1) }
       }
-      Text("本棚をひらく ›").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label)
+      if small { Text(pick.author).font(.system(size: 13)).foregroundStyle(Palette.body).lineLimit(1) }
+      if !small {
+        Text(pick.blurb).font(.system(size: 14)).foregroundStyle(Palette.body).lineSpacing(2).lineLimit(2)
+      }
+      if small {
+        Stars(rating: pick.rating, size: 14).padding(.top, 12)
+        Spacer(minLength: 0)
+      } else {
+        Spacer(minLength: 0)
+        Stars(rating: pick.rating, size: 13)
+      }
     }
     .padding(.top, small ? 14 : 24).padding(.bottom, small ? 14 : 22)
     .padding(.leading, small ? 14 : family == .systemMedium ? 30 : 30).padding(.trailing, small ? 14 : 20)
@@ -405,7 +450,8 @@ struct DopaBooksWidget: Widget {
     }
     .configurationDisplayName("しおり")
     .description("しおりを挟んだ本の、前回までのあらすじと進み具合を表示します。")
-    .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+    // 大サイズは表示できない端末があったので、いったん外す（LargeView のコードは後で使えるよう残す）
+    .supportedFamilies([.systemSmall, .systemMedium])
     // 本の絵をウィジェットの端まで描くため、標準の余白を外す（余白は各サイズの中で付ける）
     .contentMarginsDisabled()
   }

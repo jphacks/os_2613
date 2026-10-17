@@ -1,7 +1,10 @@
+import { NavigationButton } from '@/shared/NavigationButton';
+import { OAuthReturn } from '@/features/account/OAuthReturn';
+import { hasOAuthCallback } from '@/features/account/oauth';
 import { AccountProvider } from '@/features/account/AccountProvider';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { LogBox, Platform, Text, View } from 'react-native';
 
 import { colors } from '@/shared/theme';
@@ -12,16 +15,22 @@ import { LibraryProvider } from '@/features/library/LibraryProvider';
 LogBox.ignoreLogs([/Unable to find the 'DomWebView' view with tag/]);
 
 export default function RootLayout() {
+  const [authReturning, setAuthReturning] = useState(hasOAuthCallback);
+  const finishAuth = useCallback(() => setAuthReturning(false), []);
   // SSRとブラウザーの最初の描画を揃えてから、画面幅に応じたナビゲーションを表示する。
   const [mounted, setMounted] = useState(Platform.OS !== 'web');
   useEffect(() => { setMounted(true); }, []);
   if (!mounted) return <View style={{ flex: 1, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: colors.accent }}>ドパBOOKs</Text></View>;
+
+  if (authReturning) return <OAuthReturn done={finishAuth} />;
 
   return (
     <AccountProvider><LibraryProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
+          headerTitleAlign: 'center',
+          headerLeft: () => <NavigationButton onPress={() => router.canGoBack() ? router.back() : router.dismissTo('/shelf')} />,
           headerStyle: { backgroundColor: colors.paper },
           headerTintColor: colors.accent,
           headerTitleStyle: { color: colors.ink },

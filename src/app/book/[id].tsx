@@ -1,3 +1,4 @@
+import { NavigationButton } from '@/shared/NavigationButton';
 import { useAccount } from '@/features/account/AccountProvider';
 import { Asset } from 'expo-asset';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -5,12 +6,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { findBook } from '@/content/books';
-import PdfBook from '@/features/pdf/PdfBook';
 import { colors } from '@/shared/theme';
 import { useLibrary } from '@/features/library/LibraryProvider';
 import { BookReading } from '@/features/bookmark/BookReading';
 import { IntroComic } from '@/features/comic/IntroComic';
 import { validOffset } from '@/features/bookmark/model.mjs';
+import { StudyReader } from '@/features/study/StudyReader';
 
 // 同梱している教材のPDF。require は静的に書く必要があるので、ここで本のIDと結びつける。
 const pdfFiles: Record<string, number> = {
@@ -37,7 +38,7 @@ export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   return <>
-    <Stack.Screen options={{ headerLeft: () => <Pressable accessibilityRole="button" accessibilityLabel="本棚へ戻る" onPress={() => router.dismissTo('/shelf')} style={styles.shelfButton}><Text style={styles.shelfButtonText}>← 本棚へ</Text></Pressable> }} />
+    <Stack.Screen options={{ headerLeft: () => <NavigationButton label="本棚へ" onPress={() => router.dismissTo('/shelf')} /> }} />
     {pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook key={id} id={id} />}
   </>;
 }
@@ -82,19 +83,7 @@ function StudyBook({ id }: { id: string }) {
       <Stack.Screen options={{ title: book.title }} />
 
       <View style={styles.page}>
-        {pdfFiles[book.id] ? (
-          pdfUri ? (
-            <PdfBook uri={pdfUri} dom={{ style: { flex: 1 } }} />
-          ) : (
-            <Text style={styles.note}>教材を準備しています…</Text>
-          )
-        ) : (
-          <View style={styles.placeholder}>
-            <Text style={styles.title}>{book.title}</Text>
-            <Text style={styles.author}>{book.author}</Text>
-            <Text style={styles.note}>本文はここに表示されます</Text>
-          </View>
-        )}
+        <StudyReader key={book.id} book={book} pdfUri={pdfUri} />
       </View>
 
       {book.source && (

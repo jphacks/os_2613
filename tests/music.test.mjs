@@ -11,7 +11,7 @@ test('扉の効果音は短い録音を検索し、見つからなくても音�
     return Response.json({ results: [{ ...track, name: 'Door piano music' }] });
   } });
   assert.deepEqual(await search('calm', 'wood door opening', 'effect'), []);
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
 });
 test('missing key and invalid mood never call upstream', async () => {
   const search = createMusicService({ key: () => '', fetcher: () => assert.fail('network called') });

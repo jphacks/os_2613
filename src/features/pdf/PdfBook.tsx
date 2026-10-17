@@ -11,15 +11,17 @@ pdfjs.GlobalWorkerOptions.workerSrc = `${cdn}/build/pdf.worker.min.mjs`;
 
 type Props = {
   uri: string;
+  initialPage?: number;
   dom?: import('expo/dom').DOMProps;
 };
 
-export default function PdfBook({ uri }: Props) {
+export default function PdfBook({ uri, initialPage = 1 }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const leftRef = useRef<HTMLCanvasElement>(null);
   const rightRef = useRef<HTMLCanvasElement>(null);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(initialPage);
+  useEffect(() => { setPage(Math.max(1, initialPage)); }, [initialPage]);
   const [spread, setSpread] = useState(true);
   const [error, setError] = useState('');
   const touchX = useRef<number | null>(null);
