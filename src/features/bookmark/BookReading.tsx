@@ -7,6 +7,8 @@ import { colors } from '@/shared/theme';
 import { bookmarkPage, createReadingStore, emptyReading, pageAt, placeMark, readingPages, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
 import { Summary } from './Summary';
 import VerticalPage from '@/features/reader/VerticalPage';
+import { DisplaySettings, paperColors } from '@/features/reader/DisplaySettings';
+import { defaultPreferences, normalizePreferences, preferenceKey, type DisplayPreferences } from '@/features/reader/preferences.mjs';
 
 // 読みガイドの速さ（1分あたりの文字数）の選択肢
 const speeds = [300, 500, 800, 1200];
@@ -35,12 +37,24 @@ export function BookReading({ book }: { book: SavedBook }) {
   const [speed, setSpeed] = useState(500);
   const [sub, setSub] = useState(0);
   const [subCount, setSubCount] = useState(1);
+  const [display, setDisplay] = useState<DisplayPreferences>({ ...defaultPreferences });
+  const [displayReady, setDisplayReady] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [focus, setFocus] = useState<{ offset: number; token: number } | null>(null);
+  const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
   useEffect(() => {
+    let active = true;
+    void AsyncStorage.getItem(preferenceKey).then(raw => { if (active && raw) setDisplay(normalizePreferences(JSON.parse(raw))); })
+      .catch(() => { if (active) setError('表示設定を読み込めません。端末の保存設定を確認してください。標準の表示で開いています。'); })
+      .finally(() => { if (active) setDisplayReady(true); });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
     alive.current = true;
-    void store.load().then(value => { if (alive.current) { setReading(value); setPage(pageAt(pages, value.cursor)); setReady(true); } })
+    void store.load().then(value => { if (alive.current) { setReading(value); setPage(pageAt(pages, value.cursor)); setFocus({ offset: value.cursor, token: Date.now() }); setReady(true); } })
       .catch(() => { if (alive.current) setError('読書記録を読み込めません。端末の保存設定や本文の変更を確認し、本を開き直してください。記録は上書きしていません。'); });
-    return () => { alive.current = false; };
+    return () => { alive.current = false; if (viewTimer.current) clearTimeout(viewTimer.current); };
   }, [store, pages]);
 
   async function save(change: (state: Reading) => Reading) {
@@ -51,9 +65,26 @@ export function BookReading({ book }: { book: SavedBook }) {
     finally { if (alive.current) setBusy(false); }
   }
   // sub は区切ったページのどこから見せるか（-1 は最後のページ。前へ戻るときに使う）
-  async function go(index: number, from = 0) {
-    if (await save(state => ({ ...state, cursor: pages[index].start }))) { setPage(index); setSub(from); return true; }
+  async function go(index: number, from = 0, at?: number) {
+    if (viewTimer.current) clearTimeout(viewTimer.current);
+    if (await save(state => ({ ...state, cursor: pages[index].start }))) {
+      setPage(index); setSub(from);
+      if (at !== undefined) setFocus({ offset: at, token: Date.now() });
+      return true;
+    }
     return false;
+  }
+  function recordVisible(offset: number) {
+    if (!ready || offset === reading.cursor) return;
+    if (viewTimer.current) clearTimeout(viewTimer.current);
+    viewTimer.current = setTimeout(() => {
+      void store.save(state => ({ ...state, cursor: offset })).then(value => { if (alive.current) setReading(value); })
+        .catch(() => { if (alive.current) setError('読書位置を保存できません。端末の保存設定を確認して、もう一度お試しください。'); });
+    }, 250);
+  }
+  async function applyDisplay(value: DisplayPreferences) {
+    try { const next = normalizePreferences(value); await AsyncStorage.setItem(preferenceKey, JSON.stringify(next)); setDisplay(next); return true; }
+    catch { setError('表示設定を保存できません。端末の空き容量や保存設定を確認して、もう一度お試しください。'); return false; }
   }
   // 紙面は画面に収まる行数ごとに区切って見せる。区切りの端まで来たら、本文の次（前）のまとまりへ。
   const shown = sub < 0 ? subCount - 1 : Math.min(sub, subCount - 1);
@@ -70,8 +101,22 @@ export function BookReading({ book }: { book: SavedBook }) {
     else if (page > 0) void go(page - 1, -1);
   }
   function begin(id?: string) {
+    setRunning(false);
     setMoving(id ?? `mark-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
     setDraft(null); setPanel(false); setNotice('');
+  }
+  async function dropMark(from: number, to: number | null) {
+    const before = reading.marks.find(mark => mark.offset === from);
+    if (!before || to === null) { setMoving(null); setDraft(null); return; }
+    let after: Mark | undefined;
+    if (await save(state => { const next = placeMark(state, book.text, to, before.id); after = next.marks.find(mark => mark.id === before.id); return next; })) {
+      if (after) setUndo({ before, after }); setNotice('しおりを移動しました。');
+    }
+    setMoving(null); setDraft(null);
+  }
+  function resume(mark: Mark) {
+    setRunning(false);
+    void go(bookmarkPage(pages, mark.offset), 0, Math.max(0, mark.offset - 1)).then(ok => { if (ok) setPanel(false); });
   }
   async function confirm() {
     if (!moving || draft === null) return;
@@ -97,31 +142,30 @@ export function BookReading({ book }: { book: SavedBook }) {
   // 紙面のしおりを押したら、そのしおりのふりかえりを開く
   function openMark(offset: number) {
     const mark = reading.marks.find(item => item.offset === offset);
-    if (mark && !moving) { setSelected(mark.id); setScope('previous'); setPanel(true); }
+    if (mark && !moving) { setRunning(false); setSelected(mark.id); setScope('previous'); setPanel(true); }
   }
-  return <View style={styles.screen}>
+  const paint = paperColors(display.paper);
+  return <View style={[styles.screen, { backgroundColor: paint.background }]}>
     {/* ヘッダー：中央にタイトルと作者、右にしおりの操作 */}
     <Stack.Screen options={{
       headerTitleAlign: 'center',
       headerTitle: () => <View style={styles.headTitle}><Text style={styles.title}>{book.title}</Text><Text style={styles.small}>{book.author}</Text></View>,
       headerRight: () => <View style={styles.headRight}>
         <Action disabled={!ready || busy || !!moving} onPress={() => begin()}>しおりを挟む</Action>
-        <Action disabled={!ready || busy || !!moving} onPress={() => { setSelected(null); setPanel(true); }}>しおり一覧</Action>
+        <Action disabled={!ready || busy || !!moving} onPress={() => { setRunning(false); setSelected(null); setPanel(true); }}>しおり一覧</Action>
       </View>,
     }} />
     {/* 読みガイドの操作は横1列。入りきらないときは横にスクロール */}
     <ScrollView horizontal style={styles.bar} contentContainerStyle={styles.barContent} showsHorizontalScrollIndicator={false}>
+      <Action disabled={!displayReady || !!moving} onPress={() => { setRunning(false); setSettingsOpen(true); }}>Aa 表示設定</Action>
       <Action filled={guide} onPress={() => { setGuide(value => !value); setRunning(false); }}>{guide ? '読みガイド ON' : '読みガイド OFF'}</Action>
       {guide && <>
         <Action disabled={!ready || !!moving} onPress={() => setRunning(value => !value)}>{running ? '一時停止' : 'ガイドを開始'}</Action>
         {speeds.map(value => <Action key={value} filled={speed === value} onPress={() => setSpeed(value)}>{`${value}字/分`}</Action>)}
       </>}
     </ScrollView>
-    {!!error && <Text accessibilityRole="alert" style={styles.message}>{error}</Text>}
-    {!!notice && <View style={styles.toolbar}><Text accessibilityLiveRegion="polite" style={styles.note}>{notice}</Text>{undo && <Action disabled={busy} onPress={() => void undoMove()}>元に戻す</Action>}</View>}
-    {moving && <View style={styles.placement}><Text style={styles.note}>読み終えた最後の文字を押してください。ページを移って選ぶこともできます。</Text><View style={styles.toolbar}><Action disabled={busy || draft === null} filled onPress={() => void confirm()}>この位置に挟む</Action><Action disabled={busy} onPress={() => { setMoving(null); setDraft(null); }}>キャンセル</Action></View></View>}
     {/* 紙面は画面いっぱい。左側を押すと次、右側を押すと前のページ */}
-    <View style={styles.paper}>
+    <View style={[styles.paper, { backgroundColor: paint.background }]}>
       <VerticalPage
         text={current.text}
         start={current.start}
@@ -133,13 +177,28 @@ export function BookReading({ book }: { book: SavedBook }) {
         guide={guide}
         running={running}
         speed={speed}
+        display={display}
+        paint={paint}
+        disabled={!ready || busy || panel || settingsOpen}
+        focus={focus}
         onPick={offset => setDraft(offset)}
         onMarkPress={openMark}
         onPages={setSubCount}
-        onNext={next}
-        onPrev={prev}
+        onReflow={setSub}
+        onVisible={recordVisible}
+        onNext={() => { setRunning(false); next(); }}
+        onPrev={() => { setRunning(false); prev(); }}
+        onAdvance={next}
+        onPause={() => setRunning(false)}
+        onDragStart={offset => { const mark = reading.marks.find(item => item.offset === offset); if (mark) begin(mark.id); }}
+        onDrop={(from, to) => { void dropMark(from, to); }}
         dom={{ style: { flex: 1 } }}
       />
+      {moving && <View style={styles.placement}><Text style={styles.note}>文字を押して選択。端で待つとページを移れます。</Text><View style={styles.toolbar}><Action disabled={busy || draft === null} filled onPress={() => void confirm()}>この位置に挟む</Action><Action disabled={busy} onPress={() => { setMoving(null); setDraft(null); }}>キャンセル</Action></View></View>}
+      {(!!error || !!notice) && <View style={styles.feedback}>
+        {!!error && <Text accessibilityRole="alert" style={styles.message}>{error}</Text>}
+        {!!notice && <View style={styles.toolbar}><Text accessibilityLiveRegion="polite" style={styles.note}>{notice}</Text>{undo && <Action disabled={busy} onPress={() => void undoMove()}>元に戻す</Action>}<Action onPress={() => setNotice('')}>閉じる</Action></View>}
+      </View>}
     </View>
     <Pressable accessibilityRole="link" style={styles.source} onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：青空文庫</Text></Pressable>
     {/* 進み具合：縦書きなので右から左へ伸びるバー */}
@@ -154,14 +213,15 @@ export function BookReading({ book }: { book: SavedBook }) {
             <Action onPress={() => setSelected(null)}>‹ しおり一覧へ</Action>
             <View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View>
             <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`} />
-            <View style={styles.toolbar}><Action disabled={busy} filled onPress={() => { void go(bookmarkPage(pages, target.offset)).then(ok => { if (ok) setPanel(false); }); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(target.id)}>しおりを移動</Action><Action disabled={busy} onPress={() => { void save(state => removeMark(state, target.id)).then(ok => { if (ok) { setSelected(null); setUndo(null); } }); }}>外す</Action></View>
+            <View style={styles.toolbar}><Action disabled={busy} filled onPress={() => { resume(target); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(target.id)}>しおりを移動</Action><Action disabled={busy} onPress={() => { void save(state => removeMark(state, target.id)).then(ok => { if (ok) { setSelected(null); setUndo(null); } }); }}>外す</Action></View>
           </> : <>
             {!sorted.length && <Text style={styles.note}>しおりはまだありません。本文の文字を選んで挟めます。</Text>}
-            {sorted.map((mark, index) => <View key={mark.id} style={styles.markCard}><Text style={styles.heading}>しおり {sorted.length - index}</Text><Text style={styles.note}>{book.text.slice(Math.max(0, mark.offset - 65), mark.offset) || '本文のはじまり'}</Text><View style={styles.toolbar}><Action onPress={() => { setSelected(mark.id); setScope('previous'); }}>ふりかえり</Action><Action disabled={busy} onPress={() => { void go(bookmarkPage(pages, mark.offset)).then(ok => { if (ok) setPanel(false); }); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(mark.id)}>移動</Action><Action disabled={busy} onPress={() => { void save(state => removeMark(state, mark.id)).then(ok => { if (ok) setUndo(null); }); }}>外す</Action></View></View>)}
+            {sorted.map((mark, index) => <View key={mark.id} style={styles.markCard}><Text style={styles.heading}>しおり {sorted.length - index}</Text><Text style={styles.note}>{book.text.slice(Math.max(0, mark.offset - 65), mark.offset) || '本文のはじまり'}</Text><View style={styles.toolbar}><Action onPress={() => { setSelected(mark.id); setScope('previous'); }}>ふりかえり</Action><Action disabled={busy} onPress={() => { resume(mark); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(mark.id)}>移動</Action><Action disabled={busy} onPress={() => { void save(state => removeMark(state, mark.id)).then(ok => { if (ok) setUndo(null); }); }}>外す</Action></View></View>)}
           </>}
         </ScrollView>
       </View></View>
     </Modal>
+    {settingsOpen && <DisplaySettings value={display} close={() => setSettingsOpen(false)} apply={applyDisplay} />}
   </View>;
 }
 const styles = StyleSheet.create({
@@ -175,7 +235,8 @@ const styles = StyleSheet.create({
   track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.line, flexDirection: 'row-reverse', overflow: 'hidden' }, fill: { backgroundColor: colors.accent },
   bar: { flexGrow: 0 }, barContent: { gap: 8, alignItems: 'center', padding: 10 },
   source: { alignSelf: 'center', paddingTop: 6 },
-  placement: { paddingHorizontal: 12, paddingVertical: 8 }, paging: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  feedback: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.surface, zIndex: 20 },
+  placement: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.line, padding: 4, zIndex: 20 }, paging: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
   overlay: { flex: 1, backgroundColor: colors.paper, justifyContent: 'center', padding: 16 }, sheet: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.line, maxHeight: '95%', width: '100%', maxWidth: 720, alignSelf: 'center' },
   sheetContent: { padding: 16, gap: 20 }, markCard: { gap: 8, paddingBottom: 16, borderBottomWidth: 1, borderColor: colors.line },
 });
