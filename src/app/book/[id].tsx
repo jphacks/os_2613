@@ -3,6 +3,7 @@ import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-na
 
 import { colors } from '@/shared/theme';
 import { useLibrary } from '@/features/library/LibraryProvider';
+import { MusicPanel } from '@/features/music/MusicPanel';
 
 export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -11,6 +12,7 @@ export default function BookScreen() {
 
   return (
     <View style={styles.container}>
+      {ready && book && <MusicPanel key={book.id} />}
       <ScrollView style={styles.page} contentContainerStyle={styles.content}>
         {!ready ? <Text style={styles.note}>本を読み込んでいます…</Text> : !book ? <Text style={styles.note}>本が見つかりません。本棚に戻って追加してください。</Text> : <>
           <Text style={styles.title}>{book.title}</Text>
