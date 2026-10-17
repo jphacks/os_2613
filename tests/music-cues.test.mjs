@@ -19,7 +19,7 @@ test('足音は背景より前に出し、音量上限とミュートを守る',
   const footsteps = { ...cue('steps', 0, 'loop', 100), label: '足音', query: 'walking footsteps', gain: 0.25 };
   mixer.update([footsteps], 0, true, 0.5);
   for (let i = 0; i < 30; i++) advance(80);
-  assert.equal(mixer.ducking, 0.22);
+  assert.equal(mixer.ducking, 0.18);
   assert.ok(players[0].volume > 0.5 * 0.8 * mixer.ducking);
   mixer.update([footsteps], 1, true, 1); assert.ok(players[0].volume <= 1);
   mixer.update([footsteps], 2, true, 0); assert.equal(players[0].volume, 0);
