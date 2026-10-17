@@ -1,8 +1,31 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSummaryEndpoint, createSummaryProvider } from '../src/server/summary.mjs';
+import { createSummaryEndpoint, createSummaryProvider, summaryConfiguration } from '../src/server/summary.mjs';
+import { summaryFailure } from '../src/features/bookmark/summary-errors.mjs';
 
 const request = (text, extra = {}) => new Request('http://localhost/api/summary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, ...extra }) });
+test('設定確認はキーを返さず、空白だけの設定も未設定とする', () => {
+  assert.deepEqual(summaryConfiguration(''), { configured: false });
+  assert.deepEqual(summaryConfiguration('  '), { configured: false });
+  assert.deepEqual(summaryConfiguration('private-test-value'), { configured: true });
+});
+test('設定・権限・上限・時間切れを区別し、任意のエラー文章は表示しない', async () => {
+  for (const code of ['NOT_CONFIGURED', 'AUTH', 'RATE_LIMIT', 'BUSY', 'LIMIT', 'TIMEOUT']) {
+    const endpoint = createSummaryEndpoint({ provider: async () => { throw new Error(code); } });
+    const value = await (await endpoint(request('本文'))).json();
+    assert.equal(value.code, code); assert.equal(summaryFailure(value.code).error, value.error);
+  }
+  assert.equal(summaryFailure('secret-value').code, 'UNKNOWN');
+  assert.ok(!JSON.stringify(summaryFailure('secret-value')).includes('secret-value'));
+  assert.equal(summaryFailure('__proto__').code, 'UNKNOWN');
+});
+test('外部サービスの拒否と時間切れを安全な原因コードに変える', async () => {
+  for (const [status, code] of [[401, 'AUTH'], [403, 'AUTH'], [429, 'RATE_LIMIT']]) {
+    const provider = createSummaryProvider({ apiKey: 'fake', fetcher: async () => ({ ok: false, status }) });
+    await assert.rejects(provider('本文'), error => error.message === code);
+  }
+  await assert.rejects(createSummaryProvider({ apiKey: 'fake', fetcher: async () => { throw Object.assign(new Error('private'), { name: 'TimeoutError' }); } })('本文'), error => error.message === 'TIMEOUT');
+});
 test('要約には指定本文だけを渡し、作品名や未読本文を渡さない', async () => {
   const endpoint = createSummaryEndpoint({ provider: async text => { assert.equal(text, '読んだ本文。'); return 'まとめ。'; } });
   const response = await endpoint(request('読んだ本文。', { unread: '未来の結末', title: '作品名' }));

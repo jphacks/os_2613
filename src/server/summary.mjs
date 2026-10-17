@@ -1,4 +1,7 @@
+import { summaryFailure } from '../features/bookmark/summary-errors.mjs';
+
 const textLimit = 20000;
+export function summaryConfiguration(apiKey = process.env.OPENAI_API_KEY) { return { configured: typeof apiKey === 'string' && !!apiKey.trim() }; }
 export function summaryInput(value) {
   if (typeof value?.text !== 'string' || !value.text.trim() || value.text.length > textLimit) throw new Error('INVALID_INPUT');
   return value.text;
@@ -6,8 +9,9 @@ export function summaryInput(value) {
 export function createSummaryProvider({ apiKey = process.env.OPENAI_API_KEY, fetcher = fetch } = {}) {
   let busy = false, count = 0;
   return async text => {
-    if (!apiKey) throw new Error('NOT_CONFIGURED');
-    if (busy || count >= 20) throw new Error('LIMIT');
+    if (!summaryConfiguration(apiKey).configured) throw new Error('NOT_CONFIGURED');
+    if (busy) throw new Error('BUSY');
+    if (count >= 20) throw new Error('LIMIT');
     busy = true; count++;
     try {
       const response = await fetcher('https://api.openai.com/v1/responses', {
@@ -17,12 +21,15 @@ export function createSummaryProvider({ apiKey = process.env.OPENAI_API_KEY, fet
           input: text,
         }),
       });
-      if (!response.ok) throw new Error('PROVIDER_FAILED');
+      if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'AUTH' : response.status === 429 ? 'RATE_LIMIT' : 'PROVIDER_FAILED');
       const result = await response.json();
       if (result.status !== 'completed') throw new Error('INCOMPLETE');
       const summary = (result.output ?? []).flatMap(item => item.content ?? []).filter(item => item.type === 'output_text').map(item => item.text).join('\n').trim();
       if (!summary || summary.length > 5000) throw new Error('INVALID_RESULT');
       return summary;
+    } catch (error) {
+      if (error?.name === 'TimeoutError' || error?.name === 'AbortError') throw new Error('TIMEOUT');
+      throw error;
     } finally { busy = false; }
   };
 }
@@ -58,10 +65,9 @@ export function createSummaryEndpoint({ provider = createSummaryProvider() } = {
       }).finally(() => pending.delete(text)));
       return send(200, { summary: await pending.get(text) });
     } catch (error) {
-      const message = error.message === 'NOT_CONFIGURED' ? 'ふりかえりの準備ができていません。管理者に設定を確認してもらい、もう一度お試しください。'
-        : error.message === 'LIMIT' ? '現在ふりかえりを作れません。少し時間をおいて、管理者に利用状況を確認してもらってください。'
-        : 'ふりかえりを取得できません。通信を確認し、少し時間をおいて再試行してください。';
-      return send(503, { error: message });
+      const failure = summaryFailure(error?.message);
+      console.warn('[summary]', failure.code);
+      return send(503, failure);
     }
   };
 }
