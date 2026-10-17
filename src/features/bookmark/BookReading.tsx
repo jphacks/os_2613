@@ -33,6 +33,7 @@ export function BookReading({ book }: { book: SavedBook }) {
   const [guide, setGuide] = useState(false);
   const [running, setRunning] = useState(false);
   const [speed, setSpeed] = useState(500);
+  const [menu, setMenu] = useState(false);
   const [sub, setSub] = useState(0);
   const [subCount, setSubCount] = useState(1);
   const alive = useRef(true);
@@ -99,24 +100,45 @@ export function BookReading({ book }: { book: SavedBook }) {
     const mark = reading.marks.find(item => item.offset === offset);
     if (mark && !moving) { setSelected(mark.id); setScope('previous'); setPanel(true); }
   }
+  // 紙面（iPhone では内部のWebView）に渡す関数と値は、中身が変わらない限り同じものを渡す。
+  // 毎回作り直すと、紙面の準備が終わる前に何度も送り直すことになり、iPhone でエラーが出る。
+  const latest = useRef({ next, prev, openMark });
+  latest.current = { next, prev, openMark };
+  const handlers = useMemo(() => ({
+    onNext: () => latest.current.next(),
+    onPrev: () => latest.current.prev(),
+    onMarkPress: (offset: number) => latest.current.openMark(offset),
+    onPick: (offset: number) => setDraft(offset),
+    onPages: (count: number) => setSubCount(count),
+  }), []);
+  const markOffsets = useMemo(() => reading.marks.map(mark => mark.offset), [reading.marks]);
   return <View style={styles.screen}>
     {/* ヘッダー：中央にタイトルと作者、右にしおりの操作 */}
     <Stack.Screen options={{
       headerTitleAlign: 'center',
       headerTitle: () => <View style={styles.headTitle}><Text style={styles.title}>{book.title}</Text><Text style={styles.small}>{book.author}</Text></View>,
-      headerRight: () => <View style={styles.headRight}>
-        <Action disabled={!ready || busy || !!moving} onPress={() => begin()}>しおりを挟む</Action>
-        <Action disabled={!ready || busy || !!moving} onPress={() => { setSelected(null); setPanel(true); }}>しおり一覧</Action>
-      </View>,
+      headerRight: () => <View style={styles.headRight}><Action disabled={!ready || !!moving} onPress={() => setMenu(true)}>☰ メニュー</Action></View>,
     }} />
-    {/* 読みガイドの操作は横1列。入りきらないときは横にスクロール */}
-    <ScrollView horizontal style={styles.bar} contentContainerStyle={styles.barContent} showsHorizontalScrollIndicator={false}>
-      <Action filled={guide} onPress={() => { setGuide(value => !value); setRunning(false); }}>{guide ? '読みガイド ON' : '読みガイド OFF'}</Action>
-      {guide && <>
-        <Action disabled={!ready || !!moving} onPress={() => setRunning(value => !value)}>{running ? '一時停止' : 'ガイドを開始'}</Action>
-        {speeds.map(value => <Action key={value} filled={speed === value} onPress={() => setSpeed(value)}>{`${value}字/分`}</Action>)}
-      </>}
-    </ScrollView>
+    {/* 読みガイドがONのときだけ、開始・一時停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
+    {guide && <View style={styles.toolbar}>
+      <Action filled disabled={!ready || !!moving} onPress={() => setRunning(value => !value)}>{running ? '一時停止' : '▶ ガイドを開始'}</Action>
+      <Text style={styles.note}>{speed}字/分</Text>
+    </View>}
+    {/* 機能のメニュー。しおり・読みガイドに分けてしまっておく */}
+    <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
+      <Pressable style={styles.menuBack} onPress={() => setMenu(false)}>
+        <Pressable style={styles.menu} onPress={() => {}}>
+          <Text style={styles.menuHead}>しおり</Text>
+          <Action disabled={busy} onPress={() => { setMenu(false); begin(); }}>しおりを挟む</Action>
+          <Action onPress={() => { setMenu(false); setSelected(null); setPanel(true); }}>しおり一覧・ふりかえり</Action>
+          <Text style={styles.menuHead}>読みガイド</Text>
+          <Action filled={guide} onPress={() => { setGuide(value => !value); setRunning(false); }}>{guide ? 'ON（押すとOFF）' : 'OFF（押すとON）'}</Action>
+          <Text style={styles.note}>速さ（1分あたりの文字数）</Text>
+          <View style={styles.toolbarTight}>{speeds.map(value => <Action key={value} filled={speed === value} onPress={() => setSpeed(value)}>{`${value}`}</Action>)}</View>
+          <Action onPress={() => setMenu(false)}>閉じる</Action>
+        </Pressable>
+      </Pressable>
+    </Modal>
     {!!error && <Text accessibilityRole="alert" style={styles.message}>{error}</Text>}
     {!!notice && <View style={styles.toolbar}><Text accessibilityLiveRegion="polite" style={styles.note}>{notice}</Text>{undo && <Action disabled={busy} onPress={() => void undoMove()}>元に戻す</Action>}</View>}
     {moving && <View style={styles.placement}><Text style={styles.note}>読み終えた最後の文字を押してください。ページを移って選ぶこともできます。</Text><View style={styles.toolbar}><Action disabled={busy || draft === null} filled onPress={() => void confirm()}>この位置に挟む</Action><Action disabled={busy} onPress={() => { setMoving(null); setDraft(null); }}>キャンセル</Action></View></View>}
@@ -126,18 +148,14 @@ export function BookReading({ book }: { book: SavedBook }) {
         text={current.text}
         start={current.start}
         sub={sub}
-        marks={reading.marks.map(mark => mark.offset)}
+        marks={markOffsets}
         faded={reading.marks.find(mark => mark.id === moving)?.offset ?? null}
         picking={!!moving}
         draft={draft}
         guide={guide}
         running={running}
         speed={speed}
-        onPick={offset => setDraft(offset)}
-        onMarkPress={openMark}
-        onPages={setSubCount}
-        onNext={next}
-        onPrev={prev}
+        {...handlers}
         dom={{ style: { flex: 1 } }}
       />
     </View>
@@ -173,7 +191,10 @@ const styles = StyleSheet.create({
   paper: { flex: 1, marginHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 4, overflow: 'hidden', backgroundColor: colors.surface },
   headTitle: { alignItems: 'center' }, small: { color: colors.muted, fontSize: 11, marginTop: 2 }, headRight: { flexDirection: 'row', gap: 8, marginRight: 8 },
   track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.line, flexDirection: 'row-reverse', overflow: 'hidden' }, fill: { backgroundColor: colors.accent },
-  bar: { flexGrow: 0 }, barContent: { gap: 8, alignItems: 'center', padding: 10 },
+  toolbarTight: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  menuBack: { flex: 1, backgroundColor: 'rgba(41,46,41,0.35)', alignItems: 'flex-end', paddingTop: 90, paddingHorizontal: 12 },
+  menu: { width: 280, maxWidth: '100%', backgroundColor: colors.surface, borderRadius: 14, padding: 16, gap: 10, boxShadow: '0 6px 20px rgba(41,46,41,0.2)' },
+  menuHead: { color: colors.accent, fontSize: 12, fontWeight: '700', letterSpacing: 1.5, marginTop: 4 },
   source: { alignSelf: 'center', paddingTop: 6 },
   placement: { paddingHorizontal: 12, paddingVertical: 8 }, paging: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
   overlay: { flex: 1, backgroundColor: colors.paper, justifyContent: 'center', padding: 16 }, sheet: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.line, maxHeight: '95%', width: '100%', maxWidth: 720, alignSelf: 'center' },

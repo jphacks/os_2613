@@ -35,6 +35,7 @@ export default function VerticalPage({ text, start, sub, marks, faded, picking, 
   const viewRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const [layout, setLayout] = useState({ count: 1, width: 0, pageOf: [] as number[] });
+  const sentCount = useRef(0);
   const [cursor, setCursor] = useState(0); // 読みガイドが今強調している文字の番号
 
   // 1文字ずつに分け、本全体での位置（終わり）を持たせる。絵文字の途中では切らない。
@@ -58,10 +59,18 @@ export default function VerticalPage({ text, start, sub, marks, faded, picking, 
     const pageOf = Array.from(body.querySelectorAll<HTMLElement>('[data-i]')).map(node =>
       Math.max(0, Math.floor((right - node.getBoundingClientRect().right) / width)));
     setLayout({ count, width, pageOf });
-    onPages(count);
+    // アプリ側への連絡は、ページ数が変わったときだけにする（送りすぎると iPhone でエラーになる）
+    if (sentCount.current !== count) { sentCount.current = count; onPages(count); }
   }, [text]);
 
   useLayoutEffect(() => {
+    // iPhone では内部のWebViewの中で描かれ、そのページの高さが0のままだと紙面が潰れる。
+    // WebViewの中にいるときだけ、ページ全体の高さを画面いっぱいにする（Webでは親の高さに従う）。
+    if ((window as any).ReactNativeWebView) {
+      for (const el of [document.documentElement, document.body, document.getElementById('root')]) {
+        if (el) { el.style.height = '100%'; el.style.margin = '0'; }
+      }
+    }
     measure();
     void document.fonts?.ready.then(measure);
     const view = viewRef.current;
@@ -107,15 +116,27 @@ export default function VerticalPage({ text, start, sub, marks, faded, picking, 
     return i <= cursor ? { color: '#292E29' } : {};
   }
 
-  // 本と同じく、紙面の左側を押すと次のページ、右側を押すと前のページ
+  // ページのめくり方
+  // ・スマホ：スワイプ。縦書きの本は左へ進むので、指を右へ動かすと次、左へ動かすと前のページ
+  // ・PC：紙面の左側を押すと次、右側を押すと前のページ
+  const touchX = useRef<number | null>(null);
+  const touch = typeof window !== 'undefined' && 'ontouchstart' in window;
   function turn(e: React.MouseEvent<HTMLDivElement>) {
-    if (picking) return;
+    if (picking || touch) return;
     const box = e.currentTarget.getBoundingClientRect();
     if (e.clientX < box.left + box.width / 2) onNext(); else onPrev();
   }
+  function swipeEnd(e: React.TouchEvent<HTMLDivElement>) {
+    const startX = touchX.current;
+    touchX.current = null;
+    if (startX === null || picking) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    if (dx > 40) onNext();
+    else if (dx < -40) onPrev();
+  }
 
   return (
-    <div style={styles.root} onClick={turn}>
+    <div style={styles.root} onClick={turn} onTouchStart={e => { touchX.current = e.touches[0].clientX; }} onTouchEnd={swipeEnd}>
       <div ref={viewRef} style={styles.view}>
         {/* ページの幅ちょうどで切り取り、右端（読み始め）にそろえる */}
         <div style={{ ...styles.clip, width: layout.width || '100%' }}>

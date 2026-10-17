@@ -22,6 +22,16 @@ export default function PdfBook({ uri }: Props) {
   const [page, setPage] = useState(1);
   const [spread, setSpread] = useState(true);
   const [error, setError] = useState('');
+  const touchX = useRef<number | null>(null);
+
+  // iPhone では内部のWebViewの中で描かれるので、ページ全体の高さを画面いっぱいにする
+  useEffect(() => {
+    if ((window as any).ReactNativeWebView) {
+      for (const el of [document.documentElement, document.body, document.getElementById('root')]) {
+        if (el) { el.style.height = '100%'; el.style.margin = '0'; }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +90,20 @@ export default function PdfBook({ uri }: Props) {
 
   return (
     <div style={styles.root}>
-      <div ref={stageRef} style={styles.stage}>
+      {/* スマホではスワイプでめくる。横書きの教材なので、指を左へ動かすと次のページ */}
+      <div
+        ref={stageRef}
+        style={styles.stage}
+        onTouchStart={e => { touchX.current = e.touches[0].clientX; }}
+        onTouchEnd={e => {
+          const startX = touchX.current;
+          touchX.current = null;
+          if (startX === null || !total) return;
+          const dx = e.changedTouches[0].clientX - startX;
+          if (dx < -40 && page + step <= total) setPage(p => p + step);
+          else if (dx > 40 && page > 1) setPage(p => Math.max(1, p - step));
+        }}
+      >
         {error ? <p style={styles.message}>{error}</p> : !doc ? <p style={styles.message}>教材を読み込んでいます…</p> : null}
         <canvas ref={leftRef} style={styles.page} />
         {spread && <canvas ref={rightRef} style={styles.page} />}

@@ -8,6 +8,7 @@ type Props = {
   label: string;
   color: string;
   onPress?: () => void;
+  width?: number; // 表紙の幅。高さは幅の1.5倍（狭い画面でも1段に3冊並べるため）
 };
 
 // React Native の文字は縦書きにできないので、1文字ずつ改行して縦に並べる
@@ -29,9 +30,9 @@ const shortAuthor = (text: string) => {
   return chars.length > AUTHOR_MAX ? chars.slice(0, AUTHOR_MAX).join('') + '…' : chars.join('');
 };
 
-export function Cover({ title, author, label, color, onPress }: Props) {
+export function Cover({ title, author, label, color, onPress, width = 112 }: Props) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.cover, { backgroundColor: color }, pressed && styles.pressed]}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.cover, { width, height: width * 1.5, backgroundColor: color }, pressed && styles.pressed]}>
       <View style={styles.spine} />
       <View style={styles.face}>
         {columns(title).map((col, i) => (
