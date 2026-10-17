@@ -8,6 +8,7 @@ import { colors } from '@/shared/theme';
 import { createReadingStore, emptyReading, placeMark, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
 import { Summary } from './Summary';
 import VerticalPage from '@/features/reader/VerticalPage';
+import HorizontalStudyPage from '@/features/study/HorizontalStudyPage';
 import { MusicPanel } from '@/features/music/MusicPanel';
 import { DisplaySettings, paperColors } from '@/features/reader/DisplaySettings';
 import { PageBar } from '@/features/reader/PageBar';
@@ -27,7 +28,8 @@ function Action({ children, onPress, disabled = false, filled = false }: { child
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, filled && styles.filled, disabled && styles.disabled]}><Text style={[styles.buttonText, filled && styles.light]}>{children}</Text></Pressable>;
 }
 
-export function BookReading({ book, initialOffset }: { book: SavedBook; initialOffset?: number }) {
+export function BookReading({ book, initialOffset, study = false, sourceLabel = '青空文庫', trackingId = book.id, studyVisuals }: { book: SavedBook; initialOffset?: number; study?: boolean; sourceLabel?: string; trackingId?: string; studyVisuals?: import('../study/visuals.mjs').StudyVisual[] }) {
+  const ReadingPage = study ? HorizontalStudyPage : VerticalPage;
   const store = useMemo(() => createReadingStore(AsyncStorage, `dopabooks:reading:v1:${book.id}`, book.text), [book.id, book.text]);
   const [reading, setReading] = useState<Reading>(() => emptyReading(book.text));
   const [ready, setReady] = useState(false);
@@ -77,13 +79,13 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
   // 読書時間を記録する（分析画面用）。画面を開いている間を数え、アプリを離れた時と画面を閉じた時に保存する。
   useEffect(() => {
     let since: number | null = Date.now();
-    const flush = () => { if (since !== null) { void recordReading(book.id, (Date.now() - since) / 1000); since = null; } };
+    const flush = () => { if (since !== null) { void recordReading(trackingId, (Date.now() - since) / 1000); since = null; } };
     const sub = AppState.addEventListener('change', state => { if (state === 'active') since = Date.now(); else flush(); });
     return () => { sub.remove(); flush(); };
-  }, [book.id]);
+  }, [trackingId]);
   // しおりが変わったら、ウィジェットに出す「最新のしおり」も更新する（しおりが無くなった本は外す）
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || study) return;
     const latestMark = [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt)[0];
     if (!latestMark) { void forgetWidgetBook(book.id); return; }
     void rememberWidgetBook({
@@ -92,7 +94,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
       progress: Math.round((latestMark.offset / Math.max(1, book.text.length)) * 100),
       updatedAt: latestMark.updatedAt,
     });
-  }, [ready, reading.marks, book]);
+  }, [ready, reading.marks, book, study]);
   useEffect(() => {
     let active = true;
     void AsyncStorage.getItem(preferenceKey).then(raw => { if (active && raw) setDisplay(normalizePreferences(JSON.parse(raw))); })
@@ -128,7 +130,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
   }
   const shown = Math.min(Math.max(0, sub), subCount - 1);
   // 最後のページまで来たら「読み終わった」と記録する（分析画面用）
-  useEffect(() => { if (ready && subCount > 1 && shown === subCount - 1) void recordFinished(book.id); }, [ready, shown, subCount, book.id]);
+  useEffect(() => { if (!study && ready && subCount > 1 && shown === subCount - 1) void recordFinished(book.id); }, [ready, shown, subCount, book.id, study]);
   function next() {
     if (busy) return;
     if (shown < subCount - 1) setSub(shown + 1);
@@ -190,7 +192,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
       // iPhone ではヘッダーのボタンに標準の枠が付くので、こちらでは枠を付けない（枠が二重になるため）
       headerRight: () => <Pressable accessibilityRole="button" disabled={!ready || !!moving} onPress={() => { setRunning(false); setMenu(true); }} style={[styles.headButton, (!ready || !!moving) && styles.disabled]}><Text style={styles.buttonText}>☰ メニュー</Text></Pressable>,
     }} />
-    <MusicPanel book={book} position={readPosition} guideActive={guide && running && !moving && !menu && !panel && !settingsOpen && !feature} />
+    {!study && <MusicPanel book={book} position={readPosition} guideActive={guide && running && !moving && !menu && !panel && !settingsOpen && !feature} />}
     {/* 読みガイドがONのときだけ、開始・一時停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
     {guide && <View style={styles.toolbar}>
       <Action filled disabled={!ready || !!moving} onPress={() => setRunning(value => !value)}>{running ? '一時停止' : '▶ ガイドを開始'}</Action>
@@ -203,9 +205,9 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
           <Text style={styles.menuHead}>しおり</Text>
           <Action disabled={busy} onPress={() => { setMenu(false); begin(); }}>しおりを挟む</Action>
           <Action onPress={() => { setMenu(false); setSelected(null); setPanel(true); }}>しおり一覧・ふりかえり</Action>
-          <Text style={styles.menuHead}>物語</Text>
+          {!study && <><Text style={styles.menuHead}>物語</Text>
           <Action onPress={() => { setMenu(false); setRunning(false); setFeature('comic'); }}>紹介4コマ</Action>
-          <Action onPress={() => { setMenu(false); setRunning(false); setFeature('characters'); }}>人物相関図</Action>
+          <Action onPress={() => { setMenu(false); setRunning(false); setFeature('characters'); }}>人物相関図</Action></>}
           <Text style={styles.menuHead}>表示</Text>
           <Action disabled={!displayReady} onPress={() => { setMenu(false); setSettingsOpen(true); }}>Aa 表示設定</Action>
           <Action onPress={() => { setMenu(false); router.push('/focus'); }}>読書集中モード（通知を止める）</Action>
@@ -219,7 +221,8 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
     </Modal>
     {/* 紙面は画面いっぱい。左側を押すと次、右側を押すと前のページ */}
     <View style={[styles.paper, { backgroundColor: paint.background }]}>
-      <VerticalPage
+      <ReadingPage
+        visuals={studyVisuals}
         text={book.text}
         start={0}
         sub={sub}
@@ -256,9 +259,9 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
     </View>
     {/* ページバーを上、出典を下にする。iPhone の画面下の線（ホームバー）と重ならないよう、その分の余白を空ける */}
     <View style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
-      <PageBar page={shown} count={subCount} disabled={!ready || busy || !!moving} ink={paint.ink} accent={paint.accent} line={paint.chosen}
-        onChange={value => { setRunning(false); setSub(value); }} />
-      <Pressable accessibilityRole="link" style={styles.source} onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：青空文庫</Text></Pressable>
+      {!study && <PageBar page={shown} count={subCount} disabled={!ready || busy || !!moving} ink={paint.ink} accent={paint.accent} line={paint.chosen}
+        onChange={value => { setRunning(false); setSub(value); }} />}
+      <Pressable accessibilityRole="link" style={styles.source} onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：{sourceLabel}</Text></Pressable>
     </View>
     <Modal visible={panel} transparent animationType="slide" onRequestClose={() => setPanel(false)}>
       <View style={styles.overlay}><View style={styles.sheet}><View style={styles.toolbar}><Text style={styles.heading}>{target ? 'ふりかえり' : 'しおり'}</Text><Action onPress={() => setPanel(false)}>閉じる</Action></View>
@@ -267,7 +270,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
             <Action onPress={() => setSelected(null)}>‹ しおり一覧へ</Action>
             <View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View>
             <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`}
-              onSummary={summary => { if (target.id === [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt)[0]?.id) void rememberWidgetBook({ bookId: book.id, summary }); }} />
+              onSummary={summary => { if (!study && target.id === [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt)[0]?.id) void rememberWidgetBook({ bookId: book.id, summary }); }} />
             <View style={styles.toolbar}><Action disabled={busy} filled onPress={() => { resume(target); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(target.id)}>しおりを移動</Action><Action disabled={busy} onPress={() => { void save(state => removeMark(state, target.id)).then(ok => { if (ok) { setSelected(null); setUndo(null); } }); }}>外す</Action></View>
           </> : <>
             {!sorted.length && <Text style={styles.note}>しおりはまだありません。本文の文字を選んで挟めます。</Text>}

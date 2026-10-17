@@ -1,0 +1,1 @@
+export function studyLines(text: string): { text: string; start: number; heading: boolean; title: boolean; important: boolean; emphasis: number[][]; tone: 'warning' | 'example' | 'summary' | 'neutral'; callout: 'formula' | 'definition' | 'keypoint' | null }[];

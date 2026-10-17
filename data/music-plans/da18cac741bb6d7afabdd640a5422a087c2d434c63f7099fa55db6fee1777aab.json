@@ -1,0 +1,907 @@
+{
+  "version": 3,
+  "hash": "da18cac741bb6d7afabdd640a5422a087c2d434c63f7099fa55db6fee1777aab",
+  "title": "走れメロス",
+  "revision": "129f8773-5924-4c7c-a891-92279bdc8d22",
+  "scenes": [
+    {
+      "start": 0,
+      "end": 500,
+      "kind": "ambience",
+      "label": "村からシラクス市への道",
+      "reason": "物語冒頭ではメロスが村を出てシラクスの市にやって来た描写があり、野や山を越える旅路のため自然の環境音、川や森の鳥の声などの環境音で情景を表現。落ち着いた感情のなかに決意も込めて。",
+      "mood": "calm",
+      "query": "birds forest ambience gentle wind",
+      "candidates": [
+        {
+          "id": 800712,
+          "name": "AMBForst_Forest Birds Wind 01_KVV AUDIO_FREE",
+          "creator": "KVV_Audio",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/KVV_Audio/sounds/800712/",
+          "audioUrl": "https://cdn.freesound.org/previews/800/800712_12846320-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 853672,
+          "name": "The sound of a babbling brook",
+          "creator": "hoshisato",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/hoshisato/sounds/853672/",
+          "audioUrl": "https://cdn.freesound.org/previews/853/853672_17756109-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 698739,
+          "name": "Quiet Stream Flows At The Wetlands Park.wav",
+          "creator": "cyntrix",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/cyntrix/sounds/698739/",
+          "audioUrl": "https://cdn.freesound.org/previews/698/698739_3983735-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 800712
+    },
+    {
+      "start": 500,
+      "end": 1053,
+      "kind": "ambience",
+      "label": "シラクス市の不穏な街の夜",
+      "reason": "シラクス市の暗くひっそりとした街の夜の描写に基づき、町の遠いざわめきや静かな風の音を主体にして不安を誘う環境音を選択。",
+      "mood": "tense",
+      "query": "quiet city night ambience",
+      "candidates": [
+        {
+          "id": 427841,
+          "name": "Ambience City Quiet Night Air Tone",
+          "creator": "leonelmail",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/leonelmail/sounds/427841/",
+          "audioUrl": "https://cdn.freesound.org/previews/427/427841_4437257-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 573769,
+          "name": "calm night city 9.28PM 210317_0272.wav",
+          "creator": "klankbeeld",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/klankbeeld/sounds/573769/",
+          "audioUrl": "https://cdn.freesound.org/previews/573/573769_1648170-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 332785,
+          "name": "city ambience, pedestrian subway, at entrance, night, distant traffic, trains and railway station announcements - Stereo preview.wav",
+          "creator": "be_a_hero_not_a_patriot",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/be_a_hero_not_a_patriot/sounds/332785/",
+          "audioUrl": "https://cdn.freesound.org/previews/332/332785_5804919-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 427841
+    },
+    {
+      "start": 1053,
+      "end": 2309,
+      "kind": "music",
+      "label": "メロスと王の対決の緊張",
+      "reason": "王との激しい議論と対決が続き心情が鋭く激昂しているため、緊張感漂うストリングス主体の控えめな音楽で補完。",
+      "mood": "tense",
+      "query": "suspense ambient strings",
+      "candidates": [
+        {
+          "id": 523364,
+          "name": "Strings Ambient Suspense",
+          "creator": "tyops",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/tyops/sounds/523364/",
+          "audioUrl": "https://cdn.freesound.org/previews/523/523364_3914271-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 727435,
+          "name": "Digital Mystery Ambiance",
+          "creator": "TheoJT",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/TheoJT/sounds/727435/",
+          "audioUrl": "https://cdn.freesound.org/previews/727/727435_6627602-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 400367,
+          "name": "strings 19",
+          "creator": "phantastonia",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/phantastonia/sounds/400367/",
+          "audioUrl": "https://cdn.freesound.org/previews/400/400367_5137631-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 523364
+    },
+    {
+      "start": 2309,
+      "end": 2493,
+      "kind": "ambience",
+      "label": "夜明け前の王城内と友の縄打ち",
+      "reason": "メロスの友セリヌンティウスが縄打ちされる夜の王城内部の環境を想起し、室内の静かな環境音とわずかな人の気配音を含む環境音を使用。",
+      "mood": "tense",
+      "query": "indoor quiet ambience",
+      "candidates": [
+        {
+          "id": 751315,
+          "name": "Quiet Indoor Roomtone",
+          "creator": "IENBA",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/IENBA/sounds/751315/",
+          "audioUrl": "https://cdn.freesound.org/previews/751/751315_9616576-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 751316,
+          "name": "Generic Indoor Roomtone",
+          "creator": "IENBA",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/IENBA/sounds/751316/",
+          "audioUrl": "https://cdn.freesound.org/previews/751/751316_9616576-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 761024,
+          "name": "Very Quiet Indoor Roomtone",
+          "creator": "IENBA",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/IENBA/sounds/761024/",
+          "audioUrl": "https://cdn.freesound.org/previews/761/761024_9616576-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 751315
+    },
+    {
+      "start": 2493,
+      "end": 3034,
+      "kind": "ambience",
+      "label": "満天の星空の夜から村の日常",
+      "reason": "メロスが村に戻るシーンでは満天の星空の夜から翌朝の村の日常が描写されており、夜の静寂から朝の鳥のさえずり、野の環境音を連続して配置。",
+      "mood": "calm",
+      "query": "night stars ambience morning birds chirping",
+      "candidates": [
+        {
+          "id": 744214,
+          "name": "Relaxing Ambient Melodies",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/744214/",
+          "audioUrl": "https://cdn.freesound.org/previews/744/744214_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 614096,
+          "name": "Calm Emtim Bell music.mp3",
+          "creator": "ZHRØ",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ZHR%C3%98/sounds/614096/",
+          "audioUrl": "https://cdn.freesound.org/previews/614/614096_10859468-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 671900,
+          "name": "Calm background Music",
+          "creator": "Bertsz",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Bertsz/sounds/671900/",
+          "audioUrl": "https://cdn.freesound.org/previews/671/671900_6714882-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 744214
+    },
+    {
+      "start": 3034,
+      "end": 3534,
+      "kind": "ambience",
+      "label": "結婚式の昼と雨の豪雨開始",
+      "reason": "結婚式の日の正午という明るい環境と、やがて襲う黒雲と豪雨が描写されているため、まずは明るい野外の環境音から雨の降り始め、次第に豪雨への環境音に切り替えていく。",
+      "mood": "bright",
+      "query": "outdoor bright ambience rain starting heavy rain",
+      "candidates": [
+        {
+          "id": 735624,
+          "name": "Sierra Serenade",
+          "creator": "city11",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/city11/sounds/735624/",
+          "audioUrl": "https://cdn.freesound.org/previews/735/735624_92171-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 735080,
+          "name": "Lament of the Vaquero v1",
+          "creator": "city11",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/city11/sounds/735080/",
+          "audioUrl": "https://cdn.freesound.org/previews/735/735080_92171-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 744214,
+          "name": "Relaxing Ambient Melodies",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/744214/",
+          "audioUrl": "https://cdn.freesound.org/previews/744/744214_16085323-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 735624
+    },
+    {
+      "start": 3534,
+      "end": 4142,
+      "kind": "music",
+      "label": "メロスの出発決意と葛藤",
+      "reason": "豪雨の中での決意と未練の感情が複雑に絡む場面なので、暖かくも切なさを含んだギター中心の優しい音楽で感情を補完。",
+      "mood": "tense",
+      "query": "warm gentle guitar emotionally complex",
+      "candidates": [
+        {
+          "id": 541062,
+          "name": "Winterstorm I: A Cinematic and ambient soundscape",
+          "creator": "kjartan_abel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/kjartan_abel/sounds/541062/",
+          "audioUrl": "https://cdn.freesound.org/previews/541/541062_6738752-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 757891,
+          "name": "Mysterious/Suspenseful Background Drama Music with Acoustic Guitar",
+          "creator": "EvanBoyerman",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/EvanBoyerman/sounds/757891/",
+          "audioUrl": "https://cdn.freesound.org/previews/757/757891_6823432-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 532935,
+          "name": "Escape to a Peaceful World with Sunny Dream: A warm, Relaxation Song",
+          "creator": "kjartan_abel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/kjartan_abel/sounds/532935/",
+          "audioUrl": "https://cdn.freesound.org/previews/532/532935_6738752-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 541062
+    },
+    {
+      "start": 4142,
+      "end": 4605,
+      "kind": "ambience",
+      "label": "薄明の中の村と静かな朝の様子",
+      "reason": "翌日の薄明の明るい始まりと静かな村の朝の環境を鳥のさえずりと朝の静けさで表現。",
+      "mood": "calm",
+      "query": "morning birds gentle wind field",
+      "candidates": [
+        {
+          "id": 857939,
+          "name": "people dogs summer floodplain river Maas Bokhoven Netherlands 921 am 250629_1150",
+          "creator": "klankbeeld",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/klankbeeld/sounds/857939/",
+          "audioUrl": "https://cdn.freesound.org/previews/857/857939_1648170-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 731819,
+          "name": "Field atmosphere in Gizeux, Loire Valley, French countryside",
+          "creator": "nomadas",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/nomadas/sounds/731819/",
+          "audioUrl": "https://cdn.freesound.org/previews/731/731819_938246-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 817480,
+          "name": "BIRDSong_European Wren, Robin, Blackbird, Song Thrush, Great Tit, Insects, Gentle Wind_JW Audio",
+          "creator": "JW_Audio",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/JW_Audio/sounds/817480/",
+          "audioUrl": "https://cdn.freesound.org/previews/817/817480_13183432-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 857939
+    },
+    {
+      "start": 4605,
+      "end": 5325,
+      "kind": "ambience",
+      "label": "増水した川の激流とスリリングな場面",
+      "reason": "豪雨後の川は濁流が激しく橋を破壊する描写があり、その激しい水の流れと荒れた自然の様子を中心に環境音を選択。",
+      "mood": "tense",
+      "query": "raging river rapid water flow",
+      "candidates": [
+        {
+          "id": 541062,
+          "name": "Winterstorm I: A Cinematic and ambient soundscape",
+          "creator": "kjartan_abel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/kjartan_abel/sounds/541062/",
+          "audioUrl": "https://cdn.freesound.org/previews/541/541062_6738752-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 757891,
+          "name": "Mysterious/Suspenseful Background Drama Music with Acoustic Guitar",
+          "creator": "EvanBoyerman",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/EvanBoyerman/sounds/757891/",
+          "audioUrl": "https://cdn.freesound.org/previews/757/757891_6823432-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 532935,
+          "name": "Escape to a Peaceful World with Sunny Dream: A warm, Relaxation Song",
+          "creator": "kjartan_abel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/kjartan_abel/sounds/532935/",
+          "audioUrl": "https://cdn.freesound.org/previews/532/532935_6738752-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 541062
+    },
+    {
+      "start": 5325,
+      "end": 5992,
+      "kind": "ambience",
+      "label": "山道の緊迫と山賊との衝突",
+      "reason": "峠の場面では風の音と山の自然環境に加え、襲いかかる山賊との緊迫したやり取りがあるため風と木々のざわめきに加え、剣・棒の一撃音を効果音で挿入。",
+      "mood": "tense",
+      "query": "wind mountain ambience",
+      "candidates": [
+        {
+          "id": 486894,
+          "name": "Ambience Mountain Outdoor Mirador Torrebaro",
+          "creator": "bitlab_coop",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/bitlab_coop/sounds/486894/",
+          "audioUrl": "https://cdn.freesound.org/previews/486/486894_9872712-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 486893,
+          "name": "Ambience Mountain Outdoor Mirador Montbau 2",
+          "creator": "bitlab_coop",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/bitlab_coop/sounds/486893/",
+          "audioUrl": "https://cdn.freesound.org/previews/486/486893_9872712-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 486889,
+          "name": "Ambience Mountain Outdoor Pujada Castell Torre Baro",
+          "creator": "bitlab_coop",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/bitlab_coop/sounds/486889/",
+          "audioUrl": "https://cdn.freesound.org/previews/486/486889_9872712-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 486894
+    },
+    {
+      "start": 5992,
+      "end": 6992,
+      "kind": "music",
+      "label": "メロスの疲労と葛藤の心情",
+      "reason": "メロスが疲労し倒れ込む焦燥と自嘲、葛藤を表現するため、哀愁を帯びた控えめなピアノ音楽で感情を深める。",
+      "mood": "sad",
+      "query": "melancholic piano music slow tempo",
+      "candidates": [
+        {
+          "id": 609657,
+          "name": "Slow Sad Mood Orchestral Strings Choir Cinematic Ambient Atmo Music Surround.wav",
+          "creator": "szegvari",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/szegvari/sounds/609657/",
+          "audioUrl": "https://cdn.freesound.org/previews/609/609657_2282212-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 610532,
+          "name": "Dark Sad Mood Orchestra Strings Piano Choir Cinematic Music Atmo Ambient Surround.wav",
+          "creator": "szegvari",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/szegvari/sounds/610532/",
+          "audioUrl": "https://cdn.freesound.org/previews/610/610532_2282212-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 829424,
+          "name": "Fading - Ambient, Sad Pad",
+          "creator": "Andrewkn",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Andrewkn/sounds/829424/",
+          "audioUrl": "https://cdn.freesound.org/previews/829/829424_7038073-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 609657
+    },
+    {
+      "start": 6992,
+      "end": 7492,
+      "kind": "ambience",
+      "label": "清水の湧き出る静かな泉",
+      "reason": "岩の裂目から湧き出る泉の清らかな水音と静寂な自然環境を直接表現し、安堵と再生の感覚を引き出す。",
+      "mood": "calm",
+      "query": "soft spring water fountain",
+      "candidates": [
+        {
+          "id": 744214,
+          "name": "Relaxing Ambient Melodies",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/744214/",
+          "audioUrl": "https://cdn.freesound.org/previews/744/744214_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 614096,
+          "name": "Calm Emtim Bell music.mp3",
+          "creator": "ZHRØ",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ZHR%C3%98/sounds/614096/",
+          "audioUrl": "https://cdn.freesound.org/previews/614/614096_10859468-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 671900,
+          "name": "Calm background Music",
+          "creator": "Bertsz",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Bertsz/sounds/671900/",
+          "audioUrl": "https://cdn.freesound.org/previews/671/671900_6714882-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 744214
+    },
+    {
+      "start": 7492,
+      "end": 7874,
+      "kind": "music",
+      "label": "再び走り出す前向きな希望",
+      "reason": "体力回復とともに希望が戻り、義務感と決意が高まるシーンを温かいギター中心の前向きで力強い音楽で表現。",
+      "mood": "bright",
+      "query": "warm gentle guitar hopeful",
+      "candidates": [
+        {
+          "id": 735624,
+          "name": "Sierra Serenade",
+          "creator": "city11",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/city11/sounds/735624/",
+          "audioUrl": "https://cdn.freesound.org/previews/735/735624_92171-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 735080,
+          "name": "Lament of the Vaquero v1",
+          "creator": "city11",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/city11/sounds/735080/",
+          "audioUrl": "https://cdn.freesound.org/previews/735/735080_92171-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 744214,
+          "name": "Relaxing Ambient Melodies",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/744214/",
+          "audioUrl": "https://cdn.freesound.org/previews/744/744214_16085323-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 735624
+    },
+    {
+      "start": 7874,
+      "end": 8124,
+      "kind": "ambience",
+      "label": "野原と夕暮れの自然環境",
+      "reason": "メロスが走る野原では夕日の沈む時間帯で、虫の声や夕暮れの自然の音が漂い、環境の静けさと厳しさを伴う。",
+      "mood": "tense",
+      "query": "dusk field insects ambience",
+      "candidates": [
+        {
+          "id": 742878,
+          "name": "Crickets chirping at dusk in the summer next to a plantation field",
+          "creator": "Simonus18",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Simonus18/sounds/742878/",
+          "audioUrl": "https://cdn.freesound.org/previews/742/742878_8378872-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 742878
+    },
+    {
+      "start": 8124,
+      "end": 8678,
+      "kind": "ambience",
+      "label": "シラクス市の夕暮れと市街地の環境",
+      "reason": "街の遠景で塔楼が夕陽を浴びる描写と市街地の静かな人の気配を感じさせる環境音で都会の夕暮れを表現。",
+      "mood": "tense",
+      "query": "city dusk ambience",
+      "candidates": [
+        {
+          "id": 689713,
+          "name": "City parking lot ambience in car wash at dusk with traffic, city hum and bell ringing far",
+          "creator": "felix.blume",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/felix.blume/sounds/689713/",
+          "audioUrl": "https://cdn.freesound.org/previews/689/689713_1661766-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 413335,
+          "name": "Baltimore City Ambience at Dusk",
+          "creator": "flood-mix",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/flood-mix/sounds/413335/",
+          "audioUrl": "https://cdn.freesound.org/previews/413/413335_7723777-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 485372,
+          "name": "Noisy Street Recording at Dusk",
+          "creator": "JackAmadon",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/JackAmadon/sounds/485372/",
+          "audioUrl": "https://cdn.freesound.org/previews/485/485372_10412200-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 689713
+    },
+    {
+      "start": 8678,
+      "end": 8989,
+      "kind": "music",
+      "label": "メロスの決死の走りと覚悟",
+      "reason": "メロスが死力を尽くして走る熱い緊迫感と覚悟をストリングスを中心にした直情的だが繊細な控えめな音楽で補完。",
+      "mood": "tense",
+      "query": "intense ambient strings dramatic",
+      "candidates": [
+        {
+          "id": 634648,
+          "name": "Erhu Trailer",
+          "creator": "Mark_Murray",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Mark_Murray/sounds/634648/",
+          "audioUrl": "https://cdn.freesound.org/previews/634/634648_13315998-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 634648
+    },
+    {
+      "start": 8989,
+      "end": 9431,
+      "kind": "ambience",
+      "label": "刑場の緊迫と群衆のざわめき",
+      "reason": "刑場の緊迫した雰囲気と群衆のざわめき、縄の音など躍動感ある人声の混ざった環境音を使用。",
+      "mood": "tense",
+      "query": "crowd murmuring execution site",
+      "candidates": [
+        {
+          "id": 541062,
+          "name": "Winterstorm I: A Cinematic and ambient soundscape",
+          "creator": "kjartan_abel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/kjartan_abel/sounds/541062/",
+          "audioUrl": "https://cdn.freesound.org/previews/541/541062_6738752-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 757891,
+          "name": "Mysterious/Suspenseful Background Drama Music with Acoustic Guitar",
+          "creator": "EvanBoyerman",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/EvanBoyerman/sounds/757891/",
+          "audioUrl": "https://cdn.freesound.org/previews/757/757891_6823432-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 532935,
+          "name": "Escape to a Peaceful World with Sunny Dream: A warm, Relaxation Song",
+          "creator": "kjartan_abel",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/kjartan_abel/sounds/532935/",
+          "audioUrl": "https://cdn.freesound.org/previews/532/532935_6738752-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 541062
+    },
+    {
+      "start": 9431,
+      "end": 9674,
+      "kind": "music",
+      "label": "友情の再会と感動の抱擁",
+      "reason": "メロスとセリヌンティウスが抱擁し感動的な涙を流す場面では、温かくも深い感動を伝えるピアノと弦楽器中心の音楽で情感を深化。",
+      "mood": "bright",
+      "query": "emotional piano strings warm gentle",
+      "candidates": [
+        {
+          "id": 735624,
+          "name": "Sierra Serenade",
+          "creator": "city11",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/city11/sounds/735624/",
+          "audioUrl": "https://cdn.freesound.org/previews/735/735624_92171-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 735080,
+          "name": "Lament of the Vaquero v1",
+          "creator": "city11",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/city11/sounds/735080/",
+          "audioUrl": "https://cdn.freesound.org/previews/735/735080_92171-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 744214,
+          "name": "Relaxing Ambient Melodies",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/744214/",
+          "audioUrl": "https://cdn.freesound.org/previews/744/744214_16085323-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 735624
+    },
+    {
+      "start": 9674,
+      "end": 10061,
+      "kind": "ambience",
+      "label": "群衆の歓声と祝いの空気",
+      "reason": "群衆の歓声や祝祭的な空気感、歓声と拍手の音を中心に大勢の動きを感じさせる環境音で盛り上げる。",
+      "mood": "bright",
+      "query": "crowd cheering celebration",
+      "candidates": [
+        {
+          "id": 397434,
+          "name": "Crowd Cheer",
+          "creator": "FoolBoyMedia",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/FoolBoyMedia/sounds/397434/",
+          "audioUrl": "https://cdn.freesound.org/previews/397/397434_4019029-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 729994,
+          "name": "Crowd of 30,000 People with Whistles, Applause and Cheering V9",
+          "creator": "sophia.hussain",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/sophia.hussain/sounds/729994/",
+          "audioUrl": "https://cdn.freesound.org/previews/729/729994_15427678-lq.mp3",
+          "kind": "ambience"
+        },
+        {
+          "id": 397435,
+          "name": "Crowd Cheer II",
+          "creator": "FoolBoyMedia",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/FoolBoyMedia/sounds/397435/",
+          "audioUrl": "https://cdn.freesound.org/previews/397/397435_4019029-lq.mp3",
+          "kind": "ambience"
+        }
+      ],
+      "selectedId": 397434
+    }
+  ],
+  "cues": [
+    {
+      "id": "cue-1",
+      "start": 1109,
+      "end": 1114,
+      "mode": "once",
+      "kind": "effect",
+      "label": "捕縛の音",
+      "query": "restraint capture sound",
+      "gain": 0.3,
+      "candidates": [],
+      "selectedId": null
+    },
+    {
+      "id": "cue-2",
+      "start": 4810,
+      "end": 4815,
+      "mode": "once",
+      "kind": "effect",
+      "label": "橋の破壊音",
+      "query": "bridge collapse crash",
+      "gain": 0.25,
+      "candidates": [],
+      "selectedId": null
+    },
+    {
+      "id": "cue-3",
+      "start": 5211,
+      "end": 5218,
+      "mode": "once",
+      "kind": "effect",
+      "label": "川に飛び込む音",
+      "query": "water splash jump",
+      "gain": 0.25,
+      "candidates": [
+        {
+          "id": 867499,
+          "name": "Kid Jump in Pool Water Splash",
+          "creator": "qubodup",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/qubodup/sounds/867499/",
+          "audioUrl": "https://cdn.freesound.org/previews/867/867499_71257-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 280219,
+          "name": "jump-into-water.flac",
+          "creator": "yurkobb",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/yurkobb/sounds/280219/",
+          "audioUrl": "https://cdn.freesound.org/previews/280/280219_2023784-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 280220,
+          "name": "jump-into-water-02.flac",
+          "creator": "yurkobb",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/yurkobb/sounds/280220/",
+          "audioUrl": "https://cdn.freesound.org/previews/280/280220_2023784-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 867499
+    },
+    {
+      "id": "cue-4",
+      "start": 5683,
+      "end": 5691,
+      "mode": "once",
+      "kind": "effect",
+      "label": "棍棒を振り上げる音",
+      "query": "club swing hit",
+      "gain": 0.25,
+      "candidates": [
+        {
+          "id": 402994,
+          "name": "golf club hit series.wav",
+          "creator": "Mikes-MultiMedia",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Mikes-MultiMedia/sounds/402994/",
+          "audioUrl": "https://cdn.freesound.org/previews/402/402994_5632532-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 707022,
+          "name": "Golf shot.wav",
+          "creator": "MioMeg",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/MioMeg/sounds/707022/",
+          "audioUrl": "https://cdn.freesound.org/previews/707/707022_14780649-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 402994
+    },
+    {
+      "id": "cue-5",
+      "start": 5767,
+      "end": 5774,
+      "mode": "once",
+      "kind": "effect",
+      "label": "殴る音",
+      "query": "punch hit strike",
+      "gain": 0.25,
+      "candidates": [
+        {
+          "id": 676462,
+          "name": "Hit 2",
+          "creator": "NearTheAtmoshphere",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/NearTheAtmoshphere/sounds/676462/",
+          "audioUrl": "https://cdn.freesound.org/previews/676/676462_2578040-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 676463,
+          "name": "Hit 3",
+          "creator": "NearTheAtmoshphere",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/NearTheAtmoshphere/sounds/676463/",
+          "audioUrl": "https://cdn.freesound.org/previews/676/676463_2578040-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 676464,
+          "name": "Hit 4",
+          "creator": "NearTheAtmoshphere",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/NearTheAtmoshphere/sounds/676464/",
+          "audioUrl": "https://cdn.freesound.org/previews/676/676464_2578040-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 676462
+    },
+    {
+      "id": "cue-6",
+      "start": 9115,
+      "end": 9121,
+      "mode": "once",
+      "kind": "effect",
+      "label": "縄を打つ音",
+      "query": "rope tied tightening",
+      "gain": 0.3,
+      "candidates": [],
+      "selectedId": null
+    },
+    {
+      "id": "cue-7",
+      "start": 9517,
+      "end": 9521,
+      "mode": "once",
+      "kind": "effect",
+      "label": "頬を殴る音",
+      "query": "slap face hit",
+      "gain": 0.25,
+      "candidates": [
+        {
+          "id": 539163,
+          "name": "Slap hit on the face or shoulder",
+          "creator": "khenshom",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/khenshom/sounds/539163/",
+          "audioUrl": "https://cdn.freesound.org/previews/539/539163_6652872-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 704179,
+          "name": "Face slap sound effect",
+          "creator": "magicjoshua",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/magicjoshua/sounds/704179/",
+          "audioUrl": "https://cdn.freesound.org/previews/704/704179_6893335-lq.mp3",
+          "kind": "effect"
+        },
+        {
+          "id": 815785,
+          "name": "Slap in the Face",
+          "creator": "Ultra-Edward",
+          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "url": "https://freesound.org/people/Ultra-Edward/sounds/815785/",
+          "audioUrl": "https://cdn.freesound.org/previews/815/815785_16786392-lq.mp3",
+          "kind": "effect"
+        }
+      ],
+      "selectedId": 539163
+    }
+  ],
+  "usage": {
+    "input": 10558,
+    "output": 2205,
+    "total": 12763
+  }
+}

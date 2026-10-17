@@ -6,7 +6,8 @@ import { measuredPages, pageAtOffset } from './pagination.mjs';
 import { fontFamilies, type DisplayPreferences } from './preferences.mjs';
 
 type Paint = { background: string; ink: string; muted: string; accent: string; chosen: string };
-type Props = {
+export type Props = {
+  visuals?: import('../study/visuals.mjs').StudyVisual[];
   text: string; start: number; sub: number; marks: number[]; faded: number | null; picking: boolean; draft: number | null;
   guide: boolean; running: boolean; speed: number; display: DisplayPreferences; paint: Paint; disabled: boolean;
   focus: { offset: number; token: number } | null;
