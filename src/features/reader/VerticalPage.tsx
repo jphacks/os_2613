@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { edgeTurn, horizontalTurn } from './gestures.mjs';
-import { measuredPages, pageAtOffset } from './pagination.mjs';
+import { measuredPagesAsync, pageAtOffset } from './pagination.mjs';
 import { fontFamilies, type DisplayPreferences } from './preferences.mjs';
 
 type Paint = { background: string; ink: string; muted: string; accent: string; chosen: string };
@@ -31,6 +31,9 @@ export default function VerticalPage(props: Props) {
   const [edge, setEdge] = useState<'next' | 'prev' | null>(null);
   const anchor = useRef({ text, start, offset: start });
   const measured = useRef('');
+  const measuring = useRef(''), measurement = useRef(0);
+  const fontRevision = useRef(0);
+  const [calculating, setCalculating] = useState(false);
   const focusSeen = useRef<number | null>(null);
   const step = Math.round(display.fontSize * display.lineHeight);
   const page = Math.min(Math.max(0, sub), layout.count - 1);
@@ -45,22 +48,31 @@ export default function VerticalPage(props: Props) {
     if (!view || !body || !view.clientWidth || !view.clientHeight) return;
     const perPage = Math.max(1, Math.floor(view.clientWidth / step));
     const width = perPage * step;
-    const signature = `${text}:${start}:${width}:${view.clientHeight}:${display.font}:${display.fontSize}:${step}`;
-    if (measured.current === signature) return;
+    const signature = `${text}:${start}:${width}:${view.clientHeight}:${display.font}:${display.fontSize}:${step}:${fontRevision.current}`;
+    if (measuring.current === signature) return;
+    if (measured.current === signature) {
+      measurement.current++; measuring.current = ''; setCalculating(false); return;
+    }
+    const job = ++measurement.current;
+    measuring.current = signature;
+    setCalculating(true);
     const sameText = anchor.current.text === text && anchor.current.start === start && !!measured.current;
     const node = body.firstChild;
     const right = body.getBoundingClientRect().right;
     const range = document.createRange();
-    const starts = node ? measuredPages(text, offset => {
+    const pending = node ? measuredPagesAsync(text, offset => {
       range.setStart(node, offset); range.setEnd(node, offset + (text.codePointAt(offset)! > 0xffff ? 2 : 1));
       return Math.max(0, Math.floor((right - range.getBoundingClientRect().right + 0.5) / width));
-    }) : [0, 0];
-    const count = starts.length - 1;
-    measured.current = signature;
-    setLayout({ count, width, starts });
-    latest.current.onPages(count);
-    // 設定や画面幅が変わっても、読んでいた文字のあるページを残す。
-    if (sameText) latest.current.onReflow(pageAtOffset(starts, anchor.current.offset - start));
+    }, { shouldCancel: () => measurement.current !== job }) : Promise.resolve([0, 0]);
+    void pending.then(starts => {
+      if (!starts || measurement.current !== job) return;
+      const count = starts.length - 1;
+      measured.current = signature;
+      setLayout({ count, width, starts });
+      latest.current.onPages(count);
+      // 設定や画面幅が変わっても、読んでいた文字のあるページを残す。
+      if (sameText) latest.current.onReflow(pageAtOffset(starts, anchor.current.offset - start));
+    }).finally(() => { if (measurement.current === job) { measuring.current = ''; setCalculating(false); } });
   }, [text, start, step, display.font, display.fontSize]);
   useLayoutEffect(() => {
     // iPhone では内部のWebViewの中で描かれ、そのページの高さが0のままだと紙面が潰れる。
@@ -72,11 +84,11 @@ export default function VerticalPage(props: Props) {
     }
     let active = true;
     measure();
-    void document.fonts?.ready.then(() => { if (active) measure(); });
+    if (document.fonts?.status === 'loading') void document.fonts.ready.then(() => { if (active) { fontRevision.current++; measure(); } });
     const view = viewRef.current;
     if (!view) return;
     const observer = new ResizeObserver(measure); observer.observe(view);
-    return () => { active = false; observer.disconnect(); };
+    return () => { active = false; observer.disconnect(); measurement.current++; measuring.current = ''; };
   }, [measure]);
   useEffect(() => {
     if (!layout.width) return;
@@ -90,13 +102,13 @@ export default function VerticalPage(props: Props) {
     latest.current.onReflow(pageAtOffset(layout.starts, focus.offset - start));
   }, [focus, layout, start, text]);
   useEffect(() => {
-    if (!guide || !running || picking || ghost || disabled || !layout.width) return;
+    if (!guide || !running || picking || ghost || disabled || calculating || !layout.width) return;
     const timer = setTimeout(() => {
       const next = cursor + 1;
       if (next >= chars.length) latest.current.onAdvance(); else setCursor(next);
     }, chars[cursor]?.char === '\n' ? 0 : 60000 / speed);
     return () => clearTimeout(timer);
-  }, [guide, running, picking, ghost, disabled, cursor, speed, page, layout, chars]);
+  }, [guide, running, picking, ghost, disabled, calculating, cursor, speed, page, layout, chars]);
   useEffect(() => {
     const pause = () => { if (document.hidden) latest.current.onPause(); };
     document.addEventListener('visibilitychange', pause);
@@ -110,10 +122,10 @@ export default function VerticalPage(props: Props) {
   }, [edge, !!ghost]);
 
   useEffect(() => {
-    if (picking || ghost || disabled || !layout.width) return;
+    if (picking || ghost || disabled || calculating || !layout.width) return;
     const char = chars[guide ? cursor : 0];
     if (char) latest.current.onPosition(char.begin);
-  }, [cursor, chars, guide, picking, ghost, disabled, layout.width]);
+  }, [cursor, chars, guide, picking, ghost, disabled, calculating, layout.width]);
 
   function pointOffset(x: number, y: number) {
     const root = rootRef.current?.getBoundingClientRect();
@@ -136,7 +148,7 @@ export default function VerticalPage(props: Props) {
     setEdge(root && y >= root.top && y <= root.bottom ? edgeTurn(x, root.left, root.width) : null);
   }
   function pointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (disabled || !event.isPrimary || event.button !== 0 || gesture.current) return;
+    if (disabled || calculating || !event.isPrimary || event.button !== 0 || gesture.current) return;
     const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-mark]') : null;
     gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, from: target ? Number(target.dataset.mark) : null, dragged: false, placing: picking };
     latest.current.onPause();
@@ -175,6 +187,7 @@ export default function VerticalPage(props: Props) {
       style={{ ...styles.ribbon, ...(first ? { top: 0, right: 0, left: 'auto' } : {}), color: paint.accent, opacity: marked && faded === offset ? 0.25 : 1 }}><Ribbon /></span>;
   }
   return <div ref={rootRef} style={{ ...styles.root, background: paint.background }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)} onLostPointerCapture={event => { if (gesture.current?.id === event.pointerId) finish(event, true); }}>
+    {calculating && <div role="status" style={{ position: 'absolute', top: 4, left: 24, color: paint.muted, fontSize: 12, pointerEvents: 'none' }}>ページを整えています…</div>}
     <div ref={viewRef} style={styles.view}>
       <div ref={measureRef} aria-hidden="true" style={{ ...styles.text, visibility: 'hidden', pointerEvents: 'none', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>{text}</div>
       <div style={{ ...styles.clip, width: layout.width || '100%' }}><div ref={textRef} style={{ ...styles.text, color: guide ? paint.muted : paint.ink, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>

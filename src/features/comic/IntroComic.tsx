@@ -59,7 +59,7 @@ export function IntroComic({ book, read }: { book: SavedBook; read: () => void }
   return <ScrollView contentContainerStyle={styles.body}>
     <Text style={styles.kicker}>物語の入口</Text><Text style={styles.title}>{book.title}</Text><Text style={styles.text}>{book.author}</Text>
     <Text style={styles.heading}>4コマから、読んでみよう。</Text>
-    {state?.status !== 'ready' && <Pressable accessibilityRole="button" style={styles.button} onPress={read}><Text style={styles.buttonText}>先に原文を読む →</Text></Pressable>}
+    <Pressable accessibilityRole="button" style={styles.button} onPress={read}><Text style={styles.buttonText}>原文を読む →</Text></Pressable>
     {loading && <ActivityIndicator color={colors.accent} />}
     {state?.status === 'running' ? <View style={styles.card}><ActivityIndicator color={colors.accent} /><Text accessibilityLiveRegion="polite" style={styles.text}>{state.script ? `漫画を描いています（${state.completed} / 4 コマ）` : '物語の紹介を考えています…'}</Text></View> : state?.status !== 'ready' && state && <Pressable accessibilityRole="button" disabled={working || loading || (state.failure?.code === 'LIMIT' && !state.canResumeRemaining)} style={styles.primary} onPress={() => void generate()}><Text style={styles.light}>{working ? '準備しています…' : state.canResumeRemaining ? `残り${4 - state.completed}コマを作る` : state.script ? '漫画の作成を再開する' : '紹介漫画を作る'}</Text></Pressable>}
     {!!error && <Text accessibilityRole="alert" style={styles.text}>{error}</Text>}
@@ -76,9 +76,9 @@ export function IntroComic({ book, read }: { book: SavedBook; read: () => void }
 function ComicImage({ comicKey, index, caption }: { comicKey: string; index: number; caption: string }) {
   const [failed, setFailed] = useState(false), [retry, setRetry] = useState(0);
   let uri: string;
-  try { uri = artifactUrl(`/api/comic?key=${comicKey}&image=${index}`); }
+  try { uri = artifactUrl(`/api/comic?key=${comicKey}&image=${index}&format=webp`); }
   catch { return <Text style={styles.text}>画像の接続先が未設定です。配信設定を確認してください。</Text>; }
-  return <View>{failed ? <Pressable accessibilityRole="button" style={styles.button} onPress={() => { setFailed(false); setRetry(value => value + 1); }}><Text style={styles.buttonText}>保存画像を読み直す</Text></Pressable> : <Image key={retry} source={{ uri, cacheKey: `${comicKey}:${index}` }} onError={() => setFailed(true)} style={styles.image} contentFit="contain" cachePolicy="disk" accessibilityLabel={`${index}コマ目：${caption}`} />}</View>;
+  return <View>{failed ? <Pressable accessibilityRole="button" style={styles.button} onPress={() => { setFailed(false); setRetry(value => value + 1); }}><Text style={styles.buttonText}>保存画像を読み直す</Text></Pressable> : <Image key={retry} source={{ uri, cacheKey: `${comicKey}:${index}:preview-v1` }} onError={() => setFailed(true)} style={styles.image} contentFit="contain" cachePolicy="disk" accessibilityLabel={`${index}コマ目：${caption}`} />}</View>;
 }
 const styles = StyleSheet.create({
   body: { padding: 20, paddingBottom: 40, gap: 18, width: '100%', maxWidth: 760, alignSelf: 'center' }, kicker: { color: colors.accent, fontSize: 12, letterSpacing: 2 }, title: { fontSize: 28, color: colors.ink }, heading: { fontSize: 19, fontWeight: '600', color: colors.ink }, text: { color: colors.ink, fontSize: 16, lineHeight: 28 }, card: { gap: 14, paddingVertical: 12 },
