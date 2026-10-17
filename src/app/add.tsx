@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Chips } from '@/shared/Chips';
 import { colors } from '@/shared/theme';
@@ -60,14 +61,17 @@ export default function AddScreen() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       if (controller.signal.aborted) return;
-      addBook(data as SavedBook); setMessage(`「${data.title}」を本棚に追加しました。`);
+      await addBook(data as SavedBook);
+      if (!controller.signal.aborted) setMessage(`「${data.title}」を本棚に追加しました。`);
     } catch (reason) {
       if (!controller.signal.aborted) setError(reason instanceof Error && reason.message.includes('ください') ? reason.message : '追加できません。通信を確認して再試行してください。');
     } finally { if (!controller.signal.aborted) setAdding(null); }
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.body}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
       <View style={styles.headRow}>
         <Text style={styles.eyebrow}>ADD A BOOK</Text>
         <Pressable onPress={() => router.back()}>
@@ -79,7 +83,7 @@ export default function AddScreen() {
       <Chips items={tabs} value={tab} onChange={setTab} variant="segment" />
 
       <Text style={styles.note}>
-        {tab === 'novel' ? '青空文庫の公開作品を、タイトルや著者から検索します。追加した本はこのブラウザーに保存します。' : '教材の検索は準備中です。「小説を探す」から青空文庫の作品を追加できます。'}
+        {tab === 'novel' ? '青空文庫の公開作品を、タイトルや著者から検索します。追加した本はこの端末に保存します。' : '教材の検索は準備中です。「小説を探す」から青空文庫の作品を追加できます。'}
       </Text>
 
       <Chips items={fields} value={field} onChange={setField} variant="segment" />
@@ -129,6 +133,8 @@ export default function AddScreen() {
         </View>
       </>}
     </ScrollView>
+    </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
