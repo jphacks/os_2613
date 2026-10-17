@@ -5,12 +5,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { findBook } from '@/content/books';
-import PdfBook from '@/features/pdf/PdfBook';
 import { colors } from '@/shared/theme';
 import { useLibrary } from '@/features/library/LibraryProvider';
 import { BookReading } from '@/features/bookmark/BookReading';
 import { IntroComic } from '@/features/comic/IntroComic';
 import { validOffset } from '@/features/bookmark/model.mjs';
+import { StudyReader } from '@/features/study/StudyReader';
 
 // 同梱している教材のPDF。require は静的に書く必要があるので、ここで本のIDと結びつける。
 const pdfFiles: Record<string, number> = {
@@ -82,19 +82,7 @@ function StudyBook({ id }: { id: string }) {
       <Stack.Screen options={{ title: book.title }} />
 
       <View style={styles.page}>
-        {pdfFiles[book.id] ? (
-          pdfUri ? (
-            <PdfBook uri={pdfUri} dom={{ style: { flex: 1 } }} />
-          ) : (
-            <Text style={styles.note}>教材を準備しています…</Text>
-          )
-        ) : (
-          <View style={styles.placeholder}>
-            <Text style={styles.title}>{book.title}</Text>
-            <Text style={styles.author}>{book.author}</Text>
-            <Text style={styles.note}>本文はここに表示されます</Text>
-          </View>
-        )}
+        <StudyReader key={book.id} book={book} pdfUri={pdfUri} />
       </View>
 
       {book.source && (

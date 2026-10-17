@@ -12,10 +12,10 @@ export function createCharactersEndpoint({ provider = createBookArtifactProvider
     try {
       if (request.method !== 'POST') return send(405, { error: '相関図の画面から操作してください。' });
       const input = await artifactInput(request, 610000);
-      if (Object.keys(input).length !== 1 || typeof input.text !== 'string' || !input.text.trim() || input.text.length > characterLimit) throw new Error('INVALID_INPUT');
-      const text = input.text, key = artifactKey(['characters-v1', text]);
+      if (Object.keys(input).some(key => !['text', 'refresh'].includes(key)) || (input.refresh !== undefined && input.refresh !== true) || typeof input.text !== 'string' || !input.text.trim() || input.text.length > characterLimit) throw new Error('INVALID_INPUT');
+      const text = input.text, key = artifactKey(['characters-v2', text]);
       const cached = await storage.read(key);
-      if (cached) { if (cached.text !== text) throw new Error('STORAGE'); return send(200, { graph: groundedGraph(cached.graph, text) }); }
+      if (cached) { if (cached.text !== text) throw new Error('STORAGE'); if (!input.refresh) return send(200, { graph: groundedGraph(cached.graph, text) }); }
       if (!pending.has(key)) {
         if (pending.size) throw new Error('BUSY');
         if (provider.configured === false) throw new Error('NOT_CONFIGURED');
@@ -24,7 +24,15 @@ export function createCharactersEndpoint({ provider = createBookArtifactProvider
         pending.set(key, job);
       }
       return send(200, { graph: await pending.get(key) });
-    } catch (error) { return fail(error); }
+    } catch (error) {
+      if (error?.message === 'UNGROUNDED') console.warn('[characters] evidence rejected', {
+        stage: error.cause?.stage === 'character-evidence' ? 'character-evidence' : 'verification',
+        candidates: Number.isInteger(error.cause?.candidates) ? error.cause.candidates : null,
+        sourceIds: Number.isInteger(error.cause?.sourceIds) ? error.cause.sourceIds : null,
+        names: Number.isInteger(error.cause?.names) ? error.cause.names : null,
+      });
+      return fail(error);
+    }
   };
 }
 export function createComicEndpoint({ provider = createBookArtifactProvider(), root = '.local/book-comics' } = {}) {

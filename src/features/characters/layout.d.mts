@@ -1,0 +1,2 @@
+import type { Graph, Person, Relation } from './model.mjs';
+export function characterLayout(graph: Graph): { width: number; height: number; nodes: (Person & { x: number; y: number })[]; edges: (Relation & { x: number; y: number; length: number; angle: number; labelX: number; labelY: number; labelAngle: number; labelWidth: number; labelHeight: number; labelVertical: boolean; labelText: string })[] };

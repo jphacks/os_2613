@@ -20,6 +20,15 @@ const post = value => new Request('http://localhost/api/test', { method: 'POST',
 const status = key => new Request(`http://localhost/api/comic?key=${key}`);
 const register = endpoint => endpoint(post({ action: 'register', bookId: 'book', title: '物語', opening: text, context: text })).then(response => response.json());
 
+test('保存済み相関図は再生成せず、明示した調べ直しだけ追加で生成する', async t => {
+  const root = await temporary(t); let calls = 0;
+  const endpoint = createCharactersEndpoint({ root, provider: { characters: async () => { calls++; return graph; } } });
+  assert.equal((await endpoint(post({ text }))).status, 200);
+  assert.equal((await endpoint(post({ text }))).status, 200); assert.equal(calls, 1);
+  assert.equal((await endpoint(post({ text, refresh: true }))).status, 200); assert.equal(calls, 2);
+  assert.equal((await endpoint(post({ text, refresh: false }))).status, 400); assert.equal(calls, 2);
+});
+
 test('配信用画像の取得はWebPを返し、元のPNGと生成回数を変更しない', async t => {
   const root = await temporary(t), storage = artifactStorage(root), key = 'e'.repeat(64);
   const original = await sharp({ create: { width: 1536, height: 1024, channels: 3, background: '#999999' } }).png({ compressionLevel: 0 }).toBuffer();
@@ -189,13 +198,23 @@ test('実APIへの文字要求はStructured Outputsと保存なし、画像要�
   const requests = [];
   const provider = createBookArtifactProvider({ apiKey: 'test-private-key', fetcher: async (url, init) => {
     requests.push({ url, init });
-    return Response.json(url.endsWith('responses') ? { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(graph) }] }] } : { data: [{ b64_json: png }] });
+    const value = url.endsWith('responses') && JSON.parse(init.body).text.format.name === 'reading_characters'
+      ? { people: graph.people.map(({ id, name }) => ({ id, name, sourceId: 's1' })) }
+      : { relations: graph.relations.map(({ from, to, label }) => ({ from, to, label, sourceId: 'r1' })) };
+    return Response.json(url.endsWith('responses') ? { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(value) }] }] } : { data: [{ b64_json: png }] });
   } });
-  await provider.characters(text); const body = JSON.parse(requests[0].init.body);
-  assert.equal(body.input, text); assert.equal(body.store, false); assert.equal(body.text.format.type, 'json_schema'); assert.equal(body.tools, undefined);
+  const result = await provider.characters(text); const body = JSON.parse(requests[0].init.body);
+  assert.equal(JSON.parse(body.input).sources[0].text, text); assert.equal(body.text.format.schema.properties.people.items.properties.quote, undefined); assert.equal(body.store, false); assert.equal(body.text.format.type, 'json_schema'); assert.equal(body.tools, undefined);
+  assert.equal(result.relations.length, 1);
+  const relationshipBody = JSON.parse(requests[1].init.body), relationshipInput = JSON.parse(relationshipBody.input);
+  assert.equal(relationshipBody.text.format.name, 'reading_relationships');
+  assert.deepEqual(relationshipBody.text.format.schema.properties.relations.items.properties.from.enum, graph.people.map(item => item.id));
+  assert.deepEqual(relationshipInput.people, graph.people.map(({ id, name }) => ({ id, name })));
+  assert.deepEqual(relationshipInput.sources[0].pair, graph.people.map(item => item.id));
+  assert.equal(relationshipInput.sources[0].text, text); assert.equal(relationshipBody.store, false);
   await provider.image(script, 0, null); await provider.image(script, 1, png);
-  assert.ok(requests[1].url.endsWith('images/generations')); assert.ok(requests[2].url.endsWith('images/edits'));
-  assert.ok(requests[2].init.body instanceof FormData); assert.equal(requests[2].init.body.get('input_fidelity'), 'high');
+  assert.ok(requests[2].url.endsWith('images/generations')); assert.ok(requests[3].url.endsWith('images/edits'));
+  assert.ok(requests[3].init.body instanceof FormData); assert.equal(requests[3].init.body.get('input_fidelity'), 'high');
   let called = false;
   const absent = createBookArtifactProvider({ apiKey: '', fetcher: async () => { called = true; } });
   await assert.rejects(absent.characters(text), /NOT_CONFIGURED/); assert.equal(called, false);
