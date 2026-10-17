@@ -6,6 +6,8 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { findBook } from '@/content/books';
 import PdfBook from '@/features/pdf/PdfBook';
 import { colors } from '@/shared/theme';
+import { useLibrary } from '@/features/library/LibraryProvider';
+import { BookReading } from '@/features/bookmark/BookReading';
 
 // 同梱している教材のPDF。require は静的に書く必要があるので、ここで本のIDと結びつける。
 const pdfFiles: Record<string, number> = {
@@ -27,8 +29,26 @@ function usePdfUri(id: string) {
   return uri;
 }
 
+// 教材（PDF）ならPDFの見開き表示、それ以外は青空文庫から追加した小説として開く
 export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  return pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook id={id} />;
+}
+
+function NovelBook({ id }: { id: string }) {
+  const { books, ready } = useLibrary();
+  const book = books.find(item => item.id === id);
+
+  if (ready && book) return <BookReading key={`${book.id}:${book.importedAt}`} book={book} />;
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.note}>{!ready ? '本を読み込んでいます…' : '本が見つかりません。本棚に戻って追加してください。'}</Text>
+    </View>
+  );
+}
+
+function StudyBook({ id }: { id: string }) {
   const book = findBook(id);
   const pdfUri = usePdfUri(id);
 

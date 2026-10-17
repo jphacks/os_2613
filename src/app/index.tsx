@@ -5,11 +5,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { books } from '@/content/books';
 import { Cover } from '@/features/shelf/Cover';
+import { useLibrary } from '@/features/library/LibraryProvider';
 import { Chips } from '@/shared/Chips';
 import { colors, coverColors } from '@/shared/theme';
 
-// 絞り込みや並べ替えはまだ効かない（見た目のみ）。
-const kindLabel = { novel: '小説', study: '参考書' } as const;
+// 同梱の教材（PDF）。小説は青空文庫から追加したものを並べる。
+const studyBooks = books.filter(b => b.kind === 'study');
 
 const kinds = [
   { id: 'all', label: 'すべて' },
@@ -29,11 +30,17 @@ export default function ShelfScreen() {
   const { width } = useWindowDimensions();
   const [kind, setKind] = useState('all');
   const [state, setState] = useState('all');
+  const { books: savedBooks, ready, warning } = useLibrary();
+  // 読書状態はまだ記録していないので、「すべて」「読みたい」のときだけ並べる
+  const shown = !['all', 'want'].includes(state) ? [] : [
+    ...(kind === 'study' ? [] : savedBooks.map(b => ({ id: b.id, title: b.title, author: b.author, label: '小説' }))),
+    ...(kind === 'novel' ? [] : studyBooks.map(b => ({ id: b.id, title: b.title, author: b.author, label: '参考書' }))),
+  ];
 
   // 1段に並ぶ冊数を画面幅から決め、段ごとに棚板を敷く
   const perRow = Math.max(2, Math.floor((Math.min(width, 1000) - 48) / SLOT));
-  const rows: (typeof books)[] = [];
-  for (let i = 0; i < books.length; i += perRow) rows.push(books.slice(i, i + perRow));
+  const rows: (typeof shown)[] = [];
+  for (let i = 0; i < shown.length; i += perRow) rows.push(shown.slice(i, i + perRow));
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -56,6 +63,9 @@ export default function ShelfScreen() {
           <Chips items={kinds} value={kind} onChange={setKind} />
           <Chips items={states} value={state} onChange={setState} variant="sub" />
         </View>
+        {warning ? <Text accessibilityRole="alert" style={styles.message}>{warning}</Text> : null}
+        {!ready && <Text style={styles.message}>本棚を読み込んでいます…</Text>}
+        {ready && shown.length === 0 && <Text style={styles.message}>この条件の本はありません。</Text>}
 
         {rows.map((row, r) => (
           <View key={r} style={styles.row}>
@@ -65,7 +75,7 @@ export default function ShelfScreen() {
                   <Cover
                     title={book.title}
                     author={book.author}
-                    label={kindLabel[book.kind]}
+                    label={book.label}
                     color={coverColors[(r * perRow + i) % coverColors.length]}
                     onPress={() => router.push(`/book/${book.id}`)}
                   />
@@ -95,4 +105,5 @@ const styles = StyleSheet.create({
   covers: { flexDirection: 'row', paddingHorizontal: 14 },
   slot: { width: SLOT, alignItems: 'center' },
   board: { height: 10, backgroundColor: colors.wood, marginTop: -2 },
+  message: { color: colors.muted, fontSize: 14, lineHeight: 22, paddingVertical: 24 },
 });

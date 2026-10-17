@@ -1,0 +1,17 @@
+export type Mark = { id: string; offset: number; createdAt: number; updatedAt: number };
+export type Reading = { version: number; source: string; cursor: number; marks: Mark[] };
+export type ReadingPage = { start: number; end: number; text: string };
+export type Scope = 'previous' | 'chapter' | 'start';
+export const summaryLimit: number;
+export function documentVersion(text: string): string;
+export function validOffset(text: string, offset: unknown): boolean;
+export function emptyReading(text: string): Reading;
+export function parseReading(raw: string | null, text: string): Reading;
+export function placeMark(reading: Reading, text: string, offset: number, id: string, now?: number): Reading;
+export function removeMark(reading: Reading, id: string): Reading;
+export function chapterStart(text: string, offset: number): number;
+export function summaryRange(text: string, marks: Mark[], id: string, scope: Scope): { start: number; end: number; text: string };
+export function readingPages(text: string, size?: number): ReadingPage[];
+export function pageAt(pages: ReadingPage[], offset: number): number;
+export function bookmarkPage(pages: ReadingPage[], offset: number): number;
+export function createReadingStore(storage: { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<unknown> }, key: string, text: string): { load(): Promise<Reading>; save(change: (reading: Reading) => Reading): Promise<Reading> };

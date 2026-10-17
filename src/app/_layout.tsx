@@ -2,10 +2,11 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { colors } from '@/shared/theme';
+import { LibraryProvider } from '@/features/library/LibraryProvider';
 
 export default function RootLayout() {
   return (
-    <>
+    <LibraryProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -24,6 +25,6 @@ export default function RootLayout() {
           options={{ presentation: 'transparentModal', animation: 'fade', headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}
         />
       </Stack>
-    </>
+    </LibraryProvider>
   );
 }

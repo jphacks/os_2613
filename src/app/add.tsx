@@ -1,11 +1,13 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Chips } from '@/shared/Chips';
 import { colors } from '@/shared/theme';
+import { useLibrary } from '@/features/library/LibraryProvider';
+import type { SavedBook, SearchResult } from '@/features/library/types';
 
-// 本を追加するダイアログ。本棚の上に重ねて表示する。いまは見た目だけで、検索はまだ動かない。
+// 本を追加するダイアログ。本棚の上に重ねて表示する。
 const tabs = [
   { id: 'novel', label: '小説を探す' },
   { id: 'study', label: '教材を探す' },
@@ -25,7 +27,7 @@ const sources = {
   },
   study: {
     name: 'OE Japan',
-    text: '大学などが公開しているオープン教材を紹介するサイトです。ここでは利用条件を確認して選んだ教材だけを検索し、出典を表示して取り込みます。',
+    text: '大学などが公開しているオープン教材を紹介するサイトです。教材の検索は準備中です。選んだ教材は本棚に並んでいます。',
     link: 'OE Japanについて',
     url: 'https://oejapan.org/',
   },
@@ -36,6 +38,50 @@ export default function AddScreen() {
   const [field, setField] = useState('keyword');
   const [query, setQuery] = useState('');
   const source = sources[tab];
+  const [result, setResult] = useState<SearchResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const { books, ready, warning, addBook } = useLibrary();
+  const searchRequest = useRef<AbortController | null>(null);
+  const importRequest = useRef<AbortController | null>(null);
+  useEffect(() => {
+    searchRequest.current?.abort(); setResult(null); setError(''); setLoading(false);
+  }, [query, field, tab]);
+  useEffect(() => () => { searchRequest.current?.abort(); importRequest.current?.abort(); }, []);
+
+  async function search(page = 1) {
+    if (tab !== 'novel' || adding) return;
+    if (!query.trim()) { setError('タイトルや著者名などを入力してください。'); return; }
+    searchRequest.current?.abort();
+    const controller = new AbortController(); searchRequest.current = controller;
+    setLoading(true); setError(''); setMessage('');
+    try {
+      const params = new URLSearchParams({ q: query.trim(), field, page: String(page) });
+      const response = await fetch(`/api/aozora?${params}`, { signal: controller.signal });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      if (!controller.signal.aborted) setResult(data);
+    } catch (reason) {
+      if (!controller.signal.aborted) setError(reason instanceof Error && reason.message.includes('してください') ? reason.message : '検索できません。通信を確認してもう一度検索してください。');
+    } finally { if (searchRequest.current === controller) setLoading(false); }
+  }
+
+  async function importBook(id: number) {
+    if (adding || !ready || warning) return;
+    const controller = new AbortController(); importRequest.current = controller;
+    setAdding(`aozora-${id}`); setError(''); setMessage('');
+    try {
+      const response = await fetch(`/api/aozora?id=${id}`, { signal: controller.signal });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      if (controller.signal.aborted) return;
+      await addBook(data as SavedBook); setMessage(`「${data.title}」を本棚に追加しました。`);
+    } catch (reason) {
+      if (!controller.signal.aborted) setError(reason instanceof Error && reason.message.includes('ください') ? reason.message : '追加できません。通信を確認して再試行してください。');
+    } finally { if (!controller.signal.aborted) setAdding(null); }
+  }
 
   return (
     <View style={styles.backdrop}>
@@ -68,14 +114,46 @@ export default function AddScreen() {
             <TextInput
               value={query}
               onChangeText={setQuery}
+              onSubmitEditing={() => void search()}
+              returnKeyType="search"
+              maxLength={80}
+              editable={tab === 'novel' && !adding}
+              accessibilityLabel="青空文庫の検索語"
               placeholder="タイトルか著者名（例：こころ）"
               placeholderTextColor={colors.muted}
               style={styles.input}
             />
-            <Pressable style={styles.searchButton}>
-              <Text style={styles.searchText}>検索</Text>
+            <Pressable accessibilityRole="button" disabled={loading || !!adding || tab !== 'novel'} style={[styles.searchButton, (loading || !!adding || tab !== 'novel') && styles.disabled]} onPress={() => void search()}>
+              <Text style={styles.searchText}>{loading ? '検索中' : '検索'}</Text>
             </Pressable>
           </View>
+
+          {(error || warning) ? <Text accessibilityRole="alert" style={styles.feedback}>{error || warning}</Text> : null}
+          {message ? <Text accessibilityLiveRegion="polite" style={styles.feedback}>{message}</Text> : null}
+          {loading && <ActivityIndicator color={colors.accent} accessibilityLabel="青空文庫を検索しています" />}
+          {!result && !loading && tab === 'novel' && <Text style={styles.empty}>例：走れメロス、夏目漱石、銀河鉄道の夜</Text>}
+          {result && !loading && <>
+            <Text style={styles.note}>{result.total.toLocaleString()}件見つかりました（{result.page}ページ）</Text>
+            {!result.results.length && <Text style={styles.empty}>見つかりませんでした。別の語句や検索条件でお試しください。</Text>}
+            {result.results.map(book => {
+              const exists = books.some(saved => saved.id === book.id);
+              return <View key={book.id} style={styles.result}>
+                <View style={styles.resultInfo}>
+                  <Text style={styles.bookTitle}>{book.title}</Text>
+                  {!!book.subtitle && <Text style={styles.note}>{book.subtitle}</Text>}
+                  <Text style={styles.note}>{book.author} · {book.characters}</Text>
+                </View>
+                <Pressable accessibilityRole="button" accessibilityLabel={`${book.title}を本棚に追加`} disabled={exists || !!adding || !ready || !!warning}
+                  style={[styles.add, (exists || !!adding || !ready || !!warning) && styles.disabled]} onPress={() => void importBook(book.aozoraId)}>
+                  <Text style={styles.searchText}>{exists ? '追加済み' : adding === book.id ? '取得中…' : '追加'}</Text>
+                </Pressable>
+              </View>;
+            })}
+            <View style={styles.pagination}>
+              <Pressable disabled={result.page <= 1 || !!adding} onPress={() => void search(result.page - 1)}><Text style={[styles.close, (result.page <= 1 || !!adding) && styles.disabled]}>前の20件</Text></Pressable>
+              <Pressable disabled={result.page * 20 >= result.total || !!adding} onPress={() => void search(result.page + 1)}><Text style={[styles.close, (result.page * 20 >= result.total || !!adding) && styles.disabled]}>次の20件</Text></Pressable>
+            </View>
+          </>}
         </ScrollView>
       </View>
     </View>
@@ -108,4 +186,12 @@ const styles = StyleSheet.create({
   },
   searchButton: { backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 22, justifyContent: 'center' },
   searchText: { color: colors.surface, fontSize: 15 },
+  empty: { fontSize: 12, color: colors.muted, textAlign: 'center', paddingVertical: 24 },
+  feedback: { color: colors.accent, fontSize: 13, lineHeight: 21 },
+  disabled: { opacity: 0.45 },
+  result: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderColor: colors.line, paddingVertical: 16 },
+  resultInfo: { flex: 1, gap: 4 },
+  bookTitle: { fontSize: 17, color: colors.ink },
+  add: { backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 11 },
+  pagination: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16 },
 });
