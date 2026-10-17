@@ -1,32 +1,94 @@
-import { useLocalSearchParams } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Asset } from 'expo-asset';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { findBook } from '@/content/books';
+import PdfBook from '@/features/pdf/PdfBook';
 import { colors } from '@/shared/theme';
 
-// 本の画面。いまは中身を表示するだけで、読書の機能はまだない。
+// 同梱している教材のPDF。require は静的に書く必要があるので、ここで本のIDと結びつける。
+const pdfFiles: Record<string, number> = {
+  calculus: require('../../../assets/books/oej/calculus.pdf'),
+  thermodynamics: require('../../../assets/books/oej/thermodynamics.pdf'),
+  'mathematics-for-economics': require('../../../assets/books/oej/mathematics-for-economics.pdf'),
+  'ai-for-teachers': require('../../../assets/books/oej/ai-for-teachers.pdf'),
+};
+
+// PDFの場所（Webならアドレス、iPhoneなら端末内のファイル）を求める
+function usePdfUri(id: string) {
+  const [uri, setUri] = useState<string | null>(null);
+  useEffect(() => {
+    const file = pdfFiles[id];
+    if (!file) return;
+    const asset = Asset.fromModule(file);
+    asset.downloadAsync().then(a => setUri(a.localUri ?? a.uri)).catch(() => setUri(asset.uri));
+  }, [id]);
+  return uri;
+}
+
 export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const book = findBook(id);
+  const pdfUri = usePdfUri(id);
+
+  if (!book) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.note}>この本は見つかりません。本棚から開き直してください。</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
+      <Stack.Screen options={{ title: book.title }} />
+
       <View style={styles.page}>
-        <Text style={styles.title}>走れメロス</Text>
-        <Text style={styles.note}>本文はここに表示されます（{id}）</Text>
+        {pdfFiles[book.id] ? (
+          pdfUri ? (
+            <PdfBook uri={pdfUri} dom={{ style: { flex: 1 } }} />
+          ) : (
+            <Text style={styles.note}>教材を準備しています…</Text>
+          )
+        ) : (
+          <View style={styles.placeholder}>
+            <Text style={styles.title}>{book.title}</Text>
+            <Text style={styles.author}>{book.author}</Text>
+            <Text style={styles.note}>本文はここに表示されます</Text>
+          </View>
+        )}
       </View>
+
+      {book.source && (
+        <View style={styles.credit}>
+          <Text style={styles.creditText}>
+            {book.author}「{book.title}」　利用条件：{book.license}
+          </Text>
+          <Pressable onPress={() => Linking.openURL(book.source!)}>
+            <Text style={styles.link}>公式配布ページ</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: { flex: 1, padding: 12, gap: 8 },
   page: {
     flex: 1,
-    padding: 24,
+    overflow: 'hidden',
     borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
   },
-  title: { fontSize: 22, color: colors.ink, marginBottom: 12 },
-  note: { fontSize: 14, color: colors.muted },
+  placeholder: { padding: 24 },
+  title: { fontSize: 22, color: colors.ink },
+  author: { fontSize: 13, color: colors.muted, marginTop: 6, marginBottom: 16 },
+  note: { fontSize: 14, color: colors.muted, padding: 24 },
+  credit: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, paddingHorizontal: 4 },
+  creditText: { fontSize: 11, color: colors.muted, flexShrink: 1 },
+  link: { fontSize: 11, color: colors.accent, textDecorationLine: 'underline' },
 });

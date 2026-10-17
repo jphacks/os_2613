@@ -13,13 +13,31 @@ type Props = {
 // React Native の文字は縦書きにできないので、1文字ずつ改行して縦に並べる
 const vertical = (text: string) => Array.from(text).join('\n');
 
+// 長い題名は1列に収まらないので、右から順に複数の列へ折り返す
+const TITLE_PER_COLUMN = 6;
+const columns = (text: string) => {
+  const chars = Array.from(text);
+  const out: string[] = [];
+  for (let i = 0; i < chars.length; i += TITLE_PER_COLUMN) out.push(chars.slice(i, i + TITLE_PER_COLUMN).join(''));
+  return out;
+};
+
+// 著者名が長いと表紙を埋めてしまうので、先頭だけ見せる
+const AUTHOR_MAX = 9;
+const shortAuthor = (text: string) => {
+  const chars = Array.from(text.split(/[（(・]/)[0].trim());
+  return chars.length > AUTHOR_MAX ? chars.slice(0, AUTHOR_MAX).join('') + '…' : chars.join('');
+};
+
 export function Cover({ title, author, label, color, onPress }: Props) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.cover, { backgroundColor: color }, pressed && styles.pressed]}>
       <View style={styles.spine} />
       <View style={styles.face}>
-        <Text style={styles.title}>{vertical(title)}</Text>
-        <Text style={styles.author}>{vertical(author)}</Text>
+        {columns(title).map((col, i) => (
+          <Text key={i} style={styles.title}>{vertical(col)}</Text>
+        ))}
+        <Text style={styles.author}>{vertical(shortAuthor(author))}</Text>
       </View>
       <Text style={styles.tag}>{label}</Text>
     </Pressable>

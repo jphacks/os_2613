@@ -3,12 +3,13 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { books } from '@/content/books';
 import { Cover } from '@/features/shelf/Cover';
 import { Chips } from '@/shared/Chips';
 import { colors, coverColors } from '@/shared/theme';
 
-// いまは見た目だけ。絞り込みや並べ替えはまだ効かない。
-const books = [{ id: 'sample', title: '走れメロス', author: '太宰 治', label: '小説' }];
+// 絞り込みや並べ替えはまだ効かない（見た目のみ）。
+const kindLabel = { novel: '小説', study: '参考書' } as const;
 
 const kinds = [
   { id: 'all', label: 'すべて' },
@@ -64,7 +65,7 @@ export default function ShelfScreen() {
                   <Cover
                     title={book.title}
                     author={book.author}
-                    label={book.label}
+                    label={kindLabel[book.kind]}
                     color={coverColors[(r * perRow + i) % coverColors.length]}
                     onPress={() => router.push(`/book/${book.id}`)}
                   />

@@ -10,7 +10,12 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "jp.dopabooks.app",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.jp.dopabooks.app"
+        ]
+      }
     },
     "android": {
       "package": "jp.dopabooks.app",
@@ -34,11 +39,39 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "jp.dopabooks.app.widget",
+                  "targetName": "widget",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.jp.dopabooks.app"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "e340267a-08ed-4f40-a9a1-fc9852fdf0d6"
+      }
     }
   }
 }

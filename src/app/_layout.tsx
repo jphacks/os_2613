@@ -18,7 +18,11 @@ export default function RootLayout() {
         {/* 本棚は帯と見出しを画面の中で描くので、標準のヘッダーは出さない */}
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="book/[id]" options={{ title: '' }} />
-        <Stack.Screen name="add" options={{ presentation: 'modal', headerShown: false }} />
+        {/* 本を追加は画面を切り替えず、本棚の上に重ねて出す */}
+        <Stack.Screen
+          name="add"
+          options={{ presentation: 'transparentModal', animation: 'fade', headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}
+        />
       </Stack>
     </>
   );
