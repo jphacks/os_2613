@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/shared/theme';
 import { summaryLimit } from './model.mjs';
+import { summaryFailure } from './summary-errors.mjs';
 
 export function Summary({ text, cacheKey }: { text: string; cacheKey: string }) {
   const [summary, setSummary] = useState('');
@@ -27,12 +28,13 @@ export function Summary({ text, cacheKey }: { text: string; cacheKey: string }) 
     try {
       const response = await fetch('/api/summary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }), signal: controller.signal });
       const value = await response.json();
-      if (!response.ok || typeof value.summary !== 'string' || !value.summary.trim() || value.summary.length > 5000) throw new Error();
+      if (!response.ok) throw new Error(summaryFailure(value?.code).code);
+      if (typeof value.summary !== 'string' || !value.summary.trim() || value.summary.length > 5000) throw new Error('UNKNOWN');
       if (active.current !== controller) return;
       setSummary(value.summary);
       try { await AsyncStorage.setItem(cacheKey, JSON.stringify({ text, summary: value.summary })); }
       catch { if (active.current === controller) setError('まとめは表示できますが保存できません。端末の空き容量や保存設定を確認してください。'); }
-    } catch { if (active.current === controller) setError('ふりかえりを取得できません。通信や起動時の設定を確認し、もう一度お試しください。'); }
+    } catch (reason) { if (active.current === controller) setError(summaryFailure(reason instanceof Error ? reason.name === 'AbortError' ? 'TIMEOUT' : reason.message : 'UNKNOWN').error); }
     finally { clearTimeout(timer); if (active.current === controller) { active.current = null; setBusy(false); } }
   }
   const tooLong = text.length > summaryLimit;
