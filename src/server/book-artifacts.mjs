@@ -56,6 +56,7 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
         if (record.scriptAttempts >= 3) throw new Error('LIMIT');
         record = await storage.update(key, value => ({ ...value, scriptAttempts: value.scriptAttempts + 1 }));
         const script = validateScript(await provider.script(record.source), record.source.opening);
+        if (record.source.format === 'manga-v2' && script.format !== 'manga-v2') throw new Error('INVALID_RESULT');
         record = await storage.update(key, value => ({ ...value, script }));
       }
       for (let index = record.completed; index < 4; index++) {
@@ -89,9 +90,10 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
       if (request.method !== 'POST') return send(405, { error: '紹介漫画の画面から操作してください。' });
       const input = await artifactInput(request, 210000);
       if (input.action === 'register') {
-        const { bookId, title, opening, context } = input;
+        const { bookId, title, opening, context, edition } = input;
+        if (edition !== undefined && !['comparison', 'manga'].includes(edition)) throw new Error('INVALID_INPUT');
         if (typeof bookId !== 'string' || !bookId || bookId.length > 120 || typeof title !== 'string' || !title.trim() || title.length > 200 || typeof opening !== 'string' || !opening.trim() || opening.length > 12000 || typeof context !== 'string' || context.length > 20000 || !context.startsWith(opening)) throw new Error('INVALID_INPUT');
-        const source = { title, opening, context }, key = artifactKey(['comic-v1', bookId, source]);
+        const source = { title, opening, context, ...(edition === 'manga' ? { format: 'manga-v2' } : {}) }, key = artifactKey([edition === 'manga' ? 'comic-manga-v2' : edition === 'comparison' ? 'comic-comparison-v1' : 'comic-v1', bookId, source]);
         const record = await storage.update(key, value => value ?? { source, script: null, completed: 0, scriptAttempts: 0, imageAttempts: 0, status: 'idle', error: null });
         return send(200, state(key, record));
       }

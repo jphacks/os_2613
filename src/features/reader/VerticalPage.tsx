@@ -15,6 +15,8 @@ type Props = {
   onNext: () => void; onPrev: () => void; onAdvance: () => void; onPause: () => void;
   onPick: (offset: number) => void; onMarkPress: (offset: number) => void;
   onDragStart: (offset: number) => void; onDrop: (from: number, to: number | null) => void;
+  headerDrag: { token: number; x: number; y: number; phase: 'move' | 'end' | 'cancel' } | null;
+  onHeaderDrop: (token: number, offset: number | null) => void;
   dom?: import('expo/dom').DOMProps;
 };
 type Gesture = { id: number; x: number; y: number; from: number | null; dragged: boolean; placing: boolean };
@@ -35,6 +37,7 @@ export default function VerticalPage(props: Props) {
   const fontRevision = useRef(0);
   const [calculating, setCalculating] = useState(false);
   const focusSeen = useRef<number | null>(null);
+  const headerDropSeen = useRef<number | null>(null);
   const step = Math.round(display.fontSize * display.lineHeight);
   const page = Math.min(Math.max(0, sub), layout.count - 1);
   const begin = layout.starts[page] ?? 0, end = layout.starts[page + 1] ?? text.length;
@@ -102,7 +105,7 @@ export default function VerticalPage(props: Props) {
     latest.current.onReflow(pageAtOffset(layout.starts, focus.offset - start));
   }, [focus, layout, start, text]);
   useEffect(() => {
-    if (!guide || !running || picking || ghost || disabled || calculating || !layout.width) return;
+    if (!guide || !running || picking || ghost || props.headerDrag || disabled || calculating || !layout.width) return;
     const timer = setTimeout(() => {
       const next = cursor + 1;
       if (next >= chars.length) latest.current.onAdvance(); else setCursor(next);
@@ -117,7 +120,7 @@ export default function VerticalPage(props: Props) {
   useEffect(() => {
     if (!edge || !ghost) return;
     // 方向が同じ間は待機を作り直さない。指の小さな揺れでも端送りを続ける。
-    const timer = setInterval(() => { if (gesture.current?.dragged || gesture.current?.placing) edge === 'next' ? latest.current.onNext() : latest.current.onPrev(); }, 650);
+    const timer = setInterval(() => { if (gesture.current?.dragged || gesture.current?.placing || latest.current.headerDrag?.phase === 'move') edge === 'next' ? latest.current.onNext() : latest.current.onPrev(); }, 650);
     return () => clearInterval(timer);
   }, [edge, !!ghost]);
 
@@ -147,8 +150,18 @@ export default function VerticalPage(props: Props) {
     const root = rootRef.current?.getBoundingClientRect();
     setEdge(root && y >= root.top && y <= root.bottom ? edgeTurn(x, root.left, root.width) : null);
   }
+  useLayoutEffect(() => {
+    const drag = props.headerDrag;
+    if (!drag) { if (!gesture.current) { setGhost(null); setEdge(null); } return; }
+    if (headerDropSeen.current === drag.token) return;
+    const root = rootRef.current?.getBoundingClientRect();
+    const x = root ? root.left + drag.x * root.width : 0, y = root ? root.top + drag.y * root.height : 0;
+    if (drag.phase === 'move') { if (root && !disabled && !calculating) movePoint(x, y); return; }
+    headerDropSeen.current = drag.token; setGhost(null); setEdge(null);
+    latest.current.onHeaderDrop(drag.token, drag.phase === 'end' && root && !disabled && !calculating ? pointOffset(x, y) : null);
+  }, [props.headerDrag, disabled, calculating, page, layout]);
   function pointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (disabled || calculating || !event.isPrimary || event.button !== 0 || gesture.current) return;
+    if (disabled || calculating || props.headerDrag || !event.isPrimary || event.button !== 0 || gesture.current) return;
     const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-mark]') : null;
     gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, from: target ? Number(target.dataset.mark) : null, dragged: false, placing: picking };
     latest.current.onPause();
@@ -197,7 +210,7 @@ export default function VerticalPage(props: Props) {
       {page < layout.count - 1 && <span aria-hidden="true" style={{ ...styles.turnHint, left: 4, color: paint.ink }}>←</span>}
       {page > 0 && <span aria-hidden="true" style={{ ...styles.turnHint, right: 4, color: paint.ink }}>→</span>}
     </>}
-    {ghost && <span aria-hidden="true" style={{ position: 'fixed', pointerEvents: 'none', left: ghost.x - 9, top: ghost.y - 5, zIndex: 9999, color: paint.accent }}><Ribbon /></span>}
+    {ghost && !props.headerDrag && <span aria-hidden="true" style={{ position: 'fixed', pointerEvents: 'none', left: ghost.x - 9, top: ghost.y - 5, zIndex: 9999, color: paint.accent }}><Ribbon /></span>}
     {ghost && edge && <span aria-hidden="true" style={{ position: 'absolute', bottom: 8, left: edge === 'next' ? 8 : undefined, right: edge === 'prev' ? 8 : undefined, color: paint.ink, background: paint.background, pointerEvents: 'none', padding: 6 }}>{edge === 'next' ? '‹ 次のページへ' : '前のページへ ›'}</span>}
   </div>;
 }

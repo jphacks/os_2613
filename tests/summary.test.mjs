@@ -58,6 +58,8 @@ test('実API用リクエストは選択本文のみ・保存なしで、未完�
   const provider = createSummaryProvider({ apiKey: 'fake', fetcher: async (_, options) => {
     calls++; const body = JSON.parse(options.body);
     assert.equal(body.input, '本文'); assert.equal(body.store, false); assert.ok(!body.tools);
+    assert.equal(body.model, 'gpt-5.4-mini'); assert.deepEqual(body.reasoning, { effort: 'none' });
+    assert.equal(body.max_output_tokens, 1200);
     return { ok: true, json: async () => ({ status: 'completed', output: [{ content: [{ type: 'output_text', text: 'まとめ。\n\n次の段落。' }] }] }) };
   } });
   assert.equal(await provider('本文'), 'まとめ。\n\n次の段落。'); assert.equal(calls, 1);

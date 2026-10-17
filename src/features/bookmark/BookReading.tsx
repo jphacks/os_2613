@@ -1,6 +1,6 @@
 import { useAccount } from '@/features/account/AccountProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { router, Stack } from 'expo-router';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import type { SavedBook } from '@/features/library/types';
 import { colors } from '@/shared/theme';
 import { createReadingStore, emptyReading, placeMark, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
 import { Summary } from './Summary';
+import { BookmarkHandle, type BookmarkDragPoint } from './BookmarkHandle';
 import VerticalPage from '@/features/reader/VerticalPage';
 import { MusicPanel } from '@/features/music/MusicPanel';
 import { DisplaySettings, paperColors } from '@/features/reader/DisplaySettings';
@@ -62,6 +63,11 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
   const [feature, setFeature] = useState<'comic' | 'characters' | null>(null);
   const [menu, setMenu] = useState(false);
   const [focus, setFocus] = useState<{ offset: number; token: number } | null>(null);
+  const [headerDrag, setHeaderDrag] = useState<{ token: number; x: number; y: number; phase: 'move' | 'end' | 'cancel' } | null>(null);
+  const [dragIcon, setDragIcon] = useState<{ x: number; y: number } | null>(null);
+  const screenRef = useRef<ComponentRef<typeof View>>(null), paperRef = useRef<ComponentRef<typeof View>>(null);
+  const dragToken = useRef<number | null>(null), dragSequence = useRef(0);
+  const dragPoint = useRef<BookmarkDragPoint | null>(null);
   const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
   const insets = useSafeAreaInsets();
@@ -154,6 +160,32 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
     setMoving(id ?? `mark-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
     setDraft(null); setPanel(false); setNotice('');
   }
+  function dragFromHeader(point: BookmarkDragPoint) {
+    if (!ready || busy || moving) return;
+    if (dragToken.current === null) {
+      if (point.phase !== 'move') return;
+      dragToken.current = ++dragSequence.current;
+      setRunning(false); setNotice('');
+    }
+    const token = dragToken.current; dragPoint.current = point;
+    if (point.phase === 'cancel') { setHeaderDrag({ token, x: 0, y: 0, phase: 'cancel' }); setDragIcon(null); return; }
+    screenRef.current?.measureInWindow((left, top) => {
+      if (dragToken.current !== token || dragPoint.current !== point) return;
+      setDragIcon(point.phase === 'move' ? { x: point.x - left, y: point.y - top } : null);
+    });
+    paperRef.current?.measureInWindow((left, top, width, height) => {
+      if (dragToken.current !== token || dragPoint.current !== point || width <= 0 || height <= 0) return;
+      // DOM紙面がWebView内でも、画面座標を相対座標にして受け渡す。
+      setHeaderDrag({ token, x: (point.x - left) / width, y: (point.y - top) / height, phase: point.phase });
+    });
+  }
+  async function dropFromHeader(token: number, offset: number | null) {
+    if (dragToken.current !== token) return;
+    dragToken.current = null; dragPoint.current = null; setHeaderDrag(null); setDragIcon(null);
+    if (offset === null) return;
+    const id = `mark-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    if (await save(state => placeMark(state, book.text, offset, id))) { setUndo(null); setNotice('しおりを挟みました。'); }
+  }
   async function dropMark(from: number, to: number | null) {
     const before = reading.marks.find(mark => mark.offset === from);
     if (!before || to === null) { setMoving(null); setDraft(null); return; }
@@ -193,16 +225,17 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
     if (mark && !moving) { setRunning(false); setSelected(mark.id); setScope('previous'); setPanel(true); }
   }
   const paint = paperColors(display.paper);
-  return <View style={[styles.screen, { backgroundColor: paint.background }]}>
+  return <View ref={screenRef} collapsable={false} style={[styles.screen, { backgroundColor: paint.background }]}>
     {/* ヘッダー：中央にタイトルと作者、右にメニュー */}
     <Stack.Screen options={{
       headerTitleAlign: 'center',
       headerTitle: () => <View style={styles.headTitle}><Text style={styles.title}>{book.title}</Text><Text style={styles.small}>{book.author}</Text></View>,
       // iPhone ではヘッダーのボタンに標準の枠が付くので、こちらでは枠を付けない（枠が二重になるため）
       headerRight: () => <View style={styles.headRight}>
-        <Pressable accessibilityRole="button" accessibilityLabel="しおり" accessibilityHint="タップで一覧、長押しでしおりを挟みます" disabled={!ready || busy || !!moving}
-          onPress={() => { setRunning(false); setSelected(null); setPanel(true); }} onLongPress={() => begin()}
-          style={[styles.headButton, (!ready || busy || !!moving) && styles.disabled]}><BookmarkIcon /></Pressable>
+        <BookmarkHandle disabled={!ready || busy || !!moving}
+          onOpen={() => { setRunning(false); setSelected(null); setPanel(true); }} onPlace={() => begin()} onDrag={dragFromHeader}>
+          <View style={{ opacity: headerDrag ? 0.25 : 1 }}><BookmarkIcon /></View>
+        </BookmarkHandle>
         <Pressable accessibilityRole="button" accessibilityLabel="メニュー" disabled={!ready || !!moving} onPress={() => { setRunning(false); setMenu(true); }} style={[styles.headButton, (!ready || !!moving) && styles.disabled]}><Text style={styles.menuIcon}>☰</Text></Pressable>
       </View>,
     }} />
@@ -231,7 +264,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
       </Pressable>
     </Modal>
     {/* 紙面は画面いっぱい。左側を押すと次、右側を押すと前のページ */}
-    <View style={[styles.paper, { backgroundColor: paint.background }]}>
+    <View ref={paperRef} collapsable={false} style={[styles.paper, { backgroundColor: paint.background }]}>
       <VerticalPage
         text={book.text}
         start={0}
@@ -259,6 +292,8 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
         onPause={() => setRunning(false)}
         onDragStart={offset => { const mark = reading.marks.find(item => item.offset === offset); if (mark) begin(mark.id); }}
         onDrop={(from, to) => { void dropMark(from, to); }}
+        headerDrag={headerDrag}
+        onHeaderDrop={(token, offset) => { void dropFromHeader(token, offset); }}
         dom={{ style: { flex: 1 } }}
       />
       {moving && <View style={styles.placement}><Text style={styles.note}>文字を押して選択。端で待つとページを移れます。</Text><View style={styles.toolbar}><Action disabled={busy || draft === null} filled onPress={() => void confirm()}>この位置に挟む</Action><Action disabled={busy} onPress={() => { setMoving(null); setDraft(null); }}>キャンセル</Action></View></View>}
@@ -267,6 +302,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
         {!!notice && <View style={styles.toolbar}><Text accessibilityLiveRegion="polite" style={styles.note}>{notice}</Text>{undo && <Action disabled={busy} onPress={() => void undoMove()}>元に戻す</Action>}<Action onPress={() => setNotice('')}>閉じる</Action></View>}
       </View>}
     </View>
+    {dragIcon && <View pointerEvents="none" style={{ position: 'absolute', left: dragIcon.x - 9, top: dragIcon.y - 5, zIndex: 100 }}><BookmarkIcon /></View>}
     {/* ページバーを上、出典を下にする。iPhone の画面下の線（ホームバー）と重ならないよう、その分の余白を空ける */}
     <View style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
       <PageBar page={shown} count={subCount} disabled={!ready || busy || !!moving} ink={paint.ink} accent={paint.accent} line={paint.chosen}

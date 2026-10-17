@@ -84,6 +84,7 @@ test('実APIの脚本スキーマは引用候補IDを列挙し、選択から原
   } });
   const result = await provider.script({ title: '物語', opening: text, context: text + 'この先は未紹介。' });
   const fields = sent.text.format.schema.properties.panels.items.properties;
+  assert.equal(sent.model, 'gpt-5.4-mini'); assert.deepEqual(sent.reasoning, { effort: 'none' });
   assert.equal(fields.quote, undefined); assert.ok(fields.sourceId.enum.includes('s1'));
   assert.equal(result.panels[0].quote, text); assert.ok(!result.panels[0].quote.includes('未紹介'));
 });
@@ -137,6 +138,24 @@ test('漫画は登録・状態照会では生成せず、1回の開始から脚�
   const restarted = createComicEndpoint({ root, provider: { ...fake, script: async () => { throw new Error('MUST_NOT_GENERATE'); } } });
   assert.equal((await register(restarted)).status, 'ready'); assert.equal((await restarted(post({ action: 'start', key: initial.key }))).status, 200);
 });
+test('比較用の別版は元の漫画を残して別保存し、切り替えと登録では再生成しない', async t => {
+  const root = await temporary(t); let scripts = 0, images = 0;
+  const endpoint = createComicEndpoint({ root, provider: { ...fake, script: async () => { scripts++; return script; }, image: async () => { images++; return png; } } });
+  const original = await register(endpoint); await endpoint(post({ action: 'start', key: original.key }));
+  assert.equal((await finished(endpoint, original.key)).status, 'ready');
+  const comparisonInput = { action: 'register', bookId: 'book', title: '物語', opening: text, context: text, edition: 'comparison' };
+  const comparison = await (await endpoint(post(comparisonInput))).json();
+  assert.notEqual(comparison.key, original.key); assert.equal(comparison.status, 'idle');
+  assert.equal(scripts, 1); assert.equal(images, 4);
+  await endpoint(post({ action: 'start', key: comparison.key }));
+  assert.equal((await finished(endpoint, comparison.key)).status, 'ready');
+  assert.equal((await register(endpoint)).key, original.key); assert.equal((await register(endpoint)).status, 'ready');
+  assert.equal((await (await endpoint(post(comparisonInput))).json()).status, 'ready');
+  assert.equal(scripts, 2); assert.equal(images, 8);
+  assert.equal((await artifactStorage(root).read(original.key)).imageAttempts, 4);
+  assert.equal((await endpoint(post({ ...comparisonInput, edition: 'another-unlimited-version' }))).status, 400);
+});
+
 test('漫画の途中失敗は脚本と完成コマを残し、別プロセス相当の再開で残りだけ作る', async t => {
   const root = await temporary(t); const first = [];
   const endpoint = createComicEndpoint({ root, provider: { ...fake, image: async (value, index) => { first.push(index); if (index === 1) throw new Error('AUTH secret-private'); return png; } } });
@@ -205,6 +224,8 @@ test('実APIへの文字要求はStructured Outputsと保存なし、画像要�
   } });
   const result = await provider.characters(text); const body = JSON.parse(requests[0].init.body);
   assert.equal(JSON.parse(body.input).sources[0].text, text); assert.equal(body.text.format.schema.properties.people.items.properties.quote, undefined); assert.equal(body.store, false); assert.equal(body.text.format.type, 'json_schema'); assert.equal(body.tools, undefined);
+  assert.equal(body.model, 'gpt-5.4-mini'); assert.deepEqual(body.reasoning, { effort: 'none' });
+  assert.equal(body.max_output_tokens, 6000);
   assert.equal(result.relations.length, 1);
   const relationshipBody = JSON.parse(requests[1].init.body), relationshipInput = JSON.parse(relationshipBody.input);
   assert.equal(relationshipBody.text.format.name, 'reading_relationships');
@@ -212,9 +233,13 @@ test('実APIへの文字要求はStructured Outputsと保存なし、画像要�
   assert.deepEqual(relationshipInput.people, graph.people.map(({ id, name }) => ({ id, name })));
   assert.deepEqual(relationshipInput.sources[0].pair, graph.people.map(item => item.id));
   assert.equal(relationshipInput.sources[0].text, text); assert.equal(relationshipBody.store, false);
+  assert.equal(relationshipBody.model, 'gpt-5.4-mini'); assert.deepEqual(relationshipBody.reasoning, { effort: 'none' });
   await provider.image(script, 0, null); await provider.image(script, 1, png);
   assert.ok(requests[2].url.endsWith('images/generations')); assert.ok(requests[3].url.endsWith('images/edits'));
   assert.ok(requests[3].init.body instanceof FormData); assert.equal(requests[3].init.body.get('input_fidelity'), 'high');
+  const imageBody = JSON.parse(requests[2].init.body);
+  assert.equal(imageBody.model, 'gpt-image-1.5'); assert.equal(imageBody.quality, 'medium');
+  assert.equal(requests[3].init.body.get('model'), 'gpt-image-1.5'); assert.equal(requests[3].init.body.get('quality'), 'medium');
   let called = false;
   const absent = createBookArtifactProvider({ apiKey: '', fetcher: async () => { called = true; } });
   await assert.rejects(absent.characters(text), /NOT_CONFIGURED/); assert.equal(called, false);

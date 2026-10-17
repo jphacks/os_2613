@@ -45,6 +45,6 @@ export async function artifactInput(request, bytes) {
   finally { reader.releaseLock(); }
 }
 export function artifactFailure(error) {
-  const code = ['NOT_CONFIGURED', 'AUTH', 'RATE_LIMIT', 'BUSY', 'LIMIT', 'TIMEOUT', 'INCOMPLETE', 'UNGROUNDED', 'STORAGE', 'INVALID_INPUT', 'ORIGIN', 'NOT_FOUND'].includes(error?.message) ? error.message : 'FAILED';
-  return { code, error: ({ NOT_CONFIGURED: '準備が整っていません。起動時の接続設定を確認してください。', AUTH: '生成サービスへ接続できません。接続設定を確認してください。', RATE_LIMIT: 'ただいま混み合っています。少し時間をおいてお試しください。', BUSY: '別の作成を進めています。少し待ってからお試しください。', LIMIT: '作成回数の上限に達しました。', TIMEOUT: '作成に時間がかかっています。保存状態を確認して、もう一度お試しください。', INCOMPLETE: '内容を最後まで作れませんでした。もう一度お試しください。', UNGROUNDED: '本文と一致する根拠を確認できませんでした。もう一度お試しください。', STORAGE: '保存できませんでした。保存先の空き容量や設定を確認してください。', INVALID_INPUT: '本文やしおりを選び直してください。', NOT_FOUND: '保存内容が見つかりません。画面を開き直してください。', ORIGIN: 'アプリを開き直してください。' })[code] ?? '作成できませんでした。保存状態を確認し、もう一度お試しください。' };
+  const code = ['STYLE_REFERENCE', 'NOT_CONFIGURED', 'AUTH', 'RATE_LIMIT', 'BUSY', 'LIMIT', 'TIMEOUT', 'INCOMPLETE', 'UNGROUNDED', 'STORAGE', 'INVALID_INPUT', 'ORIGIN', 'NOT_FOUND'].includes(error?.message) ? error.message : 'FAILED';
+  return { code, error: ({ STYLE_REFERENCE: '参考画像を読み込めませんでした。サーバーの配置を確認してください。', NOT_CONFIGURED: '準備が整っていません。起動時の接続設定を確認してください。', AUTH: '生成サービスへ接続できません。接続設定を確認してください。', RATE_LIMIT: 'ただいま混み合っています。少し時間をおいてお試しください。', BUSY: '別の作成を進めています。少し待ってからお試しください。', LIMIT: '作成回数の上限に達しました。', TIMEOUT: '作成に時間がかかっています。保存状態を確認して、もう一度お試しください。', INCOMPLETE: '内容を最後まで作れませんでした。もう一度お試しください。', UNGROUNDED: '本文と一致する根拠を確認できませんでした。もう一度お試しください。', STORAGE: '保存できませんでした。保存先の空き容量や設定を確認してください。', INVALID_INPUT: '本文やしおりを選び直してください。', NOT_FOUND: '保存内容が見つかりません。画面を開き直してください。', ORIGIN: 'アプリを開き直してください。' })[code] ?? '作成できませんでした。保存状態を確認し、もう一度お試しください。' };
 }
