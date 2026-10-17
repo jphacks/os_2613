@@ -4,9 +4,12 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-au
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { MusicTrack } from '@/server/music.mjs';
 import { colors } from '@/shared/theme';
+import type { SavedBook } from '@/features/library/types';
+import { MusicPlanEditor } from './MusicPlanEditor';
 
 const moods = [{ id: 'calm', label: '穏やか' }, { id: 'tense', label: '緊張' }, { id: 'sad', label: '切ない' }, { id: 'bright', label: '明るい' }];
-export function MusicPanel() {
+export function MusicPanel({ book }: { book: SavedBook }) {
+  const [editing, setEditing] = useState(false);
   const [open, setOpen] = useState(false);
   const [mood, setMood] = useState('calm');
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
@@ -40,7 +43,8 @@ export function MusicPanel() {
   }
   const button = (label: string, action: () => void, disabled = false) => <Pressable accessibilityRole="button" disabled={disabled} onPress={action} style={[styles.button, disabled && { opacity: 0.4 }]}><Text style={styles.text}>{label}</Text></Pressable>;
   return <View style={styles.panel}>
-    <View style={styles.row}>{button(open ? '音楽を閉じる' : '読書の音楽', () => setOpen(!open))}{chosen && button(status.playing ? '一時停止' : status.isLoaded ? '再生' : '読込中…', () => status.playing ? player.pause() : void play(), !status.isLoaded)}</View>
+    <View style={styles.row}>{button(open ? '音楽を閉じる' : '読書の音楽', () => setOpen(!open))}{button('本文から選曲・編集', () => { player.pause(); setEditing(true); })}{chosen && button(status.playing ? '一時停止' : status.isLoaded ? '再生' : '読込中…', () => status.playing ? player.pause() : void play(), !status.isLoaded)}</View>
+    <MusicPlanEditor book={book} visible={editing} onClose={() => setEditing(false)} />
     {open && <ScrollView style={{ maxHeight: 240 }}>
       <Text style={styles.text}>雰囲気を選んで取得（最大3曲）。選んだ曲を再生します。</Text>
       <View style={styles.row}>{moods.map(item => <View key={item.id}>{button(`${mood === item.id ? '✓ ' : ''}${item.label}`, () => setMood(item.id))}</View>)}{button(busy ? '取得中…' : '音楽を取得', () => void load(), busy)}</View>

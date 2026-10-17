@@ -2,11 +2,11 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 // Read the secret directly from the terminal, without echoing or shell history.
-async function readKey() {
+async function readKey(label) {
   if (!process.stdin.isTTY || !process.stdin.setRawMode) {
     throw new Error('キー入力には対話型ターミナルが必要です。VS Codeのターミナルで npm start を実行してください。');
   }
-  process.stdout.write('Freesound APIキーを貼り付けてEnter（非表示・保存しません）。\nWindows: Ctrl+V／VS Code: Ctrl+Shift+V。空Enterで音楽なし。\n入力: 0文字');
+  process.stdout.write(`${label}を貼り付けてEnter（非表示・保存しません）。\nWindows: Ctrl+V／VS Code: Ctrl+Shift+V。空Enterで省略。\n入力: 0文字`);
   process.stdin.setEncoding('utf8');
   process.stdin.setRawMode(true);
   process.stdin.resume();
@@ -55,13 +55,16 @@ async function readKey() {
 }
 
 try {
-  let key = await readKey();
+  let key = await readKey('Freesound APIキー');
   if (key === null) process.exit(130);
+  let openaiKey = await readKey('OpenAI APIキー（本文の分析用）');
+  if (openaiKey === null) process.exit(130);
   const child = spawn(process.execPath, [fileURLToPath(new URL('../node_modules/expo/bin/cli', import.meta.url)), 'start', ...process.argv.slice(2)], {
     stdio: 'inherit',
-    env: { ...process.env, FREESOUND_API_KEY: key },
+    env: { ...process.env, FREESOUND_API_KEY: key, OPENAI_API_KEY: openaiKey },
   });
   key = '';
+  openaiKey = '';
   // The terminal sends Ctrl+C to Expo as well. Wait for its normal cleanup.
   process.on('SIGINT', () => {});
   child.on('error', () => { console.error('Expoを起動できません。npm install を確認してください。'); process.exitCode = 1; });
