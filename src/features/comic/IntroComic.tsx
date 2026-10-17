@@ -25,7 +25,26 @@ function checked(value: State, opening: string): State {
   return { ...value, script };
 }
 export function IntroComic({ book, read }: { book: SavedBook; read: () => void }) {
+  if (book.id === 'aozora-1567' && book.aozoraId === 1567) return <MelosComic book={book} read={read} />;
   return <ComicEdition key={book.id} book={book} read={read} />;
+}
+const melosPanels = [
+  { source: require('../../../assets/comics/hashire-melos/1.webp'), description: 'メロスは王の前に引き出され、人を疑い殺す王を問いただす。' },
+  { source: require('../../../assets/comics/hashire-melos/2.webp'), description: 'メロスは妹の婚礼のため、三日間の猶予を願う。' },
+  { source: require('../../../assets/comics/hashire-melos/3.webp'), description: '王は友を人質に置き、三日目の日暮れまでに戻るよう命じる。' },
+  { source: require('../../../assets/comics/hashire-melos/4.webp'), description: 'メロスは親友セリヌンティウスに事情を打ち明け、信頼を託す。' },
+];
+function MelosComic({ book, read }: { book: SavedBook; read: () => void }) {
+  const [pageWidth, setPageWidth] = useState(0);
+  return <ScrollView contentContainerStyle={styles.body}>
+    <Text style={styles.kicker}>物語の入口</Text><Text style={styles.title}>{book.title}</Text><Text style={styles.text}>{book.author}</Text>
+    <Text style={styles.heading}>漫画から、読んでみよう。</Text>
+    <Pressable accessibilityRole="button" style={styles.button} onPress={read}><Text style={styles.buttonText}>原文を読む →</Text></Pressable>
+    <View style={[styles.mangaPage, { flexDirection: pageWidth >= 620 ? 'row-reverse' : 'column' }]} onLayout={event => setPageWidth(event.nativeEvent.layout.width)}>
+      {melosPanels.map((panel, index) => <Image key={index} source={panel.source} style={{ width: pageWidth >= 620 ? '49%' : '100%', aspectRatio: 3 / 4 }} contentFit="contain" cachePolicy="disk" accessibilityLabel={`${index + 1}コマ目：${panel.description}`} />)}
+    </View>
+    <Pressable accessibilityRole="button" style={styles.primary} onPress={read}><Text style={styles.light}>原文を読む →</Text></Pressable>
+  </ScrollView>;
 }
 function ComicEdition({ book, read }: { book: SavedBook; read: () => void }) {
   const source = useMemo(() => introSource(book.text, book.title), [book.text, book.title]);
