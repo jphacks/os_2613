@@ -1,3 +1,4 @@
+import { NavigationButton } from '@/shared/NavigationButton';
 import { useAccount } from '@/features/account/AccountProvider';
 import { Asset } from 'expo-asset';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -37,7 +38,7 @@ export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   return <>
-    <Stack.Screen options={{ headerLeft: () => <Pressable accessibilityRole="button" accessibilityLabel="本棚へ戻る" onPress={() => router.dismissTo('/shelf')} style={styles.shelfButton}><Text style={styles.shelfButtonText}>← 本棚へ</Text></Pressable> }} />
+    <Stack.Screen options={{ headerLeft: () => <NavigationButton label="本棚へ" onPress={() => router.dismissTo('/shelf')} /> }} />
     {pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook key={id} id={id} />}
   </>;
 }

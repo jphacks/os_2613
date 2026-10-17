@@ -7,6 +7,7 @@ export const colors = {
   accent: '#386149',
   line: '#DEDFD4',
   wood: '#CDBDA3',
+  rating: '#D9A12C',
 };
 
 // 表紙の色。本ごとに決まった色を使う。

@@ -1,11 +1,8 @@
+import { AccountContext as Context, type Preferences, type Quest } from './context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { restoreIdentity, signIn, signOut, type Identity } from './oauth';
-type Quest = 'add' | 'bookmark' | 'guide';
-type Preferences = { name: string; nameChosen: boolean; music: boolean; comic: boolean; characters: boolean; quests: boolean; done: Quest[] };
 const defaults: Preferences = { name: 'ゲスト', nameChosen: false, music: true, comic: true, characters: true, quests: true, done: [] };
-type Account = { identity: Identity | null; prefs: Preferences; ready: boolean; error: string; update: (patch: Partial<Preferences>) => Promise<void>; complete: (quest: Quest) => void; login: (handle: string) => Promise<void>; logout: () => Promise<void> };
-const Context = createContext<Account | null>(null);
 export function AccountProvider({ children }: { children: ReactNode }) {
   const [identity, setIdentity] = useState<Identity | null>(null), [prefs, setPrefs] = useState(defaults), [ready, setReady] = useState(false), [error, setError] = useState('');
   const current = useRef(defaults), queue = useRef(Promise.resolve()), profileKey = useRef('guest'), loaded = useRef(false);
@@ -34,6 +31,6 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     queue.current = task.catch(() => {}); return task;
   }
   function complete(quest: Quest) { if (!loaded.current || current.current.done.includes(quest)) return; void update(before => ({ done: [...new Set([...before.done, quest])] })).catch(() => setError('クエストを保存できません。')); }
-  return <Context.Provider value={{ identity, prefs, ready, error, update, complete, login: async handle => { setError(''); const value = await signIn(handle); if (value) setIdentity(value); }, logout: async () => { await signOut(); setIdentity(null); } }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ identity, prefs, ready, error, update, complete, refreshIdentity: async () => { const value = await restoreIdentity(); setIdentity(value); }, login: async handle => { setError(''); const value = await signIn(handle); if (value) setIdentity(value); }, logout: async () => { await signOut(); setIdentity(null); } }}>{children}</Context.Provider>;
 }
 export function useAccount() { const value = useContext(Context); if (!value) throw new Error('AccountProviderが必要です'); return value; }

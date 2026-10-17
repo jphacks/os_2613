@@ -1,3 +1,4 @@
+import { NavigationButton } from '@/shared/NavigationButton';
 import { useAccount } from '@/features/account/AccountProvider';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -98,9 +99,7 @@ export default function AddScreen() {
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <View style={styles.headRow}>
             <Text style={styles.eyebrow}>ADD A BOOK</Text>
-            <Pressable onPress={() => router.back()}>
-              <Text style={styles.close}>閉じる</Text>
-            </Pressable>
+            <NavigationButton close label="閉じる" onPress={() => router.back()} />
           </View>
           <Text style={styles.title}>本を追加</Text>
 

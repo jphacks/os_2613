@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '@/shared/theme';
@@ -8,6 +9,8 @@ type Props = {
   label: string;
   color: string;
   onPress?: () => void;
+  onDetails?: () => void;
+  hoverDetails?: boolean;
   width?: number; // 表紙の幅。高さは幅の1.5倍（狭い画面でも1段に3冊並べるため）
 };
 
@@ -30,9 +33,13 @@ const shortAuthor = (text: string) => {
   return chars.length > AUTHOR_MAX ? chars.slice(0, AUTHOR_MAX).join('') + '…' : chars.join('');
 };
 
-export function Cover({ title, author, label, color, onPress, width = 112 }: Props) {
+export function Cover({ title, author, label, color, onPress, onDetails, hoverDetails = false, width = 112 }: Props) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const showDetails = hovered || focused;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.cover, { width, height: width * 1.5, backgroundColor: color }, pressed && styles.pressed]}>
+    <View style={{ width, height: width * 1.5 }} onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}>
+    <Pressable accessibilityRole={onPress ? "button" : undefined} accessibilityLabel={onPress ? `${title}を読む` : undefined} accessibilityHint={onDetails && !hoverDetails ? '長押しで本の紹介を開きます' : undefined} onPress={onPress} onLongPress={hoverDetails ? undefined : onDetails} delayLongPress={450} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={({ pressed }) => [styles.cover, { width, height: width * 1.5, backgroundColor: color }, pressed && styles.pressed]}>
       <View style={styles.spine} />
       <View style={styles.face}>
         {columns(title).map((col, i) => (
@@ -42,10 +49,14 @@ export function Cover({ title, author, label, color, onPress, width = 112 }: Pro
       </View>
       <Text style={styles.tag}>{label}</Text>
     </Pressable>
+    {onDetails && hoverDetails && <Pressable accessibilityRole="button" accessibilityLabel={`${title}の紹介を開く`} onPress={onDetails} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} pointerEvents={showDetails ? 'auto' : 'none'} style={[styles.details, { opacity: showDetails ? 1 : 0 }]}><Text style={styles.dots}>…</Text></Pressable>}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  details: { position: 'absolute', top: -3, right: -3, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.68)', alignItems: 'center', justifyContent: 'center', zIndex: 2, boxShadow: '0 1px 5px rgba(0,0,0,0.12)' },
+  dots: { color: colors.ink, fontSize: 15, fontWeight: '700', lineHeight: 18, marginTop: -4 },
   cover: {
     width: 112,
     height: 168,

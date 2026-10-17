@@ -1,3 +1,4 @@
+import { reviewScope } from '../reviews/model.mjs';
 export function normalizeHandle(input) {
   let value = String(input ?? '').trim();
   if (/^https:\/\/(?:www\.)?bsky\.app\/profile\//i.test(value)) {
@@ -12,7 +13,7 @@ export function normalizeHandle(input) {
 export function loopbackClientId(origin) {
   const url = new URL(origin);
   if (!['127.0.0.1', '[::1]'].includes(url.hostname) || url.protocol !== 'http:') throw new Error('開発用ログインの接続先を確認してください。');
-  return `http://localhost?${new URLSearchParams({ redirect_uri: `${url.origin}/settings`, scope: 'atproto' })}`;
+  return `http://localhost?${new URLSearchParams({ redirect_uri: `${url.origin}/settings`, scope: reviewScope })}`;
 }
 export function loginError(error) {
   const text = `${error?.name || ''} ${error?.message || ''}`;

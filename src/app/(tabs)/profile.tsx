@@ -1,3 +1,4 @@
+import { Avatar } from '@/shared/Avatar';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +10,7 @@ export default function ProfileScreen() {
   const { identity, prefs } = useAccount();
   return <SafeAreaView edges={['top']} style={s.screen}>
     <View style={s.header}>
-      <View style={s.identity}><Text style={s.eyebrow}>MY READING LIFE</Text><Text style={s.name}>{prefs.name}</Text><Text style={s.handle}>{identity ? `@${identity.handle}` : 'ゲストで読書中'}</Text></View>
+      <Avatar uri={identity?.avatar} size={60} /><View style={[s.identity, { marginLeft: 16 }]}><Text style={s.name}>{prefs.name}</Text><Text style={s.handle}>{identity ? `@${identity.handle}` : 'ゲストで読書中'}</Text></View>
       <Pressable accessibilityRole="button" accessibilityLabel="設定を開く" onPress={() => router.push('/settings')} style={({ pressed }) => [s.settings, pressed && { opacity: 0.55 }]}><SettingsGlyph /></Pressable>
     </View>
     <View style={s.content}><StatsScreen /></View>

@@ -13,7 +13,8 @@ test('開発用client_idにパスを付けず設定画面をredirect_uriへ入�
   assert.equal(url.origin, 'http://localhost');
   assert.equal(url.pathname, '/');
   assert.equal(url.searchParams.get('redirect_uri'), 'http://[::1]:8082/settings');
-  assert.equal(url.searchParams.get('scope'), 'atproto');
+  assert.match(url.searchParams.get('scope'), /repo:app\.dopabooks\.review/);
+  assert.match(url.searchParams.get('scope'), /repo:app\.bsky\.feed\.post\?action=create/);
   assert.throws(() => loopbackClientId('https://example.com'));
 });
 test('認証エラーにURLや認証コードを表示しない', () => {

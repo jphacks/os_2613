@@ -207,6 +207,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
       headerTitle: () => <View style={styles.headTitle}><Text style={styles.title}>{book.title}</Text><Text style={styles.small}>{book.author}</Text></View>,
       // iPhone ではヘッダーのボタンに標準の枠が付くので、こちらでは枠を付けない（枠が二重になるため）
       headerRight: () => <View style={styles.headRight}>
+        <Pressable accessibilityRole="button" accessibilityLabel="本の紹介とレビュー" onPress={() => router.push(`/reviews/${trackingId}` as import('expo-router').Href)} style={styles.headButton}><Text style={{ color: colors.accent, fontSize: 24 }}>☆</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="しおり" accessibilityHint="タップで一覧、長押しでしおりを挟みます" disabled={!ready || busy || !!moving}
           onPress={() => { setRunning(false); setSelected(null); setPanel(true); }} onLongPress={() => begin()}
           style={[styles.headButton, (!ready || busy || !!moving) && styles.disabled]}><BookmarkIcon /></Pressable>

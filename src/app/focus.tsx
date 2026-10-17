@@ -51,7 +51,7 @@ export default function FocusScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
-  body: { padding: 20, paddingBottom: 48, gap: 16, width: '100%', maxWidth: 640, alignSelf: 'center' },
+  body: { padding: 20, paddingBottom: 48, gap: 16, width: '100%' },
   eyebrow: { fontSize: 10, letterSpacing: 1.8, color: colors.accent, fontWeight: '700' },
   title: { fontSize: 28, color: colors.ink, marginTop: -8 },
   lead: { fontSize: 14, color: colors.ink, lineHeight: 24 },

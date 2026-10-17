@@ -1,3 +1,4 @@
+import { NavigationButton } from '@/shared/NavigationButton';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -113,7 +114,7 @@ export function MusicPanel({ book, position, guideActive, visible = true }: { vi
         <Text style={styles.text}>{enabled && !guideActive ? '読みガイドを開始すると音が鳴ります。' : '環境音・効果音は本文の該当箇所で重なります。'}</Text>
         {[...(current ? [current] : []), ...activeCues].map((track, index) => <View key={`${track.id}:${index}`} style={styles.credit}><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.url)} style={styles.text}>{track.creator} / {track.name}</Text><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.license)} style={styles.text}>{track.license.includes('/zero/') ? 'CC0' : 'CC BY'}</Text></View>)}
         {!current && <Text style={styles.text}>同梱の予備BGM</Text>}
-        <Pressable accessibilityRole="button" onPress={() => setDetails(false)} style={styles.close}><Text style={styles.text}>閉じる</Text></Pressable>
+        <View style={styles.close}><NavigationButton close label="閉じる" onPress={() => setDetails(false)} /></View>
       </ScrollView></View></View>
     </Modal>
   </View>;

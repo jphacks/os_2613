@@ -168,6 +168,7 @@ export function createAozoraService({ fetcher = fetch, cachePath = null, maxAgeM
   }
   return {
     async search(query, field, page) { return searchCatalog(await catalog(), query, field, page); },
+    async describe(id) { const entry = (await catalog()).find(book => book.aozoraId === id); if (!entry) throw new Error('作品が見つかりません。'); return { id: entry.id, title: entry.title, author: entry.author }; },
     async importBook(id) {
       const saved = imports.get(id);
       if (saved && saved.expires > Date.now()) return saved.promise;
