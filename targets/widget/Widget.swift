@@ -192,9 +192,9 @@ struct PageEdges: Shape {
       let y = rect.minY + rect.height * CGFloat(i) / CGFloat(count)
       // 右端の間隔を中央へ20%寄せ、紙の束の奥行きを表す。
       let end = rect.midY + (y - rect.midY) * 0.80
-      // 紙の左端から右端近く（帯の幅14）まではまっすぐ、そこから斜めに真ん中へ寄せる（紙の形と同じ帯の幅）
+      // 紙の左端から右端近く（帯の幅28）まではまっすぐ、そこから斜めに真ん中へ寄せる（紙の形と同じ帯の幅）
       path.move(to: CGPoint(x: rect.minX, y: y))
-      path.addLine(to: CGPoint(x: rect.maxX - 14, y: y))
+      path.addLine(to: CGPoint(x: rect.maxX - 28, y: y))
       path.addLine(to: CGPoint(x: rect.maxX, y: end))
     }
     return path
@@ -205,14 +205,16 @@ struct PageEdges: Shape {
 struct TopViewBackground: View {
   var body: some View {
     ZStack(alignment: .trailing) {
-      Palette.green
+      PaperShape(band: 28, ratio: 0.92).fill(Palette.green)
       // 紙と線は同じ高さ・収束率を使う。上下の外側は背景の緑のまま残す。
       ZStack(alignment: .trailing) {
-        PaperShape(band: 14, ratio: 0.80).fill(Palette.page)
+        PaperShape(band: 28, ratio: 0.80).fill(Palette.page)
+        // 紙の束の右端もベージュで埋め、緑の縦帯を残さない。
+        Rectangle().fill(Palette.page).frame(width: 28)
         // ページの線：紙の左端から右端まで通す。文字と重なるので、ごく薄くする
         PageEdges().stroke(Palette.pageLine.opacity(0.45), lineWidth: 1)
       }
-      .clipShape(PaperShape(band: 14, ratio: 0.80))
+      .clipShape(UnevenRoundedRectangle(topLeadingRadius: 5, bottomLeadingRadius: 5, bottomTrailingRadius: 0, topTrailingRadius: 0))
       .padding(.leading, 18).padding(.vertical, 6)
 
     }
@@ -268,9 +270,9 @@ struct SmallView: View {
         Text(book.author).font(.system(size: 10)).foregroundStyle(Palette.muted).lineLimit(1)
       }
     }
-    .padding(14)
+    .padding(.vertical, 14).padding(.leading, 28).padding(.trailing, 14)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Palette.paper)
+    .background(TopViewBackground())
   }
 }
 
@@ -424,11 +426,11 @@ struct NoBookView: View {
       }
     }
     .padding(.top, small ? 14 : 24).padding(.bottom, small ? 14 : 22)
-    .padding(.leading, small ? 14 : family == .systemMedium ? 30 : 30).padding(.trailing, small ? 14 : 20)
+    .padding(.leading, small ? 28 : 30).padding(.trailing, small ? 14 : 20)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(
       Group {
-        if family == .systemMedium { TopViewBackground() }
+        if family == .systemSmall || family == .systemMedium { TopViewBackground() }
         else if family == .systemLarge { OpenBookBackground() }
         else { Palette.paper }
       }

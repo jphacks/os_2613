@@ -28,7 +28,7 @@ export function ReviewCard({ review, own = false, hideBook = false, beforeNaviga
 }
 
 // いいねボタン：押すとすぐ数を変えて（先に見た目を更新）、保存に失敗したら元に戻す
-function LikeButton({ review }: { review: Review }) {
+export function LikeButton({ review }: { review: Review }) {
   const { identity } = useAccount();
   const [liked, setLiked] = useState(!!identity && !!review.likedBy?.includes(identity.did));
   const [count, setCount] = useState(review.likes ?? 0);

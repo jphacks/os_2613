@@ -66,13 +66,16 @@ export function createReviewService({ storage = artifactStorage('.local/reviews'
   const key = artifactKey(['review-index-v1']);
   const likesKey = artifactKey(['like-index-v1']);
   return {
-    async list({ book, did, cursor = 0 } = {}) {
+    async list({ book, did, liked, cursor = 0 } = {}) {
       const all = latestReviews((await storage.read(key))?.items ?? []);
+      const likes = (await storage.read(likesKey))?.items ?? [];
       const forBook = book ? all.filter(item => item.book.id === book) : all;
-      const filtered = did ? forBook.filter(item => item.did === did) : forBook;
+      const byAuthor = did ? forBook.filter(item => item.did === did) : forBook;
+      // liked を付けると、その人がいいねした感想だけにする（自分の画面の「いいね」タブ用）
+      const likedSubjects = liked ? new Set(likes.filter(like => like.did === liked).map(like => like.subject)) : null;
+      const filtered = likedSubjects ? byAuthor.filter(item => likedSubjects.has(item.uri)) : byAuthor;
       const start = Math.max(0, cursor), limit = 30;
       // 感想ごとに、いいねの数と、いいねした人（自分が押したかの判定用）を付ける
-      const likes = (await storage.read(likesKey))?.items ?? [];
       const withLikes = filtered.slice(start, start + limit).map(review => {
         const likedBy = likes.filter(like => like.subject === review.uri).map(like => like.did);
         return { ...review, likes: likedBy.length, likedBy: likedBy.slice(0, 500) };
@@ -112,10 +115,11 @@ export function createReviewsEndpoint({ service, ...options } = {}) {
     const send = (value, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'no-store' } });
     try {
       if (request.method === 'GET') {
-        const params = new URL(request.url).searchParams, book = params.get('book') || undefined, did = params.get('did') || undefined;
+        const params = new URL(request.url).searchParams, book = params.get('book') || undefined, did = params.get('did') || undefined, liked = params.get('liked') || undefined;
         const cursor = Number(params.get('cursor') || 0);
-        if ((book && !validBookId(book)) || (did && !/^did:plc:[a-z2-7]{24}$/.test(did)) || !Number.isInteger(cursor) || cursor < 0 || cursor > 10000) throw new Error('検索条件を確認してください。');
-        return send(await service.list({ book, did, cursor }));
+        const validDid = value => /^did:plc:[a-z2-7]{24}$/.test(value);
+        if ((book && !validBookId(book)) || (did && !validDid(did)) || (liked && !validDid(liked)) || !Number.isInteger(cursor) || cursor < 0 || cursor > 10000) throw new Error('検索条件を確認してください。');
+        return send(await service.list({ book, did, liked, cursor }));
       }
       if (request.method !== 'POST') return send({ error: '操作を確認してください。' }, 405);
       const body = await artifactInput(request, 1000);

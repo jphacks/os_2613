@@ -1,6 +1,6 @@
 import { FocusIllustration, type FocusShot } from '@/features/focus/FocusIllustration';
-import { openFocusSettings } from '@/features/focus/openFocusSettings';
 import { useAccount } from '@/features/account/AccountProvider';
+import { openFocusSettings } from '@/features/focus/openFocusSettings';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '@/shared/theme';
