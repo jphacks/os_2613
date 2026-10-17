@@ -4,7 +4,7 @@ const search = createMusicService();
 export async function GET(request: Request) {
   try {
     const params = new URL(request.url).searchParams;
-    const tracks = await search(params.get('mood') ?? 'calm', params.get('q') ?? undefined);
+    const tracks = await search(params.get('mood') ?? 'calm', params.get('q') ?? undefined, params.get('kind') ?? 'music');
     return Response.json({ tracks });
   } catch (error) {
     const code = error instanceof Error ? error.message : '';

@@ -11,7 +11,7 @@ function Button({ label, onPress, disabled = false }: { label: string; onPress: 
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, disabled && { opacity: 0.4 }]}><Text style={styles.text}>{label}</Text></Pressable>;
 }
 
-export function MusicPlanEditor({ book, visible, onClose }: { book: SavedBook; visible: boolean; onClose: () => void }) {
+export function MusicPlanEditor({ book, visible, onClose, volume = 0.25 }: { book: SavedBook; visible: boolean; onClose: () => void; volume?: number }) {
   const [plan, setPlan] = useState<MusicPlan | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState('');
@@ -21,6 +21,7 @@ export function MusicPlanEditor({ book, visible, onClose }: { book: SavedBook; v
   const [preview, setPreview] = useState<MusicTrack | null>(null);
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
+  useEffect(() => { player.volume = volume; }, [player, volume]);
   const pending = useRef(false);
   const alive = useRef(true);
   const controller = useRef<AbortController | null>(null);
@@ -102,7 +103,7 @@ export function MusicPlanEditor({ book, visible, onClose }: { book: SavedBook; v
   async function audition() {
     try {
       await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false });
-      player.volume = 0.25; player.loop = true; player.play();
+      player.volume = volume; player.loop = true; player.play();
     } catch { setError('再生できません。別の候補をお試しください。'); }
   }
 
@@ -114,9 +115,9 @@ export function MusicPlanEditor({ book, visible, onClose }: { book: SavedBook; v
         <View style={styles.row}><Button label={status.playing ? '試聴を停止' : status.isLoaded ? '試聴を再生' : '音源を読み込み中…'} disabled={!status.isLoaded} onPress={() => status.playing ? player.pause() : void audition()} /><Button label="音源ページ" onPress={() => void Linking.openURL(preview.url)} /><Button label="ライセンス" onPress={() => void Linking.openURL(preview.license)} /></View>
       </View>}
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-        <Text style={styles.text}>作品全体の内容を含む編集画面です。読書位置に合わせた自動再生はまだ行いません。</Text>
+        <Text style={styles.text}>作品全体の内容を含む編集画面です。保存して閉じると、読みガイドの位置に選択曲を合わせます。曲を外した場面では直前の曲か予備BGMを使います。</Text>
         {book.text.length > bookTextLimit ? <Text style={styles.error}>本文が60,000文字を超えています。今回は短い作品でお試しください。本文は途中で切り捨てません。</Text> : <>
-          <Text style={styles.text}>「本文を分析して音楽取得」を押すと本文全体をOpenAIへ送信します。最大8場面・出力最大4,000トークン。料金が発生します。保存済みの案や候補の探し直しにはOpenAIを使いません。</Text>
+          <Text style={styles.text}>「本文を分析して音楽取得」を押すと本文全体をOpenAIへ送信します。最大16場面・出力最大6,000トークン。料金が発生します。保存済みの案や候補の探し直しにはOpenAIを使いません。</Text>
           <View style={styles.row}>
             {!plan && <Button label="本文を分析して音楽取得" onPress={() => void analyze()} disabled={!!busy || !loaded} />}
             <Button label="保存済みを読み直す（未保存の編集を破棄）" onPress={() => void load()} disabled={!!busy} />

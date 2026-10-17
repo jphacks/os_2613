@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { bookHash, bookInput, createMusicPlanner, createMusicPlanService, createMusicPlanEndpoint } from '../src/server/music-plan.mjs';
+import { createHash } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
+import { bookHash, bookInput, createMusicPlanner, createMusicPlanService, createMusicPlanEndpoint, normalizeMusicResult } from '../src/server/music-plan.mjs';
 import { textUnits, validateScenes } from '../src/features/music/plan-model.mjs';
 
 const book = { title: '試験作品', text: '雨の中を走る。友の命がかかっていた。' };
-const scene = { start: 0, end: book.text.length, label: '友への決意', reason: '友を助けるため走る切迫感に、低い弦の音を合わせる。', mood: 'tense', query: 'suspense ambient strings', candidates: [], selectedId: null };
+const scene = { kind: 'music', start: 0, end: book.text.length, label: '友への決意', reason: '友を助けるため走る切迫感に、低い弦の音を合わせる。', mood: 'tense', query: 'suspense ambient strings', candidates: [], selectedId: null };
 const planned = { scenes: [scene], usage: { input: 80, output: 40, total: 120 } };
 const result = { scenes: [{ firstUnit: 0, lastUnit: 0, label: scene.label, reason: scene.reason, mood: scene.mood, query: scene.query }] };
 const track = { id: 42, name: 'Strings music', creator: 'artist', license: 'https://creativecommons.org/licenses/by/4.0/', url: 'https://freesound.org/people/artist/sounds/42/', audioUrl: 'https://cdn.freesound.org/previews/42.mp3' };
@@ -28,7 +30,7 @@ test('OpenAIには本文だけを資料として1回送信し、構造化出力�
     calls++; assert.equal(url, 'https://api.openai.com/v1/responses');
     const body = JSON.parse(options.body);
     assert.equal(body.store, false); assert.equal(body.model, 'gpt-4.1-mini');
-    assert.equal(body.text.format.type, 'json_schema'); assert.equal(body.max_output_tokens, 4000);
+    assert.equal(body.text.format.type, 'json_schema'); assert.equal(body.max_output_tokens, 6000);
     assert.equal(JSON.parse(body.input).units[0].text, book.text);
     assert.ok(!options.body.includes('secret-test'));
     return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(result) }] }], usage: { input_tokens: 80, output_tokens: 40, total_tokens: 120 } });
@@ -67,4 +69,35 @@ test('不正な本文と外部Originを拒否し、API内部の秘密をエラ�
   assert.equal((await endpoint(request({ action: 'load', book: { ...book, text: '' } }))).status, 400);
   const response = await endpoint(request({ action: 'load', book }));
   assert.equal(response.status, 503); assert.ok(!(await response.text()).includes('provider-secret'));
+});
+test('有料の分析結果の境界の隙間・重複・検索語の記号を追加APIなしで補正する', () => {
+  const longBook = { ...book, text: 'あ'.repeat(1800) };
+  const data = { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ scenes: [
+    { ...result.scenes[0], firstUnit: 1, lastUnit: 1, query: 'dark / strings & music' },
+    { ...result.scenes[0], firstUnit: 3, lastUnit: 99 },
+  ] }) }] }] };
+  const normalized = normalizeMusicResult(data, longBook);
+  assert.equal(normalized.scenes[0].start, 0);
+  assert.equal(normalized.scenes[1].query, 'dark strings music');
+  assert.equal(normalized.scenes.at(-1).end, longBook.text.length);
+  validateScenes(normalized.scenes, longBook.text.length);
+});
+test('分析応答を検証前に残し、再起動後の復旧ではOpenAIを再度呼ばない', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'book-analysis-recovery-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const planner = createMusicPlanner({ key: () => 'test', recoveryDirectory: directory, fetcher: async () => Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(result) }] }] }) });
+  await planner(book);
+  const restored = createMusicPlanner({ recoveryDirectory: directory, key: () => '', fetcher: () => assert.fail('paid twice') });
+  assert.equal((await restored(book)).scenes[0].label, scene.label);
+});
+test('旧形式は再生用に読み、明示的取得時だけ環境音優先へ更新し、その後は再利用する', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'book-legacy-music-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const hash = createHash('sha256').update(`music-plan-1\n${book.text}`).digest('hex');
+  await writeFile(join(directory, `${hash}.json`), JSON.stringify({ version: 1, hash, revision: 'legacy', ...planned }));
+  let calls = 0;
+  const service = createMusicPlanService({ directory, planner: async () => { calls++; return { ...planned, scenes: [{ ...scene, kind: 'ambience', query: 'river flowing water' }] }; } });
+  assert.equal((await service.load(book)).version, 1); assert.equal(calls, 0);
+  assert.equal((await service.analyze(book)).plan.scenes[0].kind, 'ambience'); assert.equal(calls, 1);
+  assert.equal((await service.analyze(book)).cached, true); assert.equal(calls, 1);
 });

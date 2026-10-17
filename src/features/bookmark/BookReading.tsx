@@ -7,6 +7,7 @@ import { colors } from '@/shared/theme';
 import { createReadingStore, emptyReading, placeMark, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
 import { Summary } from './Summary';
 import VerticalPage from '@/features/reader/VerticalPage';
+import { MusicPanel } from '@/features/music/MusicPanel';
 import { DisplaySettings, paperColors } from '@/features/reader/DisplaySettings';
 import { PageBar } from '@/features/reader/PageBar';
 import { defaultPreferences, normalizePreferences, preferenceKey, type DisplayPreferences } from '@/features/reader/preferences.mjs';
@@ -31,6 +32,7 @@ export function BookReading({ book }: { book: SavedBook }) {
   const [moving, setMoving] = useState<string | null>(null);
   const [draft, setDraft] = useState<number | null>(null);
   const [undo, setUndo] = useState<{ before: Mark; after: Mark } | null>(null);
+  const [readPosition, setReadPosition] = useState(0);
   const [guide, setGuide] = useState(false);
   const [running, setRunning] = useState(false);
   const [speed, setSpeed] = useState(500);
@@ -137,6 +139,7 @@ export function BookReading({ book }: { book: SavedBook }) {
       headerTitle: () => <View style={styles.headTitle}><Text style={styles.title}>{book.title}</Text><Text style={styles.small}>{book.author}</Text></View>,
       headerRight: () => <View style={styles.headRight}><Action disabled={!ready || !!moving} onPress={() => { setRunning(false); setMenu(true); }}>☰ メニュー</Action></View>,
     }} />
+    <MusicPanel book={book} position={readPosition} guideActive={guide && running && !moving && !menu && !panel && !settingsOpen} />
     {/* 読みガイドがONのときだけ、開始・一時停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
     {guide && <View style={styles.toolbar}>
       <Action filled disabled={!ready || !!moving} onPress={() => setRunning(value => !value)}>{running ? '一時停止' : '▶ ガイドを開始'}</Action>
@@ -152,7 +155,7 @@ export function BookReading({ book }: { book: SavedBook }) {
           <Text style={styles.menuHead}>表示</Text>
           <Action disabled={!displayReady} onPress={() => { setMenu(false); setSettingsOpen(true); }}>Aa 表示設定</Action>
           <Text style={styles.menuHead}>読みガイド</Text>
-          <Action filled={guide} onPress={() => { setGuide(value => !value); setRunning(false); }}>{guide ? 'ON（押すとOFF）' : 'OFF（押すとON）'}</Action>
+          <Action filled={guide} onPress={() => { const next = !guide; setGuide(next); setRunning(next); setMenu(false); }}>{guide ? 'ON（押すとOFF）' : 'OFF（押すとON）'}</Action>
           <Text style={styles.note}>速さ（1分あたりの文字数）</Text>
           <View style={styles.toolbarTight}>{speeds.map(value => <Action key={value} filled={speed === value} onPress={() => setSpeed(value)}>{`${value}`}</Action>)}</View>
           <Action onPress={() => setMenu(false)}>閉じる</Action>
@@ -181,6 +184,7 @@ export function BookReading({ book }: { book: SavedBook }) {
         onPages={setSubCount}
         onReflow={setSub}
         onVisible={recordVisible}
+        onPosition={setReadPosition}
         onNext={() => { setRunning(false); next(); }}
         onPrev={() => { setRunning(false); prev(); }}
         onAdvance={next}
