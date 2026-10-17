@@ -25,6 +25,8 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         {/* 本の中ではスワイプでページをめくるので、スワイプで本棚へ戻る操作は切る（戻るのは左上のボタンだけ） */}
         <Stack.Screen name="book/[id]" options={{ title: '', gestureEnabled: false, fullScreenGestureEnabled: false }} />
+        <Stack.Screen name="stats" options={{ title: '読書の記録' }} />
+        <Stack.Screen name="focus" options={{ title: '読書集中モード' }} />
         {/* 本を追加は画面を切り替えず、本棚の上に重ねて出す */}
         <Stack.Screen
           name="add"

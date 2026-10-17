@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { SavedBook } from '@/features/library/types';
 import { colors } from '@/shared/theme';
@@ -9,6 +9,11 @@ import { Summary } from './Summary';
 import VerticalPage from '@/features/reader/VerticalPage';
 import { DisplaySettings, paperColors } from '@/features/reader/DisplaySettings';
 import { PageBar } from '@/features/reader/PageBar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { forgetWidgetBook, rememberWidgetBook } from '@/features/widget/bookmarks';
+import { recordFinished, recordReading } from '@/features/stats/stats';
+import { Alert, AppState, Platform } from 'react-native';
+import { openFocusSettings } from '@/features/focus/openFocusSettings';
 import { defaultPreferences, normalizePreferences, preferenceKey, type DisplayPreferences } from '@/features/reader/preferences.mjs';
 
 // 読みガイドの速さ（1分あたりの文字数）の選択肢
@@ -43,6 +48,45 @@ export function BookReading({ book }: { book: SavedBook }) {
   const [focus, setFocus] = useState<{ offset: number; token: number } | null>(null);
   const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
+  const insets = useSafeAreaInsets();
+  // 初めて本を開いたときに1回だけ、マイクの許可を求めるときのようなダイアログで「読書集中モード」を案内する。
+  // iOS ではアプリから集中モードをオンにできないので、設定アプリへ案内する。
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    const key = 'dopabooks:focus-asked:v1';
+    void AsyncStorage.getItem(key).then(asked => {
+      if (asked) return;
+      void AsyncStorage.setItem(key, '1');
+      Alert.alert(
+        '「ドパBOOKs」で読書集中モードを使いますか？',
+        '読んでいる間の通知を止めるには、設定の「集中モード」で読書用のモードを作り、「自動的にオン」にドパBOOKsを選んでください。',
+        [
+          { text: '今はしない', style: 'cancel' },
+          { text: '設定方法を見る', onPress: () => router.push('/focus') },
+          { text: '設定を開く', style: 'default', onPress: openFocusSettings },
+        ],
+      );
+    }).catch(() => {});
+  }, []);
+  // 読書時間を記録する（分析画面用）。画面を開いている間を数え、アプリを離れた時と画面を閉じた時に保存する。
+  useEffect(() => {
+    let since: number | null = Date.now();
+    const flush = () => { if (since !== null) { void recordReading(book.id, (Date.now() - since) / 1000); since = null; } };
+    const sub = AppState.addEventListener('change', state => { if (state === 'active') since = Date.now(); else flush(); });
+    return () => { sub.remove(); flush(); };
+  }, [book.id]);
+  // しおりが変わったら、ウィジェットに出す「最新のしおり」も更新する（しおりが無くなった本は外す）
+  useEffect(() => {
+    if (!ready) return;
+    const latestMark = [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    if (!latestMark) { void forgetWidgetBook(book.id); return; }
+    void rememberWidgetBook({
+      bookId: book.id, title: book.title, author: book.author,
+      excerpt: book.text.slice(Math.max(0, latestMark.offset - 60), latestMark.offset).replace(/\s+/g, ' ').trim(),
+      progress: Math.round((latestMark.offset / Math.max(1, book.text.length)) * 100),
+      updatedAt: latestMark.updatedAt,
+    });
+  }, [ready, reading.marks, book]);
   useEffect(() => {
     let active = true;
     void AsyncStorage.getItem(preferenceKey).then(raw => { if (active && raw) setDisplay(normalizePreferences(JSON.parse(raw))); })
@@ -77,6 +121,8 @@ export function BookReading({ book }: { book: SavedBook }) {
     catch { setError('表示設定を保存できません。端末の空き容量や保存設定を確認して、もう一度お試しください。'); return false; }
   }
   const shown = Math.min(Math.max(0, sub), subCount - 1);
+  // 最後のページまで来たら「読み終わった」と記録する（分析画面用）
+  useEffect(() => { if (ready && subCount > 1 && shown === subCount - 1) void recordFinished(book.id); }, [ready, shown, subCount, book.id]);
   function next() {
     if (busy) return;
     if (shown < subCount - 1) setSub(shown + 1);
@@ -135,7 +181,8 @@ export function BookReading({ book }: { book: SavedBook }) {
     <Stack.Screen options={{
       headerTitleAlign: 'center',
       headerTitle: () => <View style={styles.headTitle}><Text style={styles.title}>{book.title}</Text><Text style={styles.small}>{book.author}</Text></View>,
-      headerRight: () => <View style={styles.headRight}><Action disabled={!ready || !!moving} onPress={() => { setRunning(false); setMenu(true); }}>☰ メニュー</Action></View>,
+      // iPhone ではヘッダーのボタンに標準の枠が付くので、こちらでは枠を付けない（枠が二重になるため）
+      headerRight: () => <Pressable accessibilityRole="button" disabled={!ready || !!moving} onPress={() => { setRunning(false); setMenu(true); }} style={[styles.headButton, (!ready || !!moving) && styles.disabled]}><Text style={styles.buttonText}>☰ メニュー</Text></Pressable>,
     }} />
     {/* 読みガイドがONのときだけ、開始・一時停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
     {guide && <View style={styles.toolbar}>
@@ -151,6 +198,7 @@ export function BookReading({ book }: { book: SavedBook }) {
           <Action onPress={() => { setMenu(false); setSelected(null); setPanel(true); }}>しおり一覧・ふりかえり</Action>
           <Text style={styles.menuHead}>表示</Text>
           <Action disabled={!displayReady} onPress={() => { setMenu(false); setSettingsOpen(true); }}>Aa 表示設定</Action>
+          <Action onPress={() => { setMenu(false); router.push('/focus'); }}>読書集中モード（通知を止める）</Action>
           <Text style={styles.menuHead}>読みガイド</Text>
           <Action filled={guide} onPress={() => { setGuide(value => !value); setRunning(false); }}>{guide ? 'ON（押すとOFF）' : 'OFF（押すとON）'}</Action>
           <Text style={styles.note}>速さ（1分あたりの文字数）</Text>
@@ -195,16 +243,20 @@ export function BookReading({ book }: { book: SavedBook }) {
         {!!notice && <View style={styles.toolbar}><Text accessibilityLiveRegion="polite" style={styles.note}>{notice}</Text>{undo && <Action disabled={busy} onPress={() => void undoMove()}>元に戻す</Action>}<Action onPress={() => setNotice('')}>閉じる</Action></View>}
       </View>}
     </View>
-    <Pressable accessibilityRole="link" style={styles.source} onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：青空文庫</Text></Pressable>
-    <PageBar page={shown} count={subCount} disabled={!ready || busy || !!moving} ink={paint.ink} accent={paint.accent} line={paint.chosen}
-      onChange={value => { setRunning(false); setSub(value); }} />
+    {/* ページバーを上、出典を下にする。iPhone の画面下の線（ホームバー）と重ならないよう、その分の余白を空ける */}
+    <View style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
+      <PageBar page={shown} count={subCount} disabled={!ready || busy || !!moving} ink={paint.ink} accent={paint.accent} line={paint.chosen}
+        onChange={value => { setRunning(false); setSub(value); }} />
+      <Pressable accessibilityRole="link" style={styles.source} onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：青空文庫</Text></Pressable>
+    </View>
     <Modal visible={panel} transparent animationType="slide" onRequestClose={() => setPanel(false)}>
       <View style={styles.overlay}><View style={styles.sheet}><View style={styles.toolbar}><Text style={styles.heading}>{target ? 'ふりかえり' : 'しおり'}</Text><Action onPress={() => setPanel(false)}>閉じる</Action></View>
         <ScrollView contentContainerStyle={styles.sheetContent}>
           {target && range ? <>
             <Action onPress={() => setSelected(null)}>‹ しおり一覧へ</Action>
             <View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View>
-            <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`} />
+            <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`}
+              onSummary={summary => { if (target.id === [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt)[0]?.id) void rememberWidgetBook({ bookId: book.id, summary }); }} />
             <View style={styles.toolbar}><Action disabled={busy} filled onPress={() => { resume(target); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(target.id)}>しおりを移動</Action><Action disabled={busy} onPress={() => { void save(state => removeMark(state, target.id)).then(ok => { if (ok) { setSelected(null); setUndo(null); } }); }}>外す</Action></View>
           </> : <>
             {!sorted.length && <Text style={styles.note}>しおりはまだありません。本文の文字を選んで挟めます。</Text>}
@@ -223,7 +275,7 @@ const styles = StyleSheet.create({
   message: { color: colors.ink, backgroundColor: colors.surface, padding: 12, lineHeight: 24 }, note: { color: colors.muted, fontSize: 14, lineHeight: 24 },
   title: { color: colors.ink, fontSize: 17, letterSpacing: 3, fontFamily: 'serif' }, heading: { color: colors.ink, fontSize: 18, fontWeight: '600' },
   paper: { flex: 1, marginHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 4, overflow: 'hidden', backgroundColor: colors.surface },
-  headTitle: { alignItems: 'center' }, small: { color: colors.muted, fontSize: 11, marginTop: 2 }, headRight: { flexDirection: 'row', gap: 8, marginRight: 8 },
+  headTitle: { alignItems: 'center' }, small: { color: colors.muted, fontSize: 11, marginTop: 2 }, headRight: { flexDirection: 'row', gap: 8, marginRight: 8 }, headButton: { paddingHorizontal: 12, paddingVertical: 8 },
   toolbarTight: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   menuBack: { flex: 1, backgroundColor: 'rgba(41,46,41,0.35)', alignItems: 'flex-end', paddingTop: 90, paddingHorizontal: 12 },
   menu: { width: 280, maxWidth: '100%', backgroundColor: colors.surface, borderRadius: 14, padding: 16, gap: 10, boxShadow: '0 6px 20px rgba(41,46,41,0.2)' },

@@ -5,7 +5,8 @@ import { colors } from '@/shared/theme';
 import { summaryLimit } from './model.mjs';
 import { summaryFailure } from './summary-errors.mjs';
 
-export function Summary({ text, cacheKey }: { text: string; cacheKey: string }) {
+// onSummary：まとめが用意できたら知らせる（最新のしおりのまとめをウィジェットに出すため）
+export function Summary({ text, cacheKey, onSummary }: { text: string; cacheKey: string; onSummary?: (summary: string) => void }) {
   const [summary, setSummary] = useState('');
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -14,7 +15,7 @@ export function Summary({ text, cacheKey }: { text: string; cacheKey: string }) 
   useEffect(() => {
     let alive = true;
     void AsyncStorage.getItem(cacheKey).then(raw => {
-      try { const value = raw ? JSON.parse(raw) : null; if (alive && value?.text === text && typeof value.summary === 'string' && value.summary.length <= 5000) setSummary(value.summary); }
+      try { const value = raw ? JSON.parse(raw) : null; if (alive && value?.text === text && typeof value.summary === 'string' && value.summary.length <= 5000) { setSummary(value.summary); onSummary?.(value.summary); } }
       catch { /* 壊れた要約だけを無視し、本文としおりは保持する。 */ }
     }).catch(() => { if (alive) setError('保存したまとめを読み込めません。端末の保存設定を確認して再試行してください。'); })
       .finally(() => { if (alive) setReady(true); });
@@ -32,6 +33,7 @@ export function Summary({ text, cacheKey }: { text: string; cacheKey: string }) 
       if (typeof value.summary !== 'string' || !value.summary.trim() || value.summary.length > 5000) throw new Error('UNKNOWN');
       if (active.current !== controller) return;
       setSummary(value.summary);
+      onSummary?.(value.summary);
       try { await AsyncStorage.setItem(cacheKey, JSON.stringify({ text, summary: value.summary })); }
       catch { if (active.current === controller) setError('まとめは表示できますが保存できません。端末の空き容量や保存設定を確認してください。'); }
     } catch (reason) { if (active.current === controller) setError(summaryFailure(reason instanceof Error ? reason.name === 'AbortError' ? 'TIMEOUT' : reason.message : 'UNKNOWN').error); }

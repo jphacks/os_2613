@@ -6,6 +6,7 @@ import { Chips } from '@/shared/Chips';
 import { colors } from '@/shared/theme';
 import { useLibrary } from '@/features/library/LibraryProvider';
 import type { SavedBook, SearchResult } from '@/features/library/types';
+import { recordAdded } from '@/features/stats/stats';
 
 // 本を追加するダイアログ。本棚の上に重ねて表示する。
 const tabs = [
@@ -78,6 +79,7 @@ export default function AddScreen() {
       if (!response.ok) throw new Error(data.error);
       if (controller.signal.aborted) return;
       await addBook(data as SavedBook);
+      void recordAdded((data as SavedBook).id); // 分析画面の「追加した本」用
       if (!controller.signal.aborted) setMessage(`「${data.title}」を本棚に追加しました。`);
     } catch (reason) {
       if (!controller.signal.aborted) setError(reason instanceof Error && reason.message.includes('ください') ? reason.message : '追加できません。通信を確認して再試行してください。');
