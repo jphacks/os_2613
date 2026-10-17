@@ -15,7 +15,7 @@ const studyBooks = books.filter(b => b.kind === 'study');
 const kinds = [
   { id: 'all', label: 'すべて' },
   { id: 'novel', label: '小説' },
-  { id: 'study', label: '参考書' },
+  { id: 'study', label: '教材' },
 ];
 const states = [
   { id: 'all', label: 'すべて' },
@@ -34,11 +34,14 @@ export default function ShelfScreen() {
   // 読書状態はまだ記録していないので、「すべて」「読みたい」のときだけ並べる
   const shown = !['all', 'want'].includes(state) ? [] : [
     ...(kind === 'study' ? [] : savedBooks.map(b => ({ id: b.id, title: b.title, author: b.author, label: '小説' }))),
-    ...(kind === 'novel' ? [] : studyBooks.map(b => ({ id: b.id, title: b.title, author: b.author, label: '参考書' }))),
+    ...(kind === 'novel' ? [] : studyBooks.map(b => ({ id: b.id, title: b.title, author: b.author, label: '教材' }))),
   ];
 
   // 1段に並ぶ冊数を画面幅から決め、段ごとに棚板を敷く
-  const perRow = Math.max(2, Math.floor((Math.min(width, 1000) - 48) / SLOT));
+  // 狭い画面（iPhone）でも最低3冊は並べ、その分だけ表紙を小さくする
+  const shelfWidth = Math.min(width, 1000) - 48 - 28;
+  const perRow = Math.max(3, Math.floor(shelfWidth / SLOT));
+  const slot = Math.min(SLOT, shelfWidth / perRow);
   const rows: (typeof shown)[] = [];
   for (let i = 0; i < shown.length; i += perRow) rows.push(shown.slice(i, i + perRow));
 
@@ -46,6 +49,12 @@ export default function ShelfScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.band}>
         <Text style={styles.bandName}>ゲスト</Text>
+        {/* 分析画面（読書の記録）へ。電波の強さの表示のように、小・中・大の本が3冊立っている印 */}
+        <Pressable accessibilityRole="button" accessibilityLabel="読書の記録" hitSlop={10} onPress={() => router.push('/stats')} style={styles.statsIcon}>
+          {[12, 17, 22].map(height => (
+            <View key={height} style={[styles.statsBook, { height }]}><View style={styles.statsSpine} /></View>
+          ))}
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
@@ -71,12 +80,13 @@ export default function ShelfScreen() {
           <View key={r} style={styles.row}>
             <View style={styles.covers}>
               {row.map((book, i) => (
-                <View key={book.id} style={styles.slot}>
+                <View key={book.id} style={[styles.slot, { width: slot }]}>
                   <Cover
                     title={book.title}
                     author={book.author}
                     label={book.label}
                     color={coverColors[(r * perRow + i) % coverColors.length]}
+                    width={Math.min(112, slot - 12)}
                     onPress={() => router.push(`/book/${book.id}`)}
                   />
                 </View>
@@ -92,7 +102,10 @@ export default function ShelfScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
-  band: { backgroundColor: colors.accent, paddingHorizontal: 24, paddingVertical: 14 },
+  band: { backgroundColor: colors.accent, paddingHorizontal: 24, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  statsIcon: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, padding: 4 },
+  statsBook: { width: 7, backgroundColor: colors.surface, borderRadius: 1.5, overflow: 'hidden', alignItems: 'center' },
+  statsSpine: { width: 7, height: 2, marginTop: 3, backgroundColor: colors.accent, opacity: 0.45 },
   bandName: { color: colors.surface, fontSize: 18 },
   body: { padding: 24, paddingBottom: 48, width: '100%', maxWidth: 1000, alignSelf: 'center' },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 },
@@ -104,6 +117,6 @@ const styles = StyleSheet.create({
   row: { marginTop: 18 },
   covers: { flexDirection: 'row', paddingHorizontal: 14 },
   slot: { width: SLOT, alignItems: 'center' },
-  board: { height: 10, backgroundColor: colors.wood, marginTop: -2 },
+  board: { height: 10, backgroundColor: colors.wood, marginTop: -2, boxShadow: '0 6px 8px rgba(41,46,41,0.22)' },
   message: { color: colors.muted, fontSize: 14, lineHeight: 22, paddingVertical: 24 },
 });

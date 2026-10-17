@@ -10,6 +10,7 @@ type Props = {
   text: string; start: number; sub: number; marks: number[]; faded: number | null; picking: boolean; draft: number | null;
   guide: boolean; running: boolean; speed: number; display: DisplayPreferences; paint: Paint; disabled: boolean;
   focus: { offset: number; token: number } | null;
+  onPosition: (offset: number) => void;
   onPages: (count: number) => void; onReflow: (page: number) => void; onVisible: (offset: number) => void;
   onNext: () => void; onPrev: () => void; onAdvance: () => void; onPause: () => void;
   onPick: (offset: number) => void; onMarkPress: (offset: number) => void;
@@ -62,6 +63,13 @@ export default function VerticalPage(props: Props) {
     if (sameText) latest.current.onReflow(pageAtOffset(starts, anchor.current.offset - start));
   }, [text, start, step, display.font, display.fontSize]);
   useLayoutEffect(() => {
+    // iPhone では内部のWebViewの中で描かれ、そのページの高さが0のままだと紙面が潰れる。
+    // WebViewの中にいるときだけ、ページ全体の高さを画面いっぱいにする（Webでは親の高さに従う）。
+    if ((window as any).ReactNativeWebView) {
+      for (const el of [document.documentElement, document.body, document.getElementById('root')]) {
+        if (el) { el.style.height = '100%'; el.style.margin = '0'; }
+      }
+    }
     let active = true;
     measure();
     void document.fonts?.ready.then(() => { if (active) measure(); });
@@ -100,6 +108,12 @@ export default function VerticalPage(props: Props) {
     const timer = setInterval(() => { if (gesture.current?.dragged || gesture.current?.placing) edge === 'next' ? latest.current.onNext() : latest.current.onPrev(); }, 650);
     return () => clearInterval(timer);
   }, [edge, !!ghost]);
+
+  useEffect(() => {
+    if (picking || ghost || disabled || !layout.width) return;
+    const char = chars[guide ? cursor : 0];
+    if (char) latest.current.onPosition(char.begin);
+  }, [cursor, chars, guide, picking, ghost, disabled, layout.width]);
 
   function pointOffset(x: number, y: number) {
     const root = rootRef.current?.getBoundingClientRect();

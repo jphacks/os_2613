@@ -9,7 +9,6 @@ import PdfBook from '@/features/pdf/PdfBook';
 import { colors } from '@/shared/theme';
 import { useLibrary } from '@/features/library/LibraryProvider';
 import { BookReading } from '@/features/bookmark/BookReading';
-import { MusicPanel } from '@/features/music/MusicPanel';
 import { IntroComic } from '@/features/comic/IntroComic';
 import { parseReading } from '@/features/bookmark/model.mjs';
 
@@ -60,12 +59,12 @@ function NovelBook({ id }: { id: string }) {
 
   if (ready && book && entry !== 'loading') return <View key={`${book.id}:${book.importedAt}`} style={{ flex: 1 }}>
     <Stack.Screen options={{ title: book.title }} />
-    {entry === 'intro' ? <IntroComic book={book} read={() => { setOffset(0); setEntry('read'); void AsyncStorage.setItem(`dopabooks:opened:v1:${book.id}`, book.importedAt).catch(() => {}); }} /> : <><MusicPanel book={book} /><BookReading book={book} initialOffset={offset} /></>}
+    {entry === 'intro' ? <IntroComic book={book} read={() => { setOffset(0); setEntry('read'); void AsyncStorage.setItem(`dopabooks:opened:v1:${book.id}`, book.importedAt).catch(() => {}); }} /> : <BookReading book={book} initialOffset={offset} />}
   </View>;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.note}>{!ready ? '本を読み込んでいます…' : '本が見つかりません。本棚に戻って追加してください。'}</Text>
+      <Text style={styles.note}>{!ready || (book && entry === 'loading') ? '本を読み込んでいます…' : '本が見つかりません。本棚に戻って追加してください。'}</Text>
     </View>
   );
 }

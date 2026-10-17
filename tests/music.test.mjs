@@ -35,3 +35,23 @@ test('文脈検索は検索語を使い、声・心情と逆の曲を避けて�
   assert.deepEqual((await search('tense', 'dark strings music')).map(item => item.id), [4, 3]);
   await assert.rejects(search('tense', 'x&token=secret'), /QUERY/);
 });
+test('細かい検索で曲がなければ同じ心情の検索に広げ、再検索結果も再利用する', async () => {
+  let calls = 0;
+  const search = createMusicService({ key: () => 'test', fetcher: async url => {
+    calls++;
+    return Response.json({ results: url.searchParams.get('query') === 'rare strings texture' ? [] : [track] });
+  } });
+  assert.equal((await search('sad', 'rare strings texture')).length, 1);
+  assert.equal(calls, 2);
+  await search('sad', 'rare strings texture'); assert.equal(calls, 2);
+});
+test('環境音の検索では音楽や単発の衝撃を除外し、環境と一致する音を選ぶ', async () => {
+  const search = createMusicService({ key: () => 'test', fetcher: async () => Response.json({ results: [
+    { ...track, id: 1, name: 'Forest piano music' },
+    { ...track, id: 2, name: 'Forest explosion', tags: ['forest'] },
+    { ...track, id: 3, name: 'Forest birds ambience', tags: ['forest', 'birds', 'ambience'] },
+    { ...track, id: 4, name: 'Rain ambience', tags: ['rain', 'ambience'] },
+  ] }) });
+  const tracks = await search('calm', 'forest birds ambience', 'ambience');
+  assert.deepEqual(tracks.map(track => track.id), [3]); assert.equal(tracks[0].kind, 'ambience');
+});

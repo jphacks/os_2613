@@ -42,7 +42,8 @@
     "start": "node scripts/start.mjs",
     "android": "node scripts/start.mjs --android",
     "ios": "node scripts/start.mjs --ios",
-    "web": "node scripts/start.mjs --web",
+    "web": "node scripts/start.mjs --web --localhost",
+    "web:quick": "node scripts/start.mjs --web --localhost --no-api-keys",
     "lint": "expo lint",
     "test": "node --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit"
