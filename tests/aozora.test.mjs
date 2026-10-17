@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
 import { parseCsv, parseCatalog, searchCatalog, htmlToText, createAozoraService } from '../src/server/aozora.mjs';
 import { csvFromZip } from '../src/server/zip.mjs';
+import { mkdtemp, readFile, writeFile, utimes, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve, sep } from 'node:path';
 
 const columns = ['作品ID', '作品名', '作品名読み', '副題', '作品著作権フラグ', '人物著作権フラグ', '図書カードURL', 'XHTML/HTMLファイルURL', '姓', '名', '役割フラグ', '文字遣い種別', 'XHTML/HTMLファイル符号化方式'];
 const entry = (values = {}) => ({ 作品ID: '000001', 作品名: '銀河の本', 作品名読み: 'ぎんがのほん', 副題: '', 作品著作権フラグ: 'なし', 人物著作権フラグ: 'なし', 図書カードURL: 'https://www.aozora.gr.jp/cards/000001/card1.html', 'XHTML/HTMLファイルURL': 'https://www.aozora.gr.jp/cards/000001/files/1_2.html', 姓: '宮沢', 名: '賢治', 役割フラグ: '著者', 文字遣い種別: '新字新仮名', 'XHTML/HTMLファイル符号化方式': 'UTF-8', ...values });
@@ -76,4 +79,24 @@ test('公式ミラーへの転送をHTTPSで取得し、外部への転送を拒
   let calls = 0;
   const blocked = createAozoraService({ fetcher: async () => { calls++; return new Response(null, { status: 302, headers: { location: 'https://example.com/catalog.zip' } }); } });
   await assert.rejects(() => blocked.search('本', 'title', 1)); assert.equal(calls, 1);
+});
+
+test('再起動後もディスクの一覧を使い、期限切れ・破損時だけ公式から再取得する', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'dopabooks-catalog-'));
+  t.after(async () => { if (!resolve(root).startsWith(resolve(tmpdir()) + sep + 'dopabooks-catalog-')) throw new Error('UNSAFE_TEST_PATH'); await rm(root, { recursive: true, force: true }); });
+  const cachePath = join(root, 'catalog.zip'); let calls = 0;
+  const fetcher = async () => { calls++; return new Response(zip(csv([entry()]))); };
+  await createAozoraService({ fetcher, cachePath }).search('銀河', 'title', 1);
+  assert.equal(calls, 1);
+  assert.equal((await createAozoraService({ fetcher, cachePath }).search('銀河', 'title', 1)).total, 1);
+  assert.equal(calls, 1);
+  assert.equal(csvFromZip(await readFile(cachePath)), csv([entry()]));
+  await utimes(cachePath, new Date(0), new Date(0));
+  await createAozoraService({ fetcher, cachePath }).search('銀河', 'title', 1);
+  assert.equal(calls, 2);
+  await writeFile(cachePath, 'broken');
+  await createAozoraService({ fetcher, cachePath }).search('銀河', 'title', 1);
+  assert.equal(calls, 3);
+  // 書けない保存先でも検索は成功する。
+  assert.equal((await createAozoraService({ fetcher, cachePath: join(cachePath, 'invalid.zip') }).search('銀河', 'title', 1)).total, 1);
 });
