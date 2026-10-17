@@ -84,7 +84,7 @@ export default function AddScreen() {
       await addBook(data as SavedBook);
       complete('add');
       void recordAdded((data as SavedBook).id); // 分析画面の「追加した本」用
-      if (!controller.signal.aborted) setMessage(`「${data.title}」を本棚に追加しました。`);
+      if (!controller.signal.aborted) router.dismissTo('/shelf');
     } catch (reason) {
       if (!controller.signal.aborted) setError(reason instanceof Error && reason.message.includes('ください') ? reason.message : '追加できません。通信を確認して再試行してください。');
     } finally { if (!controller.signal.aborted) setAdding(null); }
