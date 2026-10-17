@@ -18,7 +18,9 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   const [state, setState] = useState<StudyState | null>(null);
   const [index, setIndex] = useState(0);
   const [chapterIndex, setChapterIndex] = useState(0);
+  const [expandedChapterIndex, setExpandedChapterIndex] = useState<number | null>(0);
   const { width } = useWindowDimensions();
+  const [sidebarOpen, setSidebarOpen] = useState(() => width >= 900);
   const [busy, setBusy] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
   const [error, setError] = useState('');
@@ -33,7 +35,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
       const saved = JSON.parse(raw);
       if (levels.some(item => item.id === saved.level)) setLevel(saved.level);
       if (Number.isInteger(saved.index) && saved.index >= 0) setIndex(saved.index);
-      if (Number.isInteger(saved.chapterIndex) && saved.chapterIndex >= 0) setChapterIndex(saved.chapterIndex);
+      if (Number.isInteger(saved.chapterIndex) && saved.chapterIndex >= 0) { setChapterIndex(saved.chapterIndex); setExpandedChapterIndex(saved.chapterIndex); }
     }).catch(() => {}).finally(() => { if (active) setReady(true); });
     return () => { active = false; };
   }, [preference]);
@@ -108,18 +110,46 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
       <Text accessibilityLiveRegion="polite" style={styles.note}>{loading ? '保存済み教材を確認しています…' : chapter ? `${chapter.units.filter(i => state?.units[i].lesson).length}/${chapter.units.length}範囲の本文を保存済み。${busy ? '選択した章だけを作成中です。' : chapter.complete ? '図解も保存済み。難易度を変えても再生成しません。' : `図解を含め残り${chapter.remainingRequests}回の生成。他の章は生成しません。`}` : ''}</Text>
       {!!(error || current?.error) && <Text accessibilityLiveRegion="polite" style={styles.error}>{error || current?.error}</Text>}
       {level !== 'original' && state && chapter && <>
-        {chapter.units.length > 1 && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>{chapter.units.map((unitIndex, part) => <View key={unitIndex}>{action(`${part + 1}${state.units[unitIndex].lesson ? ' ✓' : ''}`, () => setIndex(unitIndex), false, index === unitIndex)}</View>)}</ScrollView>}
         <Text style={styles.note} numberOfLines={2}>{current?.title}　原文 {current?.firstPage}〜{current?.lastPage}ページ</Text>
       </>}
     </View>
     <View style={styles.readerRow}>
-      <View style={[styles.sidebar, { width: width >= 900 ? 220 : width >= 600 ? 180 : 110 }]}>
-        <Text accessibilityRole="header" style={styles.sidebarTitle}>章を選ぶ</Text>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.chapterList}>{state?.chapters.map(item => <Pressable key={item.index} accessibilityRole="button" accessibilityState={{ selected: item.index === chapterIndex, disabled: busy }} disabled={busy}
-          onPress={() => { setChapterIndex(item.index); setIndex(item.units[0]); setError(''); }} style={[styles.chapter, item.index === chapterIndex && styles.activeChapter, busy && { opacity: 0.6 }]}>
-          <Text style={[styles.chapterTitle, item.index === chapterIndex && styles.activeText]}>{item.title}</Text>
-          <Text style={[styles.chapterNote, item.index === chapterIndex && styles.activeText]}>{item.complete ? '✓ 図解まで保存済み' : item.needsVisuals ? '本文あり・図解未作成' : `${item.firstPage}〜${item.lastPage}p`}</Text>
-        </Pressable>)}</ScrollView>
+      <View style={[styles.sidebar, { width: sidebarOpen ? (width >= 1200 ? 240 : 210) : 42 }]}>
+        <View style={styles.sidebarHeader}>
+          {sidebarOpen && <Text accessibilityRole="header" style={styles.sidebarTitle}>章・区分</Text>}
+          <Pressable accessibilityRole="button" accessibilityLabel={sidebarOpen ? '目次を閉じる' : '目次を開く'} accessibilityState={{ expanded: sidebarOpen }}
+            onPress={() => setSidebarOpen(open => !open)} style={styles.sidebarToggle}>
+            <Text style={styles.sidebarToggleText}>{sidebarOpen ? '‹' : '›'}</Text>
+          </Pressable>
+        </View>
+        {sidebarOpen && <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.chapterList}>
+          {state?.chapters.map(item => {
+            const selectedChapter = item.index === chapterIndex;
+            const expanded = item.index === expandedChapterIndex;
+            return <View key={item.index}>
+              <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedChapter, expanded, disabled: busy }} disabled={busy}
+                onPress={() => {
+                  if (expanded) { setExpandedChapterIndex(null); return; }
+                  setExpandedChapterIndex(item.index);
+                  if (!selectedChapter) { setChapterIndex(item.index); setIndex(item.units[0]); setError(''); }
+                }} style={[styles.chapter, selectedChapter && styles.activeChapter, busy && { opacity: 0.6 }]}>
+                <Text style={[styles.chapterTitle, selectedChapter && styles.activeText]}>{item.title}</Text>
+                <Text style={[styles.chapterNote, selectedChapter && styles.activeText]}>{item.complete ? '✓ 図解まで保存済み' : item.needsVisuals ? '本文あり・図解未作成' : `${item.firstPage}〜${item.lastPage}p`}</Text>
+              </Pressable>
+              {expanded && level !== 'original' && item.units.length > 0 && <View style={styles.unitList}>
+                {item.units.map((unitIndex, part) => {
+                  const unit = state?.units[unitIndex];
+                  const selectedUnit = index === unitIndex;
+                  return <Pressable key={unitIndex} accessibilityRole="button" accessibilityState={{ selected: selectedUnit, disabled: busy }} disabled={busy}
+                    onPress={() => { setIndex(unitIndex); setError(''); }} style={[styles.unit, selectedUnit && styles.activeUnit]}>
+                    <Text numberOfLines={2} style={[styles.unitTitle, selectedUnit && styles.activeUnitText]}>{part + 1}. {unit?.title ?? `区分 ${part + 1}`}{unit?.lesson ? ' ✓' : ''}</Text>
+                    <Text style={[styles.chapterNote, selectedUnit && styles.activeUnitText]}>{unit?.firstPage}〜{unit?.lastPage}p</Text>
+                  </Pressable>;
+                })}
+              </View>}
+            </View>;
+          })}
+        </ScrollView>}
       </View>
       <View style={styles.reading}>
     {level === 'original' ? pdfUri ? <PdfBook uri={pdfUri} initialPage={chapter?.firstPage ?? 1} dom={{ style: { flex: 1 } }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>
@@ -140,8 +170,16 @@ const styles = StyleSheet.create({
   error: { color: '#a32323', fontSize: 13 }, empty: { flex: 1, padding: 24, gap: 16, justifyContent: 'center' }, heading: { fontSize: 22, color: colors.ink },
   readerRow: { flex: 1, flexDirection: 'row', minHeight: 0 }, reading: { flex: 1, minWidth: 0 },
   sidebar: { borderRightWidth: 1, borderColor: colors.line, backgroundColor: colors.paper, padding: 6 },
-  sidebarTitle: { color: colors.muted, fontSize: 12, padding: 5 }, chapterList: { gap: 6, paddingBottom: 12 },
+  sidebarHeader: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 },
+  sidebarTitle: { color: colors.muted, fontSize: 12, paddingHorizontal: 5 },
+  sidebarToggle: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 7, backgroundColor: colors.surface },
+  sidebarToggleText: { color: colors.accent, fontSize: 22, lineHeight: 24 },
+  chapterList: { gap: 6, paddingBottom: 12 },
   chapter: { paddingHorizontal: 8, paddingVertical: 10, borderWidth: 1, borderColor: colors.line, borderRadius: 7, backgroundColor: colors.surface, gap: 5 },
+  unitList: { gap: 4, paddingTop: 4, paddingBottom: 5, paddingLeft: 10 },
+  unit: { paddingHorizontal: 8, paddingVertical: 7, borderWidth: 1, borderColor: colors.line, borderRadius: 7, backgroundColor: colors.surface, gap: 3 },
+  activeUnit: { backgroundColor: colors.surface, borderColor: colors.accent },
+  activeUnitText: { color: colors.accent, fontWeight: '700' },
   activeChapter: { backgroundColor: colors.accent, borderColor: colors.accent }, activeText: { color: colors.surface },
-  chapterTitle: { color: colors.ink, fontSize: 13, lineHeight: 19 }, chapterNote: { color: colors.muted, fontSize: 11 },
+  chapterTitle: { color: colors.ink, fontSize: 13, lineHeight: 19 }, unitTitle: { color: colors.ink, fontSize: 12, lineHeight: 17 }, chapterNote: { color: colors.muted, fontSize: 11 },
 });
