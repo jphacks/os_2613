@@ -8,6 +8,7 @@ export class ContinuousMixer {
   arm(): void;
   stop(): void;
   setVolume(value: number): void;
+  setDucking(value: number): void;
   request(id: string, source: AudioSource): void;
   tick(): void;
 }

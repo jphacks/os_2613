@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 import { createMusicService } from '../src/server/music.mjs';
 
 const track = { id: 1, name: 'Quiet music', username: 'artist', license: 'http://creativecommons.org/licenses/by/4.0/', url: 'https://freesound.org/people/artist/sounds/1/', tags: ['music'], previews: { 'preview-lq-mp3': 'https://cdn.freesound.org/previews/1.mp3' } };
+
+test('扉の効果音は短い録音を検索し、見つからなくても音楽で置き換えない', async () => {
+  let calls = 0;
+  const search = createMusicService({ key: () => 'test', fetcher: async url => {
+    calls++; assert.ok(url.searchParams.get('filter').includes('[0.15 TO 12]'));
+    return Response.json({ results: [{ ...track, name: 'Door piano music' }] });
+  } });
+  assert.deepEqual(await search('calm', 'wood door opening', 'effect'), []);
+  assert.equal(calls, 1);
+});
 test('missing key and invalid mood never call upstream', async () => {
   const search = createMusicService({ key: () => '', fetcher: () => assert.fail('network called') });
   await assert.rejects(search('calm'), /KEY/);

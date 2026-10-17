@@ -1,13 +1,13 @@
-export const planVersion = 2;
+export const planVersion = 3;
 export const bookTextLimit = 60000;
 export function textUnits(text) {
   const units = [];
   let start = 0;
   while (start < text.length) {
-    let end = Math.min(start + 500, text.length);
+    let end = Math.min(start + 250, text.length);
     if (end < text.length) {
       const boundary = text.lastIndexOf('\n', end);
-      if (boundary > start + 200) end = boundary + 1;
+      if (boundary > start + 100) end = boundary + 1;
       if (/[\uD800-\uDBFF]/.test(text[end - 1])) end--;
     }
     units.push({ id: units.length, start, end, text: text.slice(start, end) });
@@ -21,7 +21,7 @@ export function validTrack(track) {
     && /^https:\/\/creativecommons\.org\/(?:licenses\/by\/\d\.\d|publicdomain\/zero\/1\.0)\/?$/.test(track.license);
 }
 export function validateScenes(scenes, length) {
-  if (!Array.isArray(scenes) || scenes.length < 1 || scenes.length > 16) throw new Error('INVALID_PLAN');
+  if (!Array.isArray(scenes) || scenes.length < 1 || scenes.length > 32) throw new Error('INVALID_PLAN');
   let end = 0;
   for (const scene of scenes) {
     if (!scene || scene.start !== end || !Number.isInteger(scene.end) || scene.end <= end || scene.end > length
@@ -36,4 +36,18 @@ export function validateScenes(scenes, length) {
   }
   if (end !== length) throw new Error('INVALID_PLAN');
   return scenes;
+}
+export function validateCues(cues, length) {
+  if (!Array.isArray(cues) || cues.length > 48) throw new Error('INVALID_PLAN');
+  const ids = new Set();
+  for (const cue of cues) {
+    if (!cue || typeof cue.id !== 'string' || ids.has(cue.id) || !Number.isInteger(cue.start) || !Number.isInteger(cue.end)
+      || cue.start < 0 || cue.end <= cue.start || cue.end > length || !['once', 'loop'].includes(cue.mode)
+      || !['effect', 'ambience'].includes(cue.kind) || typeof cue.label !== 'string' || cue.label.length > 80
+      || !/^[a-zA-Z0-9 -]{2,100}$/.test(cue.query) || !Number.isFinite(cue.gain) || cue.gain < 0.1 || cue.gain > 0.8
+      || !Array.isArray(cue.candidates) || cue.candidates.length > 3 || !cue.candidates.every(validTrack)
+      || (cue.selectedId !== null && !cue.candidates.some(track => track.id === cue.selectedId))) throw new Error('INVALID_PLAN');
+    ids.add(cue.id);
+  }
+  return cues;
 }
