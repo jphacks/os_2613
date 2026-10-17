@@ -1,7 +1,7 @@
 export const preferenceKey = 'dopabooks:display:v1';
-export const defaultPreferences = { fontSize: 24, font: 'mincho', lineHeight: 2.1, paper: 'light' };
-export const fontSizes = [18, 22, 24, 28, 32];
-export const lineHeights = [1.5, 1.8, 2.1, 2.5];
+export const defaultPreferences = { fontSize: 17, font: 'mincho', lineHeight: 2, paper: 'light' };
+export const fontSizes = [17, 18, 22, 24, 28, 32];
+export const lineHeights = [1.5, 1.8, 2, 2.1, 2.5];
 export function normalizePreferences(value) {
   return {
     fontSize: fontSizes.includes(value?.fontSize) ? value.fontSize : defaultPreferences.fontSize,

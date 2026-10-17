@@ -1,7 +1,8 @@
 'use dom';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { edgeTurn, horizontalTurn, pageForAnchor } from './gestures.mjs';
+import { edgeTurn, horizontalTurn } from './gestures.mjs';
+import { measuredPages, pageAtOffset } from './pagination.mjs';
 import { fontFamilies, type DisplayPreferences } from './preferences.mjs';
 
 type Paint = { background: string; ink: string; muted: string; accent: string; chosen: string };
@@ -20,9 +21,9 @@ function Ribbon() { return <svg width="18" height="28" viewBox="0 0 18 28" aria-
 
 export default function VerticalPage(props: Props) {
   const { text, start, sub, marks, faded, picking, draft, guide, running, speed, display, paint, disabled, focus } = props;
-  const rootRef = useRef<HTMLDivElement>(null), viewRef = useRef<HTMLDivElement>(null), textRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null), viewRef = useRef<HTMLDivElement>(null), textRef = useRef<HTMLDivElement>(null), measureRef = useRef<HTMLDivElement>(null);
   const latest = useRef(props); latest.current = props;
-  const [layout, setLayout] = useState({ count: 1, width: 0, pageOf: [] as number[] });
+  const [layout, setLayout] = useState({ count: 1, width: 0, starts: [0, 0] });
   const [cursor, setCursor] = useState(0);
   const gesture = useRef<Gesture | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
@@ -31,29 +32,35 @@ export default function VerticalPage(props: Props) {
   const measured = useRef('');
   const focusSeen = useRef<number | null>(null);
   const step = Math.round(display.fontSize * display.lineHeight);
+  const page = Math.min(Math.max(0, sub), layout.count - 1);
+  const begin = layout.starts[page] ?? 0, end = layout.starts[page + 1] ?? text.length;
   const chars = useMemo(() => {
-    let position = start;
-    return Array.from(text).map(char => { const begin = position; position += char.length; return { char, begin, end: position }; });
-  }, [text, start]);
-  const page = sub < 0 ? layout.count - 1 : Math.min(Math.max(0, sub), layout.count - 1);
+    let position = start + begin;
+    return Array.from(text.slice(begin, end)).map(char => { const begin = position; position += char.length; return { char, begin, end: position }; });
+  }, [text, start, begin, end]);
 
   const measure = useCallback(() => {
-    const view = viewRef.current, body = textRef.current;
+    const view = viewRef.current, body = measureRef.current;
     if (!view || !body || !view.clientWidth || !view.clientHeight) return;
     const perPage = Math.max(1, Math.floor(view.clientWidth / step));
     const width = perPage * step;
-    const right = body.getBoundingClientRect().right;
-    const pageOf = Array.from(body.querySelectorAll<HTMLElement>('[data-i]')).map(node => Math.max(0, Math.floor((right - node.getBoundingClientRect().right + 0.5) / width)));
-    const count = Math.max(1, ...pageOf.map(value => value + 1));
-    const signature = `${text}:${start}:${width}:${view.clientHeight}:${display.font}:${display.fontSize}:${step}:${pageOf.join(',')}`;
+    const signature = `${text}:${start}:${width}:${view.clientHeight}:${display.font}:${display.fontSize}:${step}`;
     if (measured.current === signature) return;
     const sameText = anchor.current.text === text && anchor.current.start === start && !!measured.current;
+    const node = body.firstChild;
+    const right = body.getBoundingClientRect().right;
+    const range = document.createRange();
+    const starts = node ? measuredPages(text, offset => {
+      range.setStart(node, offset); range.setEnd(node, offset + (text.codePointAt(offset)! > 0xffff ? 2 : 1));
+      return Math.max(0, Math.floor((right - range.getBoundingClientRect().right + 0.5) / width));
+    }) : [0, 0];
+    const count = starts.length - 1;
     measured.current = signature;
-    setLayout({ count, width, pageOf });
+    setLayout({ count, width, starts });
     latest.current.onPages(count);
     // 設定や画面幅が変わっても、読んでいた文字のあるページを残す。
-    if (sameText) latest.current.onReflow(pageForAnchor(chars.map(char => char.end), pageOf, anchor.current.offset));
-  }, [text, start, step, display.font, display.fontSize, chars]);
+    if (sameText) latest.current.onReflow(pageAtOffset(starts, anchor.current.offset - start));
+  }, [text, start, step, display.font, display.fontSize]);
   useLayoutEffect(() => {
     let active = true;
     measure();
@@ -65,21 +72,20 @@ export default function VerticalPage(props: Props) {
   }, [measure]);
   useEffect(() => {
     if (!layout.width) return;
-    const first = layout.pageOf.findIndex(value => value === page);
-    const offset = chars[first]?.begin ?? start;
-    anchor.current = { text, start, offset }; setCursor(Math.max(0, first));
+    const offset = start + (layout.starts[page] ?? 0);
+    anchor.current = { text, start, offset }; setCursor(0);
     latest.current.onVisible(offset);
-  }, [page, layout, text, start, chars]);
+  }, [page, layout, text, start]);
   useEffect(() => {
     if (!focus || focusSeen.current === focus.token || !layout.width || focus.offset < start || focus.offset > start + text.length) return;
     focusSeen.current = focus.token;
-    latest.current.onReflow(pageForAnchor(chars.map(char => char.end), layout.pageOf, focus.offset));
-  }, [focus, layout, start, text, chars]);
+    latest.current.onReflow(pageAtOffset(layout.starts, focus.offset - start));
+  }, [focus, layout, start, text]);
   useEffect(() => {
     if (!guide || !running || picking || ghost || disabled || !layout.width) return;
     const timer = setTimeout(() => {
       const next = cursor + 1;
-      if (next >= chars.length || layout.pageOf[next] !== page) latest.current.onAdvance(); else setCursor(next);
+      if (next >= chars.length) latest.current.onAdvance(); else setCursor(next);
     }, chars[cursor]?.char === '\n' ? 0 : 60000 / speed);
     return () => clearTimeout(timer);
   }, [guide, running, picking, ghost, disabled, cursor, speed, page, layout, chars]);
@@ -103,7 +109,7 @@ export default function VerticalPage(props: Props) {
     // 行間や紙の余白へ落としても、表示中の文字のうち一番近い位置を選べる。
     let best: number | null = null, distance = Infinity;
     textRef.current?.querySelectorAll<HTMLElement>('[data-i]').forEach(node => {
-      if (layout.pageOf[Number(node.dataset.i)] !== page || !node.textContent?.trim()) return;
+      if (!node.textContent?.trim()) return;
       const rect = node.getBoundingClientRect();
       const d = Math.hypot(x - (rect.left + rect.right) / 2, y - (rect.top + rect.bottom) / 2);
       if (d < distance) { best = Number(node.dataset.offset); distance = d; }
@@ -155,16 +161,18 @@ export default function VerticalPage(props: Props) {
       style={{ ...styles.ribbon, ...(first ? { top: 0, right: 0, left: 'auto' } : {}), color: paint.accent, opacity: marked && faded === offset ? 0.25 : 1 }}><Ribbon /></span>;
   }
   return <div ref={rootRef} style={{ ...styles.root, background: paint.background }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)} onLostPointerCapture={event => { if (gesture.current?.id === event.pointerId) finish(event, true); }}>
-    <div ref={viewRef} style={styles.view}><div style={{ ...styles.clip, width: layout.width || '100%' }}><div ref={textRef} style={{ ...styles.text, color: guide ? paint.muted : paint.ink, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px`, transform: `translateX(${page * layout.width}px)` }}>
-      {ribbon(start, true)}{chars.map(({ char, end }, index) => <span key={end} data-i={index} data-offset={end} style={{ position: 'relative', color: guide && index <= cursor ? paint.ink : undefined, background: picking && draft === end ? paint.chosen : undefined }}>{char}{ribbon(end)}</span>)}
+    <div ref={viewRef} style={styles.view}>
+      <div ref={measureRef} aria-hidden="true" style={{ ...styles.text, visibility: 'hidden', pointerEvents: 'none', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>{text}</div>
+      <div style={{ ...styles.clip, width: layout.width || '100%' }}><div ref={textRef} style={{ ...styles.text, color: guide ? paint.muted : paint.ink, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>
+      {page === 0 && ribbon(start, true)}{chars.map(({ char, end }, index) => <span key={end} data-i={index} data-offset={end} style={{ position: 'relative', color: guide && index <= cursor ? paint.ink : undefined, background: picking && draft === end ? paint.chosen : undefined }}>{char}{ribbon(end)}</span>)}
     </div></div></div>
     {ghost && <span aria-hidden="true" style={{ position: 'fixed', pointerEvents: 'none', left: ghost.x - 9, top: ghost.y - 5, zIndex: 9999, color: paint.accent }}><Ribbon /></span>}
     {ghost && edge && <span aria-hidden="true" style={{ position: 'absolute', bottom: 8, left: edge === 'next' ? 8 : undefined, right: edge === 'prev' ? 8 : undefined, color: paint.ink, background: paint.background, pointerEvents: 'none', padding: 6 }}>{edge === 'next' ? '‹ 次のページへ' : '前のページへ ›'}</span>}
   </div>;
 }
 const styles: Record<string, React.CSSProperties> = {
-  root: { height: '100%', width: '100%', padding: '42px 24px', boxSizing: 'border-box', userSelect: 'none', touchAction: 'none', position: 'relative' },
-  view: { height: '100%', display: 'flex', justifyContent: 'flex-end', position: 'relative', minHeight: 0 },
+  root: { height: '100%', width: '100%', padding: '24px 24px', boxSizing: 'border-box', userSelect: 'none', touchAction: 'none', position: 'relative' },
+  view: { height: '100%', display: 'flex', justifyContent: 'flex-end', position: 'relative', minHeight: 0, overflow: 'hidden' },
   clip: { position: 'relative', height: '100%', overflow: 'hidden' },
   text: { position: 'absolute', top: 0, right: 0, height: '100%', width: 'max-content', writingMode: 'vertical-rl', letterSpacing: '0.05em', whiteSpace: 'pre-wrap' },
   // 印のために行が伸びないよう、文字の上へ重ねる。

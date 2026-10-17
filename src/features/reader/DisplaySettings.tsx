@@ -19,7 +19,7 @@ export function DisplaySettings({ value, close, apply }: { value: DisplayPrefere
     <Text style={styles.title}>表示の設定</Text><ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.label}>文字サイズ</Text><View style={styles.row}>{fontSizes.map(size => option(`${size}`, draft.fontSize === size, () => setDraft({ ...draft, fontSize: size })))}</View>
       <Text style={styles.label}>書体</Text><View style={styles.row}>{([['mincho', '明朝'], ['gothic', 'ゴシック'], ['rounded', '丸ゴシック']] as const).map(([font, label]) => option(label, draft.font === font, () => setDraft({ ...draft, font })))}</View>
-      <Text style={styles.label}>行間</Text><View style={styles.row}>{lineHeights.map((lineHeight, index) => option(['せまい', 'ややせまい', '標準', '広い'][index], draft.lineHeight === lineHeight, () => setDraft({ ...draft, lineHeight })))}</View>
+      <Text style={styles.label}>行間</Text><View style={styles.row}>{lineHeights.map((lineHeight, index) => option(['せまい', 'ややせまい', '標準', 'やや広い', '広い'][index], draft.lineHeight === lineHeight, () => setDraft({ ...draft, lineHeight })))}</View>
       <Text style={styles.label}>紙の色</Text><View style={styles.row}>{([['light', '明るい紙'], ['cream', '生成り'], ['gray', 'グレー'], ['dark', '暗い紙']] as const).map(([paper, label]) => option(label, draft.paper === paper, () => setDraft({ ...draft, paper })))}</View>
       <View style={[styles.sample, { backgroundColor: paperColors(draft.paper).background }]}><Text style={{ color: paperColors(draft.paper).ink, fontSize: draft.fontSize, lineHeight: draft.fontSize * draft.lineHeight }}>物語を、あなたの読みやすいかたちで。</Text></View>
       <View style={styles.row}>{option('標準に戻す', false, () => setDraft({ ...defaultPreferences }))}{option('キャンセル', false, close)}

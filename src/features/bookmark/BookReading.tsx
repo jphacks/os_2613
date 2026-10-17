@@ -4,10 +4,11 @@ import { Stack } from 'expo-router';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { SavedBook } from '@/features/library/types';
 import { colors } from '@/shared/theme';
-import { bookmarkPage, createReadingStore, emptyReading, pageAt, placeMark, readingPages, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
+import { createReadingStore, emptyReading, placeMark, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
 import { Summary } from './Summary';
 import VerticalPage from '@/features/reader/VerticalPage';
 import { DisplaySettings, paperColors } from '@/features/reader/DisplaySettings';
+import { PageBar } from '@/features/reader/PageBar';
 import { defaultPreferences, normalizePreferences, preferenceKey, type DisplayPreferences } from '@/features/reader/preferences.mjs';
 
 // 読みガイドの速さ（1分あたりの文字数）の選択肢
@@ -19,13 +20,11 @@ function Action({ children, onPress, disabled = false, filled = false }: { child
 
 export function BookReading({ book }: { book: SavedBook }) {
   const store = useMemo(() => createReadingStore(AsyncStorage, `dopabooks:reading:v1:${book.id}`, book.text), [book.id, book.text]);
-  const pages = useMemo(() => readingPages(book.text), [book.text]);
   const [reading, setReading] = useState<Reading>(() => emptyReading(book.text));
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [page, setPage] = useState(0);
   const [panel, setPanel] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [scope, setScope] = useState<Scope>('previous');
@@ -52,10 +51,10 @@ export function BookReading({ book }: { book: SavedBook }) {
   }, []);
   useEffect(() => {
     alive.current = true;
-    void store.load().then(value => { if (alive.current) { setReading(value); setPage(pageAt(pages, value.cursor)); setFocus({ offset: value.cursor, token: Date.now() }); setReady(true); } })
+    void store.load().then(value => { if (alive.current) { setReading(value); setFocus({ offset: value.cursor, token: Date.now() }); setReady(true); } })
       .catch(() => { if (alive.current) setError('読書記録を読み込めません。端末の保存設定や本文の変更を確認し、本を開き直してください。記録は上書きしていません。'); });
     return () => { alive.current = false; if (viewTimer.current) clearTimeout(viewTimer.current); };
-  }, [store, pages]);
+  }, [store]);
 
   async function save(change: (state: Reading) => Reading) {
     if (!ready || busy) return false;
@@ -63,16 +62,6 @@ export function BookReading({ book }: { book: SavedBook }) {
     try { const value = await store.save(change); if (alive.current) setReading(value); return true; }
     catch (reason) { if (alive.current) setError(reason instanceof Error && reason.message.includes('してください') ? reason.message : '記録を保存できません。端末の空き容量や保存設定を確認して、もう一度お試しください。'); return false; }
     finally { if (alive.current) setBusy(false); }
-  }
-  // sub は区切ったページのどこから見せるか（-1 は最後のページ。前へ戻るときに使う）
-  async function go(index: number, from = 0, at?: number) {
-    if (viewTimer.current) clearTimeout(viewTimer.current);
-    if (await save(state => ({ ...state, cursor: pages[index].start }))) {
-      setPage(index); setSub(from);
-      if (at !== undefined) setFocus({ offset: at, token: Date.now() });
-      return true;
-    }
-    return false;
   }
   function recordVisible(offset: number) {
     if (!ready || offset === reading.cursor) return;
@@ -86,19 +75,15 @@ export function BookReading({ book }: { book: SavedBook }) {
     try { const next = normalizePreferences(value); await AsyncStorage.setItem(preferenceKey, JSON.stringify(next)); setDisplay(next); return true; }
     catch { setError('表示設定を保存できません。端末の空き容量や保存設定を確認して、もう一度お試しください。'); return false; }
   }
-  // 紙面は画面に収まる行数ごとに区切って見せる。区切りの端まで来たら、本文の次（前）のまとまりへ。
-  const shown = sub < 0 ? subCount - 1 : Math.min(sub, subCount - 1);
-  const progress = Math.round(((page + (shown + 1) / subCount) / pages.length) * 100);
+  const shown = Math.min(Math.max(0, sub), subCount - 1);
   function next() {
     if (busy) return;
     if (shown < subCount - 1) setSub(shown + 1);
-    else if (page < pages.length - 1) void go(page + 1).then(ok => { if (!ok) setRunning(false); });
     else setRunning(false);
   }
   function prev() {
     if (busy) return;
     if (shown > 0) setSub(shown - 1);
-    else if (page > 0) void go(page - 1, -1);
   }
   function begin(id?: string) {
     setRunning(false);
@@ -116,7 +101,7 @@ export function BookReading({ book }: { book: SavedBook }) {
   }
   function resume(mark: Mark) {
     setRunning(false);
-    void go(bookmarkPage(pages, mark.offset), 0, Math.max(0, mark.offset - 1)).then(ok => { if (ok) setPanel(false); });
+    setFocus({ offset: Math.max(0, mark.offset - 1), token: Date.now() }); setPanel(false);
   }
   async function confirm() {
     if (!moving || draft === null) return;
@@ -135,7 +120,6 @@ export function BookReading({ book }: { book: SavedBook }) {
       return { ...state, marks: state.marks.map(mark => mark.id === before.id ? before : mark) };
     })) { setUndo(null); setNotice('元のしおり位置に戻しました。'); }
   }
-  const current = pages[page];
   const target = reading.marks.find(mark => mark.id === selected);
   const range = target ? summaryRange(book.text, reading.marks, target.id, scope) : null;
   const sorted = [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -167,8 +151,8 @@ export function BookReading({ book }: { book: SavedBook }) {
     {/* 紙面は画面いっぱい。左側を押すと次、右側を押すと前のページ */}
     <View style={[styles.paper, { backgroundColor: paint.background }]}>
       <VerticalPage
-        text={current.text}
-        start={current.start}
+        text={book.text}
+        start={0}
         sub={sub}
         marks={reading.marks.map(mark => mark.offset)}
         faded={reading.marks.find(mark => mark.id === moving)?.offset ?? null}
@@ -179,7 +163,7 @@ export function BookReading({ book }: { book: SavedBook }) {
         speed={speed}
         display={display}
         paint={paint}
-        disabled={!ready || busy || panel || settingsOpen}
+        disabled={!ready || !displayReady || busy || panel || settingsOpen}
         focus={focus}
         onPick={offset => setDraft(offset)}
         onMarkPress={openMark}
@@ -201,11 +185,8 @@ export function BookReading({ book }: { book: SavedBook }) {
       </View>}
     </View>
     <Pressable accessibilityRole="link" style={styles.source} onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：青空文庫</Text></Pressable>
-    {/* 進み具合：縦書きなので右から左へ伸びるバー */}
-    <View style={styles.paging}>
-      <View style={styles.track}><View style={[styles.fill, { width: `${progress}%` }]} /></View>
-      <Text style={styles.note}>{progress}%</Text>
-    </View>
+    <PageBar page={shown} count={subCount} disabled={!ready || busy || !!moving} ink={paint.ink} accent={paint.accent} line={paint.chosen}
+      onChange={value => { setRunning(false); setSub(value); }} />
     <Modal visible={panel} transparent animationType="slide" onRequestClose={() => setPanel(false)}>
       <View style={styles.overlay}><View style={styles.sheet}><View style={styles.toolbar}><Text style={styles.heading}>{target ? 'ふりかえり' : 'しおり'}</Text><Action onPress={() => setPanel(false)}>閉じる</Action></View>
         <ScrollView contentContainerStyle={styles.sheetContent}>
@@ -226,17 +207,16 @@ export function BookReading({ book }: { book: SavedBook }) {
 }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper }, toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: 10 },
-  button: { paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: colors.surface },
+  button: { paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: colors.surface },
   buttonText: { color: colors.accent, fontSize: 14 }, filled: { backgroundColor: colors.accent }, light: { color: colors.surface }, disabled: { opacity: 0.4 },
   message: { color: colors.ink, backgroundColor: colors.surface, padding: 12, lineHeight: 24 }, note: { color: colors.muted, fontSize: 14, lineHeight: 24 },
   title: { color: colors.ink, fontSize: 17, letterSpacing: 3, fontFamily: 'serif' }, heading: { color: colors.ink, fontSize: 18, fontWeight: '600' },
   paper: { flex: 1, marginHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 4, overflow: 'hidden', backgroundColor: colors.surface },
   headTitle: { alignItems: 'center' }, small: { color: colors.muted, fontSize: 11, marginTop: 2 }, headRight: { flexDirection: 'row', gap: 8, marginRight: 8 },
-  track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.line, flexDirection: 'row-reverse', overflow: 'hidden' }, fill: { backgroundColor: colors.accent },
-  bar: { flexGrow: 0 }, barContent: { gap: 8, alignItems: 'center', padding: 10 },
-  source: { alignSelf: 'center', paddingTop: 6 },
+  bar: { flexGrow: 0 }, barContent: { gap: 8, alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5 },
+  source: { alignSelf: 'center', paddingTop: 2 },
   feedback: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.surface, zIndex: 20 },
-  placement: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.line, padding: 4, zIndex: 20 }, paging: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  placement: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.line, padding: 4, zIndex: 20 },
   overlay: { flex: 1, backgroundColor: colors.paper, justifyContent: 'center', padding: 16 }, sheet: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.line, maxHeight: '95%', width: '100%', maxWidth: 720, alignSelf: 'center' },
   sheetContent: { padding: 16, gap: 20 }, markCard: { gap: 8, paddingBottom: 16, borderBottomWidth: 1, borderColor: colors.line },
 });

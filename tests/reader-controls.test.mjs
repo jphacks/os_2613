@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { normalizePreferences, defaultPreferences } from '../src/features/reader/preferences.mjs';
 import { edgeTurn, horizontalTurn, pageForAnchor } from '../src/features/reader/gestures.mjs';
 import { emptyReading, placeMark, parseReading, summaryRange } from '../src/features/bookmark/model.mjs';
+import { measuredPages, pageAtOffset, pageFromTrack } from '../src/features/reader/pagination.mjs';
 
 test('壊れた表示設定は項目ごとに標準へ戻し、未定義の値を紙面へ渡さない', () => {
   for (const value of [null, undefined, {}, 'invalid']) assert.deepEqual(normalizePreferences(value), defaultPreferences);
@@ -41,4 +42,28 @@ test('表示設定だけを変えてもしおりの文字位置・要約の既�
   const restored = parseReading(raw, text);
   assert.equal(restored.marks[0].offset, offset);
   assert.equal(summaryRange(text, restored.marks, 'mark', 'start').text, '読み終えた文章。😀');
+});
+
+test('全文から実測したページを作り、900文字の境目でも欠落・重複を作らない', () => {
+  const text = '文章。😀\n'.repeat(500);
+  const offsets = Array.from(text).reduce((list, char) => [...list, list[list.length - 1] + char.length], [0]);
+  const starts = measuredPages(text, offset => Math.floor(offsets.indexOf(offset) / 1500));
+  assert.equal(starts[1], offsets[1500]);
+  assert.ok(starts[1] > 900);
+  assert.equal(starts.slice(0, -1).map((start, i) => text.slice(start, starts[i + 1])).join(''), text);
+  for (const start of starts) assert.ok(!/[\uDC00-\uDFFF]/.test(text[start] ?? ''));
+  assert.equal(pageAtOffset(starts, starts[1]), 1);
+  assert.equal(pageAtOffset(starts, starts[1] - 1), 0);
+  assert.equal(pageAtOffset(starts, text.length), starts.length - 2);
+  assert.deepEqual(measuredPages('', () => 0), [0, 0]);
+});
+
+test('ページ移動バーは右端が最初、左端が最後。1ページや紙面外の操作も範囲内に収める', () => {
+  assert.equal(pageFromTrack(100, 100, 11), 0);
+  assert.equal(pageFromTrack(0, 100, 11), 10);
+  assert.equal(pageFromTrack(50, 100, 11), 5);
+  assert.equal(pageFromTrack(-10, 100, 11), 10);
+  assert.equal(pageFromTrack(110, 100, 11), 0);
+  assert.equal(pageFromTrack(40, 100, 1), 0);
+  assert.equal(pageFromTrack(NaN, 0, 1), 0);
 });
