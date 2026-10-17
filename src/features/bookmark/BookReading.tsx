@@ -27,6 +27,13 @@ function Action({ children, onPress, disabled = false, filled = false }: { child
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, filled && styles.filled, disabled && styles.disabled]}><Text style={[styles.buttonText, filled && styles.light]}>{children}</Text></Pressable>;
 }
 
+function BookmarkIcon() {
+  return <View accessible={false} style={styles.bookmarkIcon}>
+    <View style={styles.bookmarkBody} />
+    <View style={styles.bookmarkTail}><View style={styles.bookmarkLeft} /><View style={styles.bookmarkRight} /></View>
+  </View>;
+}
+
 export function BookReading({ book, initialOffset }: { book: SavedBook; initialOffset?: number }) {
   const store = useMemo(() => createReadingStore(AsyncStorage, `dopabooks:reading:v1:${book.id}`, book.text), [book.id, book.text]);
   const [reading, setReading] = useState<Reading>(() => emptyReading(book.text));
@@ -183,12 +190,17 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
   }
   const paint = paperColors(display.paper);
   return <View style={[styles.screen, { backgroundColor: paint.background }]}>
-    {/* ヘッダー：中央にタイトルと作者、右にしおりの操作 */}
+    {/* ヘッダー：中央にタイトルと作者、右にメニュー */}
     <Stack.Screen options={{
       headerTitleAlign: 'center',
       headerTitle: () => <View style={styles.headTitle}><Text style={styles.title}>{book.title}</Text><Text style={styles.small}>{book.author}</Text></View>,
       // iPhone ではヘッダーのボタンに標準の枠が付くので、こちらでは枠を付けない（枠が二重になるため）
-      headerRight: () => <Pressable accessibilityRole="button" disabled={!ready || !!moving} onPress={() => { setRunning(false); setMenu(true); }} style={[styles.headButton, (!ready || !!moving) && styles.disabled]}><Text style={styles.buttonText}>☰ メニュー</Text></Pressable>,
+      headerRight: () => <View style={styles.headRight}>
+        <Pressable accessibilityRole="button" accessibilityLabel="しおり" accessibilityHint="タップで一覧、長押しでしおりを挟みます" disabled={!ready || busy || !!moving}
+          onPress={() => { setRunning(false); setSelected(null); setPanel(true); }} onLongPress={() => begin()}
+          style={[styles.headButton, (!ready || busy || !!moving) && styles.disabled]}><BookmarkIcon /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="メニュー" disabled={!ready || !!moving} onPress={() => { setRunning(false); setMenu(true); }} style={[styles.headButton, (!ready || !!moving) && styles.disabled]}><Text style={styles.menuIcon}>☰</Text></Pressable>
+      </View>,
     }} />
     <MusicPanel book={book} position={readPosition} guideActive={guide && running && !moving && !menu && !panel && !settingsOpen && !feature} />
     {/* 読みガイドがONのときだけ、開始・一時停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
@@ -196,13 +208,10 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
       <Action filled disabled={!ready || !!moving} onPress={() => setRunning(value => !value)}>{running ? '一時停止' : '▶ ガイドを開始'}</Action>
       <Text style={styles.note}>{speed}字/分</Text>
     </View>}
-    {/* 機能のメニュー。スマホではボタンがはみ出すので、しおり・表示・読みガイドに分けてしまっておく */}
+    {/* 漫画・表示設定・読みガイドはメニューから開く。しおりは上部から直接操作する。 */}
     <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
       <Pressable style={styles.menuBack} onPress={() => setMenu(false)}>
         <Pressable style={styles.menu} onPress={() => {}}>
-          <Text style={styles.menuHead}>しおり</Text>
-          <Action disabled={busy} onPress={() => { setMenu(false); begin(); }}>しおりを挟む</Action>
-          <Action onPress={() => { setMenu(false); setSelected(null); setPanel(true); }}>しおり一覧・ふりかえり</Action>
           <Text style={styles.menuHead}>物語</Text>
           <Action onPress={() => { setMenu(false); setRunning(false); setFeature('comic'); }}>紹介4コマ</Action>
           <Action onPress={() => { setMenu(false); setRunning(false); setFeature('characters'); }}>人物相関図</Action>
@@ -263,6 +272,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
     <Modal visible={panel} transparent animationType="slide" onRequestClose={() => setPanel(false)}>
       <View style={styles.overlay}><View style={styles.sheet}><View style={styles.toolbar}><Text style={styles.heading}>{target ? 'ふりかえり' : 'しおり'}</Text><Action onPress={() => setPanel(false)}>閉じる</Action></View>
         <ScrollView contentContainerStyle={styles.sheetContent}>
+          {!target && <Action disabled={!ready || busy} onPress={() => begin()}>しおりを挟む</Action>}
           {target && range ? <>
             <Action onPress={() => setSelected(null)}>‹ しおり一覧へ</Action>
             <View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View>
@@ -292,7 +302,9 @@ const styles = StyleSheet.create({
   message: { color: colors.ink, backgroundColor: colors.surface, padding: 12, lineHeight: 24 }, note: { color: colors.muted, fontSize: 14, lineHeight: 24 },
   title: { color: colors.ink, fontSize: 17, letterSpacing: 3, fontFamily: 'serif' }, heading: { color: colors.ink, fontSize: 18, fontWeight: '600' },
   paper: { flex: 1, marginHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 4, overflow: 'hidden', backgroundColor: colors.surface },
-  headTitle: { alignItems: 'center' }, small: { color: colors.muted, fontSize: 11, marginTop: 2 }, headRight: { flexDirection: 'row', gap: 8, marginRight: 8 }, headButton: { paddingHorizontal: 12, paddingVertical: 8 },
+  headTitle: { alignItems: 'center' }, small: { color: colors.muted, fontSize: 11, marginTop: 2 }, headRight: { flexDirection: 'row', alignItems: 'center' }, headButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  menuIcon: { color: colors.accent, fontSize: 22 }, bookmarkIcon: { width: 18, height: 26 }, bookmarkBody: { width: 18, height: 18, backgroundColor: colors.accent, borderTopLeftRadius: 2, borderTopRightRadius: 2 },
+  bookmarkTail: { flexDirection: 'row' }, bookmarkLeft: { width: 0, height: 0, borderLeftWidth: 9, borderLeftColor: colors.accent, borderBottomWidth: 8, borderBottomColor: 'transparent' }, bookmarkRight: { width: 0, height: 0, borderRightWidth: 9, borderRightColor: colors.accent, borderBottomWidth: 8, borderBottomColor: 'transparent' },
   toolbarTight: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   menuBack: { flex: 1, backgroundColor: 'rgba(41,46,41,0.35)', alignItems: 'flex-end', paddingTop: 90, paddingHorizontal: 12 },
   menu: { width: 280, maxWidth: '100%', backgroundColor: colors.surface, borderRadius: 14, padding: 16, gap: 10, boxShadow: '0 6px 20px rgba(41,46,41,0.2)' },
