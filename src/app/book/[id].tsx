@@ -40,7 +40,7 @@ function NovelBook({ id }: { id: string }) {
   const { books, ready } = useLibrary();
   const book = books.find(item => item.id === id);
 
-  if (ready && book) return <View key={`${book.id}:${book.importedAt}`} style={{ flex: 1 }}><MusicPanel /><BookReading book={book} /></View>;
+  if (ready && book) return <View key={`${book.id}:${book.importedAt}`} style={{ flex: 1 }}><MusicPanel book={book} /><BookReading book={book} /></View>;
 
   return (
     <View style={styles.container}>
