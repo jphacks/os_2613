@@ -28,6 +28,7 @@ export default function VerticalPage(props: Props) {
   const [cursor, setCursor] = useState(0);
   const gesture = useRef<Gesture | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
+  const [dragOffset, setDragOffset] = useState<number | null>(null);
   const [edge, setEdge] = useState<'next' | 'prev' | null>(null);
   const anchor = useRef({ text, start, offset: start });
   const measured = useRef('');
@@ -39,9 +40,10 @@ export default function VerticalPage(props: Props) {
   const page = Math.min(Math.max(0, sub), layout.count - 1);
   const begin = layout.starts[page] ?? 0, end = layout.starts[page + 1] ?? text.length;
   const chars = useMemo(() => {
+    if (!layout.width) return [];
     let position = start + begin;
     return Array.from(text.slice(begin, end)).map(char => { const begin = position; position += char.length; return { char, begin, end: position }; });
-  }, [text, start, begin, end]);
+  }, [text, start, begin, end, layout.width]);
 
   const measure = useCallback(() => {
     const view = viewRef.current, body = measureRef.current;
@@ -143,31 +145,46 @@ export default function VerticalPage(props: Props) {
     return best;
   }
   function movePoint(x: number, y: number) {
-    setGhost({ x, y });
+    const offset = pointOffset(x, y);
+    setDragOffset(offset);
+    const character = offset === null ? null : textRef.current?.querySelector<HTMLElement>(`[data-i][data-offset="${offset}"]`);
+    const rect = character?.getBoundingClientRect();
+    setGhost(rect ? { x: rect.left + rect.width / 2, y: rect.bottom - 10 } : { x, y });
     const root = rootRef.current?.getBoundingClientRect();
     setEdge(root && y >= root.top && y <= root.bottom ? edgeTurn(x, root.left, root.width) : null);
   }
   function pointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (disabled || calculating || !event.isPrimary || event.button !== 0 || gesture.current) return;
-    const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-mark]') : null;
+    let target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-mark]') : null;
+    if (!target && !picking) {
+      let nearest = 18;
+      rootRef.current?.querySelectorAll<HTMLElement>('[data-mark]').forEach(node => {
+        const rect = node.getBoundingClientRect();
+        const distance = Math.hypot(Math.max(rect.left - event.clientX, 0, event.clientX - rect.right), Math.max(rect.top - event.clientY, 0, event.clientY - rect.bottom));
+        if (distance < nearest) { nearest = distance; target = node; }
+      });
+    }
     gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, from: target ? Number(target.dataset.mark) : null, dragged: false, placing: picking };
+    if (target) event.preventDefault();
     latest.current.onPause();
     event.currentTarget.setPointerCapture(event.pointerId);
     if (picking) movePoint(event.clientX, event.clientY);
   }
-  function pointerMove(event: React.PointerEvent<HTMLDivElement>) {
+  function pointerMove(event: Pick<PointerEvent, 'pointerId' | 'clientX' | 'clientY'>) {
     const current = gesture.current;
     if (!current || current.id !== event.pointerId) return;
-    if (current.from !== null && !current.dragged && !current.placing && Math.hypot(event.clientX - current.x, event.clientY - current.y) >= 7) {
-      current.dragged = true; latest.current.onDragStart(current.from);
+    if (current.from !== null && !current.dragged && !current.placing && Math.hypot(event.clientX - current.x, event.clientY - current.y) >= 4) {
+      // 掴んでいる間はDOM内で動かす。親へ移動開始を通知して紙面を再構成すると、
+      // Expo WebViewでポインターの捕捉が切れるため、確定時だけ保存を通知する。
+      current.dragged = true;
     }
     if (current.dragged || current.placing) movePoint(event.clientX, event.clientY);
   }
-  function finish(event: React.PointerEvent<HTMLDivElement>, cancelled = false) {
+  function finish(event: Pick<PointerEvent, 'pointerId' | 'clientX' | 'clientY'>, cancelled = false) {
     const current = gesture.current;
     if (!current || current.id !== event.pointerId) return;
-    gesture.current = null; setGhost(null); setEdge(null);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    gesture.current = null; setGhost(null); setDragOffset(null); setEdge(null);
+    if (rootRef.current?.hasPointerCapture(event.pointerId)) rootRef.current.releasePointerCapture(event.pointerId);
     if (current.dragged && current.from !== null) { latest.current.onDrop(current.from, cancelled ? null : pointOffset(event.clientX, event.clientY)); return; }
     if (cancelled) return;
     if (current.placing) { const offset = pointOffset(event.clientX, event.clientY); if (offset !== null) latest.current.onPick(offset); return; }
@@ -176,28 +193,42 @@ export default function VerticalPage(props: Props) {
     if (turn) { turn === 'next' ? latest.current.onNext() : latest.current.onPrev(); return; }
     if (Math.hypot(dx, dy) > 12) return;
     if (current.from !== null) { latest.current.onMarkPress(current.from); return; }
-    const rect = event.currentTarget.getBoundingClientRect();
+    const rect = rootRef.current!.getBoundingClientRect();
     event.clientX < rect.left + rect.width / 2 ? latest.current.onNext() : latest.current.onPrev();
   }
+  // 紙面の外へ動かした場合や、親の描画でcaptureが外れた場合も、離す操作を受け取る。
+  useEffect(() => {
+    const move = (event: PointerEvent) => pointerMove(event);
+    const up = (event: PointerEvent) => finish(event);
+    const cancel = (event: PointerEvent) => finish(event, true);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+    };
+  });
   function ribbon(offset: number, first = false) {
     const marked = marks.includes(offset), chosen = picking && draft === offset;
     if (!marked && !chosen) return null;
     return <span role="button" tabIndex={0} aria-label="しおり" data-offset={offset} data-mark={marked ? offset : undefined}
       onKeyDown={event => { if (event.key === 'Enter' && marked && !picking) latest.current.onMarkPress(offset); }}
-      style={{ ...styles.ribbon, ...(first ? { top: 0, right: 0, left: 'auto' } : {}), color: paint.accent, opacity: marked && faded === offset ? 0.25 : 1 }}><Ribbon /></span>;
+      style={{ ...styles.ribbon, ...(first ? { top: 0, right: 0, left: 'auto' } : {}), color: paint.accent, opacity: marked && (faded === offset || (ghost && gesture.current?.from === offset)) ? 0.25 : 1 }}><span style={{ pointerEvents: 'none', display: 'block' }}><Ribbon /></span></span>;
   }
-  return <div ref={rootRef} style={{ ...styles.root, background: paint.background }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)} onLostPointerCapture={event => { if (gesture.current?.id === event.pointerId) finish(event, true); }}>
+  return <div ref={rootRef} style={{ ...styles.root, background: paint.background, cursor: ghost ? 'grabbing' : undefined }} onDragStart={event => event.preventDefault()} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)}>
     {calculating && <div role="status" style={{ position: 'absolute', top: 4, left: 24, color: paint.muted, fontSize: 12, pointerEvents: 'none' }}>ページを整えています…</div>}
     <div ref={viewRef} style={styles.view}>
       <div ref={measureRef} aria-hidden="true" style={{ ...styles.text, visibility: 'hidden', pointerEvents: 'none', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>{text}</div>
-      <div style={{ ...styles.clip, width: layout.width || '100%' }}><div ref={textRef} style={{ ...styles.text, color: guide ? paint.muted : paint.ink, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>
-      {page === 0 && ribbon(start, true)}{chars.map(({ char, end }, index) => <span key={end} data-i={index} data-offset={end} style={{ position: 'relative', color: guide && index <= cursor ? paint.ink : undefined, background: picking && draft === end ? paint.chosen : undefined }}>{char}{ribbon(end)}</span>)}
+      <div style={{ ...styles.clip, width: layout.width || '100%' }}><div ref={textRef} style={{ ...styles.text, color: paint.ink, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>
+      {page === 0 && ribbon(start, true)}{chars.map(({ char, end }, index) => <span key={end} data-i={index} data-offset={end} style={{ position: 'relative', display: char === '\n' ? 'inline' : 'inline-block', opacity: guide ? Math.max(0.50, 1 - Math.abs(index - cursor) * 0.13) : 1, fontWeight: guide && Math.abs(index - cursor) <= 2 ? 700 : 400, transform: guide ? `translateX(${-Math.max(0, 1 - Math.abs(index - cursor) / 5) * 2}px) scale(${1 + Math.max(0, 1 - Math.abs(index - cursor) / 5) * 0.09})` : undefined, textShadow: guide && Math.abs(index - cursor) < 4 ? `0 1px 1px color-mix(in srgb, ${paint.muted} 20%, transparent)` : undefined, transition: 'opacity 100ms ease, transform 100ms ease, text-shadow 100ms ease', background: (picking && draft === end) || (ghost && dragOffset === end) ? paint.chosen : undefined }}>{char}{ribbon(end)}</span>)}
     </div></div></div>
     {!picking && !ghost && <>
       {page < layout.count - 1 && <span aria-hidden="true" style={{ ...styles.turnHint, left: 4, color: paint.ink }}>←</span>}
       {page > 0 && <span aria-hidden="true" style={{ ...styles.turnHint, right: 4, color: paint.ink }}>→</span>}
     </>}
-    {ghost && <span aria-hidden="true" style={{ position: 'fixed', pointerEvents: 'none', left: ghost.x - 9, top: ghost.y - 5, zIndex: 9999, color: paint.accent }}><Ribbon /></span>}
+    {ghost && <span aria-hidden="true" style={{ position: 'fixed', pointerEvents: 'none', left: ghost.x - 9, top: ghost.y - 5, zIndex: 9999, color: paint.accent, transform: 'scale(1.18) rotate(-5deg)', transformOrigin: 'center top', filter: 'drop-shadow(0 3px 2px rgba(0,0,0,0.20))' }}><Ribbon /></span>}
     {ghost && edge && <span aria-hidden="true" style={{ position: 'absolute', bottom: 8, left: edge === 'next' ? 8 : undefined, right: edge === 'prev' ? 8 : undefined, color: paint.ink, background: paint.background, pointerEvents: 'none', padding: 6 }}>{edge === 'next' ? '‹ 次のページへ' : '前のページへ ›'}</span>}
   </div>;
 }
@@ -208,5 +239,5 @@ const styles: Record<string, React.CSSProperties> = {
   clip: { position: 'relative', height: '100%', overflow: 'hidden' },
   text: { position: 'absolute', top: 0, right: 0, height: '100%', width: 'max-content', writingMode: 'vertical-rl', letterSpacing: '0.05em', whiteSpace: 'pre-wrap' },
   // 印のために行が伸びないよう、文字の上へ重ねる。
-  ribbon: { position: 'absolute', top: '100%', left: '50%', width: 18, height: 28, transform: 'translate(-50%, -6px)', zIndex: 3, cursor: 'grab', lineHeight: 0 },
+  ribbon: { position: 'absolute', top: '100%', left: '50%', width: 30, height: 38, padding: '5px 6px', boxSizing: 'border-box', transform: 'translate(-50%, -24px)', zIndex: 20, cursor: 'grab', touchAction: 'none', lineHeight: 0 },
 };
