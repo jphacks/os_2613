@@ -1,5 +1,6 @@
-import { FocusIllustration } from '@/features/focus/FocusIllustration';
+import { FocusIllustration, type FocusShot } from '@/features/focus/FocusIllustration';
 import { openFocusSettings } from '@/features/focus/openFocusSettings';
+import { useAccount } from '@/features/account/AccountProvider';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '@/shared/theme';
@@ -9,15 +10,17 @@ import { colors } from '@/shared/theme';
 // iPhone の設定にある「アプリを開いたら集中モードを自動でオンにする」機能の使い方を説明する。
 // 一度設定すると、ドパBOOKs を開いている間だけ通知が届かなくなる。
 
-const steps = [
-  { title: '設定アプリを開く', text: '下のボタンから、または iPhone の「設定」を開きます。' },
-  { title: '「集中モード」→ 右上の「＋」', text: '「カスタム」を選び、名前を「読書」にします。本のアイコンを選ぶと分かりやすくなります。' },
-  { title: '通知を許可する相手を選ぶ', text: '「通知を許可」で、読書中も受け取りたい人やアプリだけを残します。「通知を許可する」を選び、必要な相手・アプリだけ追加します。タイムセンシティブ通知や繰り返しの着信なども必要に応じて見直してください。' },
-  { title: '「自動的にオン」→「App」→ ドパBOOKs', text: '「スケジュールを追加」（または「自動的にオン」）から「App」→「ドパBOOKs」を選びます。設定後にアプリを開いて、集中モードが有効になるか確認してください。' },
+// 手順は iOS の実際の画面（設定 → 集中モード）の並びに合わせる。各手順に図（FocusIllustration）が付く。
+const steps: { shot: FocusShot; title: string; text: string }[] = [
+  { shot: 'list', title: '「読書」の集中モードを作る', text: '設定 →「集中モード」を開き、右上の「＋」→「カスタム」。名前を「読書」にして、本のアイコンを選ぶと、一覧に「読書」が増えます。' },
+  { shot: 'silence', title: '「通知を知らせない」を選ぶ', text: '「読書」を開き、「通知を知らせない」の「アプリ」を押します。上の「通知を知らせない」にチェックが付いていることを確かめます。' },
+  { shot: 'apps', title: '通知を止めたいアプリを追加する', text: '「追加」を押して、BeReal・Instagram・LINE・X・YouTube など、読書中に通知が来てほしくないアプリを選びます。選んだアプリの通知は、通知センターに静かに届きます。' },
+  { shot: 'schedule', title: 'ドパBOOKs を開いたら自動でオン', text: '下にある「スケジュールを設定」の「スケジュールを追加」→「App」→「ドパBOOKs」を選びます。これで、ドパBOOKs を開くと自動でオンになり、閉じるとオフに戻ります。' },
 ];
 
 export default function FocusScreen() {
   const ios = Platform.OS === 'ios';
+  const { complete } = useAccount();
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.body}>
       <Text style={styles.eyebrow}>FOCUS</Text>
@@ -31,14 +34,14 @@ export default function FocusScreen() {
             <View style={styles.stepBody}>
               <Text style={styles.stepTitle}>{step.title}</Text>
               <Text style={styles.note}>{step.text}</Text>
-              <FocusIllustration step={i} />
+              <FocusIllustration shot={step.shot} />
             </View>
           </View>
         ))}
       </View>
 
       {ios ? (
-        <Pressable style={styles.button} onPress={() => void openFocusSettings()}>
+        <Pressable style={styles.button} onPress={() => { complete('focus') /* 読書クエスト「通知オフ」 */; void openFocusSettings(); }}>
           <Text style={styles.buttonText}>設定アプリを開く</Text>
         </Pressable>
       ) : (

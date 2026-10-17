@@ -5,7 +5,7 @@ export async function signOut() {}
 
 export const loginAvailable = false;
 
-export async function reviewAccess(): Promise<{ review: boolean; bluesky: boolean }> { return { review: false, bluesky: false }; }
+export async function reviewAccess(): Promise<{ review: boolean; like: boolean; bluesky: boolean }> { return { review: false, like: false, bluesky: false }; }
 export async function authorizeReviews(_bluesky = false): Promise<Identity | null> { throw new Error('投稿はWeb版でご利用ください。'); }
 export async function reviewRequest(_path: string, _init?: RequestInit): Promise<any> { throw new Error('投稿はWeb版でご利用ください。'); }
 

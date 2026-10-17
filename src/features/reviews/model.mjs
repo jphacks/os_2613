@@ -1,5 +1,22 @@
 export const reviewCollection = 'app.dopabooks.review';
-export const reviewScope = `atproto repo:${reviewCollection} repo:app.bsky.feed.post?action=create`;
+// 感想への「いいね」。押した人の Bluesky アカウントに、ドパBOOKs 専用の記録として保存する
+export const likeCollection = 'app.dopabooks.like';
+export const reviewScope = `atproto repo:${reviewCollection} repo:${likeCollection} repo:app.bsky.feed.post?action=create`;
+// いいねの記録の名前。「感想を書いた人＋本」から決めるので、1人が同じ感想に付けられるいいねは1つだけになる
+export function likeKey(reviewUri) {
+  const { did, rkey } = parseReviewUri(reviewUri);
+  return `${did.slice('did:plc:'.length)}-${rkey}`;
+}
+export function parseLikeUri(uri) {
+  const match = typeof uri === 'string' && uri.match(/^at:\/\/(did:plc:[a-z2-7]{24})\/app\.dopabooks\.like\/([a-z2-7]{24}-[a-z0-9-]{1,100})$/);
+  if (!match) throw new Error('いいねのアドレスが不正です。');
+  return { did: match[1], rkey: match[2] };
+}
+export function validateLike(value) {
+  if (!value || value.$type !== likeCollection || typeof value.subject !== 'string' || Number.isNaN(Date.parse(value.createdAt))) throw new Error('いいねの内容が不正です。');
+  parseReviewUri(value.subject);
+  return { $type: likeCollection, subject: value.subject, createdAt: new Date(value.createdAt).toISOString() };
+}
 export const validBookId = id => typeof id === 'string' && /^(aozora-[1-9][0-9]{0,7}|calculus|thermodynamics|mathematics-for-economics|ai-for-teachers)$/.test(id);
 const line = (value, max) => typeof value === 'string' && value.trim().length > 0 && value.length <= max && !/[\u0000-\u001f]/.test(value);
 export function reviewKey(bookId) {

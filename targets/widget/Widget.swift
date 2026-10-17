@@ -274,6 +274,27 @@ struct SmallView: View {
   }
 }
 
+// 長い文章の省略：決めた行数を超えたら「…」で切り、最後の行の終わりを右へ向かって薄くする
+struct FadingText: View {
+  let text: String
+  let size: CGFloat
+  let lines: Int
+  var body: some View {
+    Text(text)
+      .font(.system(size: size)).foregroundStyle(Palette.body).lineSpacing(2)
+      .lineLimit(lines).truncationMode(.tail)
+      .mask(alignment: .bottom) {
+        // 最後の行だけ、右の4割で少しずつ透明にする（それより上の行はそのまま）
+        VStack(spacing: 0) {
+          Rectangle()
+          LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.6), .init(color: .black.opacity(0.15), location: 1)],
+                         startPoint: .leading, endPoint: .trailing)
+            .frame(height: size * 1.45)
+        }
+      }
+  }
+}
+
 // 中：上から見た本の上に、題名・あらすじ・進み具合
 struct MediumView: View {
   let book: WidgetBook
@@ -284,7 +305,7 @@ struct MediumView: View {
         Text(book.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.ink).lineLimit(1)
         Text(book.author).font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
       }
-      Text(recap(book)).font(.system(size: 14)).foregroundStyle(Palette.body).lineSpacing(2).lineLimit(3)
+      FadingText(text: recap(book), size: 14, lines: 3)
       Spacer(minLength: 0)
       ProgressFooter(value: book.progress)
     }
@@ -392,7 +413,7 @@ struct NoBookView: View {
       }
       if small { Text(pick.author).font(.system(size: 13)).foregroundStyle(Palette.body).lineLimit(1) }
       if !small {
-        Text(pick.blurb).font(.system(size: 14)).foregroundStyle(Palette.body).lineSpacing(2).lineLimit(2)
+        FadingText(text: pick.blurb, size: 14, lines: 2)
       }
       if small {
         Stars(rating: pick.rating, size: 14).padding(.top, 12)

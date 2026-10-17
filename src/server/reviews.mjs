@@ -1,7 +1,7 @@
 import { avatarUrl } from '../shared/avatar.mjs';
 import { createAozoraService } from './aozora.mjs';
 import { artifactStorage, artifactKey, artifactInput } from './artifact-storage.mjs';
-import { latestReviews, parseReviewUri, reviewKey, validateReview, reviewStats, validBookId } from '../features/reviews/model.mjs';
+import { latestReviews, likeKey, parseLikeUri, parseReviewUri, reviewKey, validateLike, validateReview, reviewStats, validBookId } from '../features/reviews/model.mjs';
 const globalKey = Symbol.for('dopabooks.reviews.v1');
 const catalog = createAozoraService({ cachePath: '.local/aozora/catalog.zip' });
 const studyInfo = {
@@ -31,15 +31,28 @@ async function publicJson(fetcher, url) {
   } finally { reader.releaseLock(); }
 }
 // 投稿者が指定したURLへは接続しない。PLCが示すBluesky運営のPDSだけからレコードを読む。
-export async function verifyReview(uri, fetcher = fetch, describe = canonicalBook) {
-  const { did, rkey } = parseReviewUri(uri);
+async function pdsRecord(fetcher, did, collection, rkey) {
   const document = await publicJson(fetcher, `https://plc.directory/${did}`);
   const service = document?.service?.find(item => item.type === 'AtprotoPersonalDataServer');
   let pds; try { pds = new URL(service?.serviceEndpoint); } catch { throw new Error('アカウントの保存先が見つかりません。'); }
   if (document.id !== did || pds.protocol !== 'https:' || pds.username || pds.password || pds.port || pds.pathname !== '/' || pds.search || pds.hash
     || !(pds.hostname === 'bsky.social' || /^[a-z0-9-]+\.[a-z0-9-]+\.host\.bsky\.network$/.test(pds.hostname))) throw new Error('現在のレビュー共有はBluesky運営PDSのアカウントに対応しています。');
-  const query = new URLSearchParams({ repo: did, collection: 'app.dopabooks.review', rkey });
-  const data = await publicJson(fetcher, `${pds.origin}/xrpc/com.atproto.repo.getRecord?${query}`);
+  const query = new URLSearchParams({ repo: did, collection, rkey });
+  return publicJson(fetcher, `${pds.origin}/xrpc/com.atproto.repo.getRecord?${query}`);
+}
+// いいねの記録を確かめる。記録の名前が「いいねした感想」から決まる名前と一致するものだけを数える
+export async function verifyLike(uri, fetcher = fetch) {
+  const { did, rkey } = parseLikeUri(uri);
+  const data = await pdsRecord(fetcher, did, 'app.dopabooks.like', rkey);
+  if (!data) return { uri, did, removed: true };
+  if (data.uri !== uri) throw new Error('いいねの所有者を確認できません。');
+  const like = validateLike(data.value);
+  if (likeKey(like.subject) !== rkey) throw new Error('いいねした感想とIDが一致しません。');
+  return { uri, did, subject: like.subject };
+}
+export async function verifyReview(uri, fetcher = fetch, describe = canonicalBook) {
+  const { did, rkey } = parseReviewUri(uri);
+  const data = await pdsRecord(fetcher, did, 'app.dopabooks.review', rkey);
   if (!data) return { uri, removed: true };
   if (data.uri !== uri) throw new Error('投稿の所有者を確認できません。');
   const record = validateReview(data.value);
@@ -49,18 +62,37 @@ export async function verifyReview(uri, fetcher = fetch, describe = canonicalBoo
   const profile = await publicJson(fetcher, `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`).catch(() => null);
   return { ...record, book, did, uri, avatar: avatarUrl(profile?.avatar), handle: typeof profile?.handle === 'string' ? profile.handle.slice(0, 253) : did };
 }
-export function createReviewService({ storage = artifactStorage('.local/reviews'), verify = verifyReview } = {}) {
+export function createReviewService({ storage = artifactStorage('.local/reviews'), verify = verifyReview, verifyLikeRecord = verifyLike } = {}) {
   const key = artifactKey(['review-index-v1']);
+  const likesKey = artifactKey(['like-index-v1']);
   return {
     async list({ book, did, cursor = 0 } = {}) {
       const all = latestReviews((await storage.read(key))?.items ?? []);
       const forBook = book ? all.filter(item => item.book.id === book) : all;
       const filtered = did ? forBook.filter(item => item.did === did) : forBook;
       const start = Math.max(0, cursor), limit = 30;
-      return { reviews: filtered.slice(start, start + limit), next: start + limit < filtered.length ? start + limit : null,
+      // 感想ごとに、いいねの数と、いいねした人（自分が押したかの判定用）を付ける
+      const likes = (await storage.read(likesKey))?.items ?? [];
+      const withLikes = filtered.slice(start, start + limit).map(review => {
+        const likedBy = likes.filter(like => like.subject === review.uri).map(like => like.did);
+        return { ...review, likes: likedBy.length, likedBy: likedBy.slice(0, 500) };
+      });
+      return { reviews: withLikes, next: start + limit < filtered.length ? start + limit : null,
         stats: reviewStats(forBook), total: filtered.length };
     },
     async sync(uri) {
+      // いいねの記録なら、いいねの一覧を更新する
+      if (typeof uri === 'string' && uri.includes('/app.dopabooks.like/')) {
+        parseLikeUri(uri);
+        const like = await verifyLikeRecord(uri);
+        await storage.update(likesKey, before => {
+          const items = (before?.items ?? []).filter(item => item.uri !== uri);
+          if (!like.removed) items.push(like);
+          if (items.length > 50000) throw new Error('いいねの保存件数の上限です。管理者に確認してください。');
+          return { items };
+        });
+        return { ok: true, removed: !!like.removed };
+      }
       parseReviewUri(uri);
       const review = await verify(uri);
       await storage.update(key, before => {

@@ -56,7 +56,8 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   const [readPosition, setReadPosition] = useState(0);
   const [guide, setGuide] = useState(false);
   const [running, setRunning] = useState(false);
-  useEffect(() => { if (guide && running) complete('guide'); }, [guide, running]);
+  // 読書クエスト「本を読む」：小説を開いたら完了
+  useEffect(() => { complete('read'); }, []);
   const [speed, setSpeed] = useState(1200);
   const [speedReady, setSpeedReady] = useState(false);
   const speedKey = `dopabooks:guide-speed:v1:${identity?.did || 'guest'}`;
@@ -108,7 +109,6 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   // しおりが変わったら、ウィジェットに出す「最新のしおり」も更新する（しおりが無くなった本は外す）
   useEffect(() => {
     if (!ready) return;
-    if (reading.marks.length) complete('bookmark');
     if (study) return;
     const latestMark = [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt)[0];
     if (!latestMark) { void forgetWidgetBook(book.id); return; }
@@ -207,7 +207,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     const mark = reading.marks.find(item => item.offset === offset);
     if (mark && !moving) { setRunning(false); setSelected(mark.id); setScope('previous'); setPanel(true); }
   }
-  const paint = paperColors(display.paper);
+  const paint = paperColors(display);
   const GuideOptionsHost = Platform.OS === 'web' ? View : Modal;
   return <View style={styles.screen}>
     {/* ヘッダー：中央にタイトルと作者、右にメニュー */}

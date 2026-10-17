@@ -1,6 +1,11 @@
 export type ReviewBook = { id: string; title: string; author: string };
 export type ReviewRecord = { $type: string; book: ReviewBook; displayName: string; rating: number; text: string; spoiler: boolean; createdAt: string; updatedAt: string };
-export type Review = ReviewRecord & { did: string; uri: string; handle: string; avatar?: string };
+export type Review = ReviewRecord & { did: string; uri: string; handle: string; avatar?: string; likes?: number; likedBy?: string[] };
+export type LikeRecord = { $type: string; subject: string; createdAt: string };
+export const likeCollection: string;
+export function likeKey(reviewUri: string): string;
+export function parseLikeUri(uri: string): { did: string; rkey: string };
+export function validateLike(value: unknown): LikeRecord;
 export type ReviewStats = { count: number; average: number | null; histogram: number[] };
 export const reviewCollection: string;
 export const reviewScope: string;
