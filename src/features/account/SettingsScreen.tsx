@@ -51,9 +51,9 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   </ScrollView>;
   return <ScrollView style={s.screen} contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
     {!embedded && <Stack.Screen options={{ headerShown: false }} />}
-    {!embedded && <Pressable accessibilityRole="button" onPress={() => router.dismissTo('/shelf')} style={s.back}><Text style={s.link}>← 本棚に戻る</Text></Pressable>}
+    {!embedded && <Pressable accessibilityRole="button" onPress={() => router.dismissTo('/profile')} style={s.back}><Text style={s.link}>← プロフィール</Text></Pressable>}
     {!embedded && <View><Text style={s.eyebrow}>YOUR READING SPACE</Text><Text style={s.title}>設定</Text></View>}
-    <View style={s.tabs}>{[['account', 'アカウント'], ['features', '機能']].map(([id, label]) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: tab === id }} key={id} onPress={() => setTab(id)} style={[s.tab, tab === id && s.selected]}><Text style={tab === id ? s.light : s.text}>{label}</Text></Pressable>)}</View>
+    <View style={s.tabs}>{[['account', 'アカウント'], ['features', '読書機能'], ['help', '使い方']].map(([id, label]) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: tab === id }} key={id} onPress={() => setTab(id)} style={[s.tab, tab === id && s.selected]}><Text style={tab === id ? s.light : s.text}>{label}</Text></Pressable>)}</View>
     {tab === 'account' ? <>
       {identity ? <View style={s.profileCard}>
         <View style={s.row}><Text style={s.profileEyebrow}>BLUESKY ACCOUNT</Text><Text style={s.badge}>✓ 接続済み</Text></View>
@@ -64,8 +64,15 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         <Text style={s.label}>{prefs.nameChosen ? 'アカウント名' : 'ドパBOOKsで使う名前を決めましょう'}</Text>
         <TextInput accessibilityLabel="ドパBOOKsのアカウント名" value={name} onChangeText={setName} maxLength={40} placeholder="読書で使う名前" style={s.input} />
         <Text style={s.note}>Blueskyの名前は変更されません。</Text>
-        <Pressable accessibilityRole="button" disabled={busy || !ready || !name.trim()} onPress={() => void act(async () => { await update({ name: name.trim(), nameChosen: true }); setMessage('アカウントの設定が完了しました。'); router.dismissTo('/shelf'); })} style={[s.button, (busy || !ready || !name.trim()) && s.disabled]}><Text style={s.light}>{prefs.nameChosen ? '保存して本棚へ' : 'この名前で始める　→'}</Text></Pressable>
-        <View style={s.row}><Text style={s.note}>認証に使うアカウント</Text><Pressable accessibilityRole="link" onPress={() => void Linking.openURL(`https://bsky.app/profile/${encodeURIComponent(identity.did)}`)}><Text style={s.link}>プロフィール ↗</Text></Pressable></View>
+        <Pressable accessibilityRole="button" disabled={busy || !ready || !name.trim()} onPress={() => void act(async () => { await update({ name: name.trim(), nameChosen: true }); setMessage('ユーザー名を変更しました。'); })} style={[s.button, (busy || !ready || !name.trim()) && s.disabled]}><Text style={s.light}>{prefs.nameChosen ? 'ユーザー名を変更' : 'この名前で始める　→'}</Text></Pressable>
+        <View style={s.divider} />
+        <Text style={s.label}>Blueskyのアカウント情報</Text>
+        {[
+          ['アカウントアドレス', `@${identity.handle}`, 'ハンドルを変更'],
+          ['パスワード', 'Bluesky側で管理しています', 'パスワードを変更'],
+          ['メールアドレス', '登録メールの確認・変更', 'メールアドレスを変更'],
+        ].map(([label, detail, action]) => <Pressable key={label} accessibilityRole="link" accessibilityLabel={`${action}（Blueskyの設定を開く）`} onPress={() => void Linking.openURL('https://bsky.app/settings')} style={s.featureRow}><View style={s.grow}><Text style={s.featureTitle}>{label}</Text><Text style={s.featureDescription}>{detail}</Text></View><Text style={s.link}>変更 ↗</Text></Pressable>)}
+        <Text style={s.note}>リンク先の「アカウント」から変更できます。メールアドレスやパスワードをドパBOOKsに保存する必要はありません。</Text>
 
         <Pressable accessibilityRole="button" accessibilityLabel="アカウントの操作" onPress={() => setAccountActions(!accountActions)} style={s.dismiss}><Text style={s.logout}>アカウントの操作　{accountActions ? '−' : '…'}</Text></Pressable>
         {accountActions && <Pressable accessibilityRole="button" disabled={busy} onPress={() => void act(async () => { await logout(); setAccountActions(false); setMessage('ログアウトしました。'); })} style={s.dismiss}><Text style={s.logout}>ログアウト</Text></Pressable>}
@@ -88,18 +95,21 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         {loopback && <Text style={s.footnote}>開発用の初回接続ではURLが変わります。本棚は接続先ごとに保存されます。</Text>}
       </View>}
       <Text style={s.footnote}>投稿・読書記録の公開は行いません。本棚としおりはこの端末内で共通保存され、ログインしても端末間同期はしません。</Text>
-    </> : <View style={s.card}>
+    </> : tab === 'features' ? <View style={s.card}>
       <Text style={s.section}>使いたい機能を選ぶ</Text>
       {([
         ['music', '♫', 'BGM', '物語に合う音を読みガイドとともに'],
         ['comic', '▤', '紹介4コマ', '読む前に、物語の入り口をのぞく'],
         ['characters', '♧', '人物相関図', 'しおりまでの登場人物を整理'],
-        ['quests', '⚑', '読書クエスト', '使い方を小さなステップで覚える'],
+
       ] as const).map(([key, icon, title, description]) => <View key={key} style={s.featureRow}>
         <View style={s.featureIcon}><Text style={s.featureSymbol}>{icon}</Text></View>
         <View style={s.grow}><Text style={s.featureTitle}>{title}</Text><Text style={s.featureDescription}>{description}</Text></View>
         <FeatureToggle label={title} value={prefs[key]} disabled={busy || !ready} onChange={value => void act(async () => { await update({ [key]: value }); setMessage(`${title}を${value ? 'ON' : 'OFF'}にしました。`); })} />
       </View>)}
+    </View> : <View style={s.card}>
+      <Text style={s.section}>使い方と読書の準備</Text>
+      <View style={s.featureRow}><View style={s.grow}><Text style={s.featureTitle}>読書クエスト</Text><Text style={s.featureDescription}>本棚に操作ガイドを表示する</Text></View><FeatureToggle label="読書クエスト" value={prefs.quests} disabled={busy || !ready} onChange={value => void act(() => update({ quests: value }))} /></View>
       <Pressable accessibilityRole="button" onPress={() => router.push('/focus')} style={s.row}><Text style={s.text}>iPhoneの読書集中モード</Text><Text style={s.link}>設定方法 ›</Text></Pressable>
     </View>}
     {!!(message || error) && <View style={s.feedback}><Text accessibilityRole={failed || (!message && !!error) ? 'alert' : undefined} accessibilityLiveRegion="polite" style={s.text}>{message || error}</Text>{failed && <Text style={s.note}>もう一度「Blueskyで続ける」からお試しください。</Text>}</View>}

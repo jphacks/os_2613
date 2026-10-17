@@ -97,16 +97,18 @@ export function MusicPanel({ book, position, guideActive, visible = true }: { vi
   if (!visible) return null;
   const icon = (symbol: string, label: string, action: () => void, disabled = false, active = false) => <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={action} style={[styles.button, active && styles.active, disabled && { opacity: 0.35 }]}><Text style={[styles.symbol, active && styles.light]}>{symbol}</Text></Pressable>;
   return <View style={styles.panel}>
+    {icon('♫', 'BGMの設定を開く', () => setDetails(true), false, enabled)}
+    <Modal visible={details} transparent animationType="fade" onRequestClose={() => setDetails(false)}>
+      <View style={styles.backdrop}><View style={styles.card}><ScrollView style={{ flex: 1 }} contentContainerStyle={styles.details}>
+        <Text style={styles.heading}>BGM</Text>
     <View style={styles.row}>
-      {icon('♫', enabled ? 'BGMをオフにする' : 'BGMをオンにする（読みガイドに同期）', enabled ? stop : start, !plan, enabled)}
-      {busy ? <View style={styles.button} accessibilityLabel="BGM取得中"><ActivityIndicator size="small" color={colors.accent} /></View> : icon('↓', 'BGMを取得（初回は有料AI分析）', () => void load())}
+      <Pressable accessibilityRole="button" onPress={enabled ? stop : start} style={[styles.control, enabled && styles.active]}><Text style={[styles.text, enabled && styles.light]}>{enabled ? 'BGM ON' : 'BGM OFF'}</Text></Pressable>
+      {busy ? <View style={styles.button} accessibilityLabel="BGM取得中"><ActivityIndicator size="small" color={colors.accent} /></View> : <Pressable accessibilityRole="button" onPress={() => void load()} style={styles.control}><Text style={styles.text}>BGM取得</Text></Pressable>}
       <View style={styles.volume}><VolumeBar value={volume} onChange={setVolume} /></View>
       {icon(error ? '!' : 'ⓘ', 'BGMの情報・音源クレジット', () => setDetails(true))}
     </View>
     {!!error && <Pressable onPress={() => setDetails(true)}><Text accessibilityRole="alert" style={styles.text} numberOfLines={1}>{error}</Text></Pressable>}
-    <Modal visible={details} transparent animationType="fade" onRequestClose={() => setDetails(false)}>
-      <View style={styles.backdrop}><View style={styles.card}><ScrollView contentContainerStyle={styles.details}>
-        <Text style={styles.heading}>BGM</Text>
+
         <Text style={styles.text}>{error || notice || '読みガイドに合わせて再生します。初回取得は本文をAI分析します（有料）。'}</Text>
         <Text style={styles.text}>{enabled && !guideActive ? '読みガイドを開始すると音が鳴ります。' : '環境音・効果音は本文の該当箇所で重なります。'}</Text>
         {[...(current ? [current] : []), ...activeCues].map((track, index) => <View key={`${track.id}:${index}`} style={styles.credit}><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.url)} style={styles.text}>{track.creator} / {track.name}</Text><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.license)} style={styles.text}>{track.license.includes('/zero/') ? 'CC0' : 'CC BY'}</Text></View>)}
@@ -117,15 +119,16 @@ export function MusicPanel({ book, position, guideActive, visible = true }: { vi
   </View>;
 }
 const styles = StyleSheet.create({
-  panel: { paddingHorizontal: 12, paddingVertical: 3 },
-  row: { flexDirection: 'row', gap: 4, alignItems: 'center', alignSelf: 'flex-end', width: '100%', maxWidth: 360 },
+  panel: { paddingHorizontal: 2, paddingVertical: 0 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, alignItems: 'center', alignSelf: 'flex-end', width: '100%', maxWidth: 360 },
+  control: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: colors.line },
   button: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   active: { backgroundColor: colors.accent }, light: { color: colors.surface },
-  symbol: { color: colors.accent, fontSize: 22 },
+  symbol: { color: colors.accent, fontSize: 22, fontWeight: '700' },
   volume: { flex: 1 },
   text: { color: colors.ink, fontSize: 12, lineHeight: 20 },
   heading: { color: colors.ink, fontSize: 18, fontWeight: '600' },
-  backdrop: { flex: 1, backgroundColor: 'rgba(41,46,41,0.35)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 420, maxHeight: '80%', backgroundColor: colors.surface, borderRadius: 14 },
+  backdrop: { flex: 1, backgroundColor: 'transparent', alignItems: 'flex-end', paddingTop: 64, paddingHorizontal: 12 },
+  card: { width: '100%', maxWidth: 300, height: 340, maxHeight: '80%', backgroundColor: colors.surface, borderRadius: 14 },
   details: { padding: 22, gap: 16 }, credit: { gap: 4 }, close: { alignSelf: 'flex-end', padding: 8 },
 });

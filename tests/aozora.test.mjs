@@ -100,3 +100,19 @@ test('再起動後もディスクの一覧を使い、期限切れ・破損時�
   // 書けない保存先でも検索は成功する。
   assert.equal((await createAozoraService({ fetcher, cachePath: join(cachePath, 'invalid.zip') }).search('銀河', 'title', 1)).total, 1);
 });
+
+
+test('同じ作品の同時追加と再取得は本文ダウンロードを共有する', async () => {
+  let downloads = 0;
+  const service = createAozoraService({ fetcher: async url => {
+    if (url.endsWith('.zip')) return new Response(zip(csv([entry()])));
+    downloads++;
+    return new Response('<div class="main_text">作品の本文です。</div></body>');
+  } });
+  const [first, second] = await Promise.all([service.importBook(1), service.importBook(1)]);
+  const third = await service.importBook(1);
+  assert.equal(downloads, 1);
+  assert.equal(first.text, '作品の本文です。');
+  assert.deepEqual(first, second);
+  assert.deepEqual(first, third);
+});

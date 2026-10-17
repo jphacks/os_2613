@@ -1,3 +1,4 @@
+import { FocusIllustration } from '@/features/focus/FocusIllustration';
 import { openFocusSettings } from '@/features/focus/openFocusSettings';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -11,8 +12,8 @@ import { colors } from '@/shared/theme';
 const steps = [
   { title: '設定アプリを開く', text: '下のボタンから、または iPhone の「設定」を開きます。' },
   { title: '「集中モード」→ 右上の「＋」', text: '「カスタム」を選び、名前を「読書」にします。本のアイコンを選ぶと分かりやすくなります。' },
-  { title: '通知を許可する相手を選ぶ', text: '「通知を許可」で、読書中も受け取りたい人やアプリだけを残します。何も選ばなければ、ほとんどの通知が止まります。' },
-  { title: '「自動的にオン」→「App」→ ドパBOOKs', text: 'これで、ドパBOOKs を開くと読書集中モードがオンになり、アプリを閉じると自動でオフに戻ります。' },
+  { title: '通知を許可する相手を選ぶ', text: '「通知を許可」で、読書中も受け取りたい人やアプリだけを残します。「通知を許可する」を選び、必要な相手・アプリだけ追加します。タイムセンシティブ通知や繰り返しの着信なども必要に応じて見直してください。' },
+  { title: '「自動的にオン」→「App」→ ドパBOOKs', text: '「スケジュールを追加」（または「自動的にオン」）から「App」→「ドパBOOKs」を選びます。設定後にアプリを開いて、集中モードが有効になるか確認してください。' },
 ];
 
 export default function FocusScreen() {
@@ -30,6 +31,7 @@ export default function FocusScreen() {
             <View style={styles.stepBody}>
               <Text style={styles.stepTitle}>{step.title}</Text>
               <Text style={styles.note}>{step.text}</Text>
+              <FocusIllustration step={i} />
             </View>
           </View>
         ))}
@@ -60,6 +62,6 @@ const styles = StyleSheet.create({
   numberText: { color: colors.accent, fontSize: 12 },
   stepBody: { flex: 1, gap: 4 },
   stepTitle: { fontSize: 15, color: colors.ink, fontWeight: '600' },
-  button: { backgroundColor: colors.accent, borderRadius: 10, padding: 14, alignItems: 'center' },
+  button: { backgroundColor: colors.accent, borderRadius: 999, padding: 14, alignItems: 'center' },
   buttonText: { color: colors.surface, fontSize: 15 },
 });
