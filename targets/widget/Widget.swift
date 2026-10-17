@@ -20,8 +20,8 @@ private enum Palette {
   static let ink = Color(red: 0.161, green: 0.180, blue: 0.161)      // #292E29 文字
   static let body = Color(red: 0.239, green: 0.259, blue: 0.239)     // #3D423D 本文
   static let muted = Color(red: 0.549, green: 0.565, blue: 0.529)    // #8C9087 補足
-  static let green = Color(red: 0.498, green: 0.647, blue: 0.549)    // #7FA58C 表紙・進み具合
-  static let label = Color(red: 0.369, green: 0.541, blue: 0.439)    // #5E8A70 見出し
+  static let green = Color(red: 0.220, green: 0.380, blue: 0.286)    // #386149 本棚の緑（表紙・進み具合）
+  static let label = Color(red: 0.220, green: 0.380, blue: 0.286)    // #386149 見出し
   static let track = Color(red: 0.902, green: 0.886, blue: 0.847)    // #E6E2D8 進み具合の地
   static let edge = Color(red: 0.886, green: 0.863, blue: 0.804)     // #E2DCCD 紙の縁
   static let sheet1 = Color(red: 0.953, green: 0.937, blue: 0.902)   // #F3EFE6 重なった紙（奥）
@@ -160,61 +160,87 @@ struct ProgressFooter: View {
   }
 }
 
-// 中の背景：上から見た本（左は丸い表紙の背、右はページの束。ページの線は上下の縁だけ）
-struct TopViewBook: Shape {
+// 紙の形：右端へ向かう上下の縁を中央へ寄せ、外側には緑の表紙を残す。
+struct PaperShape: Shape {
+  let band: CGFloat
+  let ratio: CGFloat
   func path(in rect: CGRect) -> Path {
-    let inset: CGFloat = 8
-    let r = rect.height / 2 - inset
-    let left: CGFloat = 58
+    let start = rect.maxX - band
+    let topEnd = rect.midY + (rect.minY - rect.midY) * ratio
+    let bottomEnd = rect.midY + (rect.maxY - rect.midY) * ratio
+    let radius = min(CGFloat(5), rect.height / 2, max(0, start - rect.minX))
     var path = Path()
-    path.move(to: CGPoint(x: rect.maxX, y: rect.minY + inset))
-    path.addLine(to: CGPoint(x: left, y: rect.minY + inset))
-    path.addArc(center: CGPoint(x: left, y: rect.midY), radius: r, startAngle: .degrees(-90), endAngle: .degrees(90), clockwise: true)
-    path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - inset))
+    path.move(to: CGPoint(x: rect.minX + radius, y: rect.minY))
+    path.addLine(to: CGPoint(x: start, y: rect.minY))
+    path.addLine(to: CGPoint(x: rect.maxX, y: topEnd))
+    path.addLine(to: CGPoint(x: rect.maxX, y: bottomEnd))
+    path.addLine(to: CGPoint(x: start, y: rect.maxY))
+    path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+    path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - radius), control: CGPoint(x: rect.minX, y: rect.maxY))
+    path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
+    path.addQuadCurve(to: CGPoint(x: rect.minX + radius, y: rect.minY), control: CGPoint(x: rect.minX, y: rect.minY))
     path.closeSubpath()
     return path
   }
 }
+// ページの束の線：左端では等間隔、右へ行くほど上下へ広がる線（扇のように開いた紙の束）
+struct PageEdges: Shape {
+  func path(in rect: CGRect) -> Path {
+    var path = Path()
+    let count = 16
+    for i in 1..<count {
+      let y = rect.minY + rect.height * CGFloat(i) / CGFloat(count)
+      // 右端の間隔を中央へ20%寄せ、紙の束の奥行きを表す。
+      let end = rect.midY + (y - rect.midY) * 0.80
+      path.move(to: CGPoint(x: rect.minX, y: y))
+      path.addLine(to: CGPoint(x: rect.maxX, y: end))
+    }
+    return path
+  }
+}
 
+// 中の背景：横に寝かせた本。左が緑の背表紙、上下は表紙の縁、右はページの束（細い縦線）
 struct TopViewBackground: View {
   var body: some View {
-    GeometryReader { geo in
-      let w = geo.size.width, h = geo.size.height
-      ZStack(alignment: .topLeading) {
-        Palette.green
-        TopViewBook().fill(Palette.page)
-        // ページの束の線（上下の縁だけ。文字には重ねない）
-        ForEach([13.0, 17.0, h - 17, h - 13], id: \.self) { y in
-          Rectangle().fill(Palette.pageLine).frame(width: w - 62, height: 1).offset(x: 62, y: y)
-        }
+    ZStack(alignment: .trailing) {
+      Palette.green
+      // 紙と線は同じ高さ・収束率を使う。上下の外側は背景の緑のまま残す。
+      ZStack(alignment: .trailing) {
+        PaperShape(band: 26, ratio: 0.80).fill(Palette.page)
+        PageEdges().stroke(Palette.edge, lineWidth: 1)
+          .frame(width: 26)
       }
+      .clipShape(PaperShape(band: 26, ratio: 0.80))
+      .padding(.leading, 18).padding(.vertical, 6)
+
     }
   }
 }
 
-// 大の背景：開いた本（左右のページの外側に紙を重ね、真ん中にのどの線）
+// 大の背景：開いた本。左右のページの外側に紙を少しずつずらして重ね、真ん中にのどの線
+struct PageStack: View {
+  let outward: CGFloat // 紙をずらす向き（左ページは -1、右ページは +1）
+  var body: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 3).fill(Palette.sheet1).overlay(RoundedRectangle(cornerRadius: 3).stroke(Palette.edge, lineWidth: 1))
+        .offset(x: outward * 8, y: 4)
+      RoundedRectangle(cornerRadius: 3).fill(Palette.sheet2).overlay(RoundedRectangle(cornerRadius: 3).stroke(Palette.edge, lineWidth: 1))
+        .offset(x: outward * 4, y: 2)
+      RoundedRectangle(cornerRadius: 3).fill(Palette.page).overlay(RoundedRectangle(cornerRadius: 3).stroke(Palette.edge, lineWidth: 1))
+    }
+  }
+}
+
 struct OpenBookBackground: View {
   var body: some View {
-    GeometryReader { geo in
-      let w = geo.size.width, h = geo.size.height
-      let half = (w - 32) / 2
-      ZStack(alignment: .topLeading) {
-        Palette.green
-        // 奥の紙 → 手前の紙の順に、少しずつ外側へずらして重ねる
-        ForEach(0..<3, id: \.self) { layer in
-          let shift = CGFloat(2 - layer) * 4
-          let fill = layer == 0 ? Palette.sheet1 : layer == 1 ? Palette.sheet2 : Palette.page
-          RoundedRectangle(cornerRadius: 3).fill(fill)
-            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Palette.edge, lineWidth: 1))
-            .frame(width: half, height: h - 16)
-            .offset(x: 16 - shift, y: 8 + shift / 2)
-          RoundedRectangle(cornerRadius: 3).fill(fill)
-            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Palette.edge, lineWidth: 1))
-            .frame(width: half, height: h - 16)
-            .offset(x: 16 + half + shift, y: 8 + shift / 2)
-        }
-        Rectangle().fill(Palette.edge).frame(width: 1.5, height: h - 16).offset(x: 16 + half - 0.75, y: 8)
+    ZStack {
+      Palette.green
+      HStack(spacing: 0) {
+        PageStack(outward: -1)
+        Rectangle().fill(Palette.edge).frame(width: 1)
+        PageStack(outward: 1)
       }
+      .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 14)
     }
   }
 }
@@ -236,7 +262,7 @@ struct SmallView: View {
       }
       .frame(width: 76, height: 76)
       VStack(spacing: 1) {
-        Text(book.title).font(.system(size: 13, weight: .semibold, design: .serif)).foregroundStyle(Palette.ink).lineLimit(1)
+        Text(book.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.ink).lineLimit(1)
         Text(book.author).font(.system(size: 10)).foregroundStyle(Palette.muted).lineLimit(1)
       }
     }
@@ -253,54 +279,51 @@ struct MediumView: View {
     VStack(alignment: .leading, spacing: 3) {
       Eyebrow(text: "しおり")
       HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Text(book.title).font(.system(size: 15, weight: .semibold, design: .serif)).foregroundStyle(Palette.ink).lineLimit(1)
+        Text(book.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.ink).lineLimit(1)
         Text(book.author).font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
       }
-      Text(recap(book)).font(.system(size: 12)).foregroundStyle(Palette.body).lineSpacing(2).lineLimit(3)
+      Text(recap(book)).font(.system(size: 14)).foregroundStyle(Palette.body).lineSpacing(2).lineLimit(3)
       Spacer(minLength: 0)
       ProgressFooter(value: book.progress)
     }
-    .padding(.top, 24).padding(.bottom, 22).padding(.leading, 62).padding(.trailing, 20)
+    .padding(.top, 18).padding(.bottom, 16).padding(.leading, 30).padding(.trailing, 32)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(TopViewBackground())
   }
 }
 
 // 大：開いた本。左ページに題名・作者とあらすじの前半、右ページにあらすじの続きと進み具合
+// （大きさを測る部品を使わず、左右のページを同じ幅で並べるだけの単純な作りにする）
 struct LargeView: View {
   let book: WidgetBook
   var body: some View {
     let parts = splitRecap(recap(book))
-    GeometryReader { geo in
-      let half = (geo.size.width - 32) / 2
-      HStack(alignment: .top, spacing: 0) {
-        VStack(alignment: .leading, spacing: 5) {
-          Eyebrow(text: "しおり")
-          Text(book.title).font(.system(size: 18, weight: .semibold, design: .serif)).foregroundStyle(Palette.ink).lineLimit(2)
-          Text(book.author).font(.system(size: 11)).foregroundStyle(Palette.muted)
-          Text(book.summary.isEmpty ? "しおりの位置" : "前回までのあらすじ")
-            .font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label).padding(.top, 8)
-          Text(parts.0).font(.system(size: 12.5, design: .serif)).foregroundStyle(Palette.body).lineSpacing(4)
-          Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14)
-        .frame(width: half, alignment: .topLeading)
-        VStack(alignment: .leading, spacing: 5) {
-          Text(parts.1).font(.system(size: 12.5, design: .serif)).foregroundStyle(Palette.body).lineSpacing(4)
-          Spacer(minLength: 0)
-          ProgressBar(value: book.progress)
-          HStack(spacing: 8) {
-            Spacer()
-            Text("\(Int(book.progress))%").font(.system(size: 12)).foregroundStyle(Palette.ink)
-            Text("つづきを読む ›").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label)
-          }
-        }
-        .padding(.leading, 16).padding(.trailing, 14)
-        .frame(width: half, alignment: .topLeading)
+    HStack(alignment: .top, spacing: 0) {
+      VStack(alignment: .leading, spacing: 5) {
+        Eyebrow(text: "しおり")
+        Text(book.title).font(.system(size: 18, weight: .semibold)).foregroundStyle(Palette.ink).lineLimit(2)
+        Text(book.author).font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
+        Text(book.summary.isEmpty ? "しおりの位置" : "前回までのあらすじ")
+          .font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label).padding(.top, 8)
+        Text(parts.0).font(.system(size: 14.5)).foregroundStyle(Palette.body).lineSpacing(5)
+        Spacer(minLength: 0)
       }
-      .padding(.leading, 16)
-      .padding(.vertical, 24)
+      .padding(.leading, 14).padding(.trailing, 12)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      VStack(alignment: .leading, spacing: 5) {
+        Text(parts.1).font(.system(size: 14.5)).foregroundStyle(Palette.body).lineSpacing(5)
+        Spacer(minLength: 0)
+        ProgressBar(value: book.progress)
+        HStack(spacing: 8) {
+          Spacer(minLength: 0)
+          Text("\(Int(book.progress))%").font(.system(size: 12)).foregroundStyle(Palette.ink)
+          Text("つづきを読む ›").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label)
+        }
+      }
+      .padding(.leading, 14).padding(.trailing, 14)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+    .padding(.horizontal, 16).padding(.top, 20).padding(.bottom, 24)
     .background(OpenBookBackground())
   }
 }
@@ -325,7 +348,7 @@ struct NoBookView: View {
     VStack(alignment: .leading, spacing: 6) {
       Eyebrow(text: "今日の書き出し")
       Text(pick.text)
-        .font(.system(size: small ? 13 : 16, weight: .medium, design: .serif))
+        .font(.system(size: small ? 13 : 16, weight: .medium))
         .foregroundStyle(Palette.ink).lineSpacing(3).lineLimit(small ? 4 : 3)
       Text("— \(pick.author)『\(pick.title)』").font(.system(size: 10)).foregroundStyle(Palette.muted).lineLimit(1)
       Spacer(minLength: 0)
@@ -335,7 +358,7 @@ struct NoBookView: View {
       Text("本棚をひらく ›").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label)
     }
     .padding(.top, small ? 14 : 24).padding(.bottom, small ? 14 : 22)
-    .padding(.leading, small ? 14 : family == .systemMedium ? 62 : 30).padding(.trailing, small ? 14 : 20)
+    .padding(.leading, small ? 14 : family == .systemMedium ? 30 : 30).padding(.trailing, small ? 14 : 20)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(
       Group {
