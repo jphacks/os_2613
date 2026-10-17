@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, Stack } from 'expo-router';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import type { SavedBook } from '@/features/library/types';
 import { colors } from '@/shared/theme';
 import { createReadingStore, emptyReading, placeMark, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
@@ -10,6 +11,8 @@ import VerticalPage from '@/features/reader/VerticalPage';
 import { MusicPanel } from '@/features/music/MusicPanel';
 import { DisplaySettings, paperColors } from '@/features/reader/DisplaySettings';
 import { PageBar } from '@/features/reader/PageBar';
+import { IntroComic } from '@/features/comic/IntroComic';
+import { Characters } from '@/features/characters/Characters';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { forgetWidgetBook, rememberWidgetBook } from '@/features/widget/bookmarks';
 import { recordFinished, recordReading } from '@/features/stats/stats';
@@ -24,8 +27,7 @@ function Action({ children, onPress, disabled = false, filled = false }: { child
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, filled && styles.filled, disabled && styles.disabled]}><Text style={[styles.buttonText, filled && styles.light]}>{children}</Text></Pressable>;
 }
 
-// startAt：開いたときに表示する位置（ウィジェットから、しおりの位置を指定して開くとき）
-export function BookReading({ book, startAt }: { book: SavedBook; startAt?: number }) {
+export function BookReading({ book, initialOffset }: { book: SavedBook; initialOffset?: number }) {
   const store = useMemo(() => createReadingStore(AsyncStorage, `dopabooks:reading:v1:${book.id}`, book.text), [book.id, book.text]);
   const [reading, setReading] = useState<Reading>(() => emptyReading(book.text));
   const [ready, setReady] = useState(false);
@@ -47,6 +49,7 @@ export function BookReading({ book, startAt }: { book: SavedBook; startAt?: numb
   const [display, setDisplay] = useState<DisplayPreferences>({ ...defaultPreferences });
   const [displayReady, setDisplayReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [feature, setFeature] = useState<'comic' | 'characters' | null>(null);
   const [menu, setMenu] = useState(false);
   const [focus, setFocus] = useState<{ offset: number; token: number } | null>(null);
   const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,10 +102,10 @@ export function BookReading({ book, startAt }: { book: SavedBook; startAt?: numb
   }, []);
   useEffect(() => {
     alive.current = true;
-    void store.load().then(value => { if (alive.current) { setReading(value); setFocus({ offset: startAt !== undefined ? Math.max(0, startAt - 1) : value.cursor, token: Date.now() }); setReady(true); } })
+    void store.load().then(value => { if (alive.current) { setReading(value); setFocus({ offset: initialOffset ?? value.cursor, token: Date.now() }); setReady(true); } })
       .catch(() => { if (alive.current) setError('読書記録を読み込めません。端末の保存設定や本文の変更を確認し、本を開き直してください。記録は上書きしていません。'); });
     return () => { alive.current = false; if (viewTimer.current) clearTimeout(viewTimer.current); };
-  }, [store]);
+  }, [store, initialOffset]);
 
   async function save(change: (state: Reading) => Reading) {
     if (!ready || busy) return false;
@@ -187,7 +190,7 @@ export function BookReading({ book, startAt }: { book: SavedBook; startAt?: numb
       // iPhone ではヘッダーのボタンに標準の枠が付くので、こちらでは枠を付けない（枠が二重になるため）
       headerRight: () => <Pressable accessibilityRole="button" disabled={!ready || !!moving} onPress={() => { setRunning(false); setMenu(true); }} style={[styles.headButton, (!ready || !!moving) && styles.disabled]}><Text style={styles.buttonText}>☰ メニュー</Text></Pressable>,
     }} />
-    <MusicPanel book={book} position={readPosition} guideActive={guide && running && !moving && !menu && !panel && !settingsOpen} />
+    <MusicPanel book={book} position={readPosition} guideActive={guide && running && !moving && !menu && !panel && !settingsOpen && !feature} />
     {/* 読みガイドがONのときだけ、開始・一時停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
     {guide && <View style={styles.toolbar}>
       <Action filled disabled={!ready || !!moving} onPress={() => setRunning(value => !value)}>{running ? '一時停止' : '▶ ガイドを開始'}</Action>
@@ -200,6 +203,9 @@ export function BookReading({ book, startAt }: { book: SavedBook; startAt?: numb
           <Text style={styles.menuHead}>しおり</Text>
           <Action disabled={busy} onPress={() => { setMenu(false); begin(); }}>しおりを挟む</Action>
           <Action onPress={() => { setMenu(false); setSelected(null); setPanel(true); }}>しおり一覧・ふりかえり</Action>
+          <Text style={styles.menuHead}>物語</Text>
+          <Action onPress={() => { setMenu(false); setRunning(false); setFeature('comic'); }}>紹介4コマ</Action>
+          <Action onPress={() => { setMenu(false); setRunning(false); setFeature('characters'); }}>人物相関図</Action>
           <Text style={styles.menuHead}>表示</Text>
           <Action disabled={!displayReady} onPress={() => { setMenu(false); setSettingsOpen(true); }}>Aa 表示設定</Action>
           <Action onPress={() => { setMenu(false); router.push('/focus'); }}>読書集中モード（通知を止める）</Action>
@@ -226,7 +232,7 @@ export function BookReading({ book, startAt }: { book: SavedBook; startAt?: numb
         speed={speed}
         display={display}
         paint={paint}
-        disabled={!ready || !displayReady || busy || panel || settingsOpen}
+        disabled={!ready || !displayReady || busy || menu || panel || settingsOpen || !!feature}
         focus={focus}
         onPick={offset => setDraft(offset)}
         onMarkPress={openMark}
@@ -271,6 +277,12 @@ export function BookReading({ book, startAt }: { book: SavedBook; startAt?: numb
       </View></View>
     </Modal>
     {settingsOpen && <DisplaySettings value={display} close={() => setSettingsOpen(false)} apply={applyDisplay} />}
+    <Modal visible={feature !== null} animationType="slide" onRequestClose={() => setFeature(null)}>
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}><View style={styles.toolbar}><Text style={styles.heading}>{feature === 'comic' ? '紹介4コマ' : '人物相関図'}</Text><Action onPress={() => setFeature(null)}>閉じる</Action></View>
+        {feature === 'comic' && <IntroComic book={book} read={() => { setFocus({ offset: 0, token: Date.now() }); setFeature(null); }} />}
+        {feature === 'characters' && <Characters text={book.text} marks={reading.marks} jump={offset => { setFocus({ offset, token: Date.now() }); setFeature(null); }} />}
+      </SafeAreaView>
+    </Modal>
   </View>;
 }
 const styles = StyleSheet.create({

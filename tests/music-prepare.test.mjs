@@ -3,6 +3,21 @@ import assert from 'node:assert/strict';
 import { prepareMusic } from '../src/features/music/prepare.mjs';
 const book = { title: '作品', text: '本文' };
 const scene = { mood: 'calm', kind: 'ambience', query: 'forest birds ambience', candidates: [], selectedId: null };
+
+test('背景と効果音を自動で保存し、同じ扉の音を複数の箇所で再利用する', async () => {
+  const searches = [];
+  const cue = { kind: 'effect', query: 'wood door opening', candidates: [], selectedId: null, start: 1 };
+  const result = await prepareMusic(book, { fetcher: async (url, options) => {
+    if (url.startsWith('/api/music?')) {
+      const kind = new URL(url, 'http://app').searchParams.get('kind'); searches.push(kind);
+      return Response.json({ tracks: [{ id: kind === 'effect' ? 99 : 42, kind }] });
+    }
+    const data = JSON.parse(options.body);
+    return Response.json({ plan: data.action === 'save' ? data.plan : { scenes: [{ ...scene, start: 0, end: 20 }], cues: [{ ...cue, id: 'a' }, { ...cue, id: 'b', start: 10 }] } });
+  } });
+  assert.deepEqual(searches, ['ambience', 'effect']);
+  assert.deepEqual(result.plan.cues.map(cue => cue.selectedId), [99, 99]);
+});
 test('ボタン1回で環境音取得・自動選択・順次保存を行い、同じ検索語を再利用する', async () => {
   let searches = 0, saves = 0;
   const updates = [];

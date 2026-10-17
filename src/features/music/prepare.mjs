@@ -14,21 +14,28 @@ export async function prepareMusic(book, { fetcher = fetch, signal, onPlan = () 
   let plan = result.plan;
   onPlan(plan);
   const reused = new Map();
-  for (const scene of plan.scenes) if (scene.candidates.length) reused.set(`${scene.kind ?? 'music'}:${scene.mood}:${scene.query}`, scene.candidates);
-  for (let index = 0; index < plan.scenes.length; index++) {
-    const scene = plan.scenes[index];
+  const tasks = [...plan.scenes.map((scene, index) => ({ group: 'scenes', index })), ...(plan.cues ?? []).map((cue, index) => ({ group: 'cues', index }))];
+  const keyFor = item => `${item.kind ?? 'music'}:${item.mood ?? ''}:${item.query}`;
+  for (const item of [...plan.scenes, ...(plan.cues ?? [])]) if (item.candidates.length) reused.set(keyFor(item), item.candidates);
+  const queried = new Set(reused.keys());
+  for (const { group, index } of tasks) {
+    const scene = plan[group][index];
     if (scene.candidates.some(track => track.id === scene.selectedId)) continue;
-    onProgress(`場面 ${index + 1}/${plan.scenes.length} のBGMを準備しています…`);
-    const key = `${scene.kind ?? 'music'}:${scene.mood}:${scene.query}`;
+    onProgress(`${group === 'cues' ? '重ねる音' : '背景音'} ${index + 1}/${plan[group].length} を準備しています…`);
+    const mood = scene.mood ?? plan.scenes.find(item => scene.start >= item.start && scene.start < item.end)?.mood ?? 'calm';
+    const key = keyFor(scene);
     let tracks = scene.candidates.length ? scene.candidates : reused.get(key);
     if (!tracks) {
-      const params = new URLSearchParams({ mood: scene.mood, q: scene.query, kind: scene.kind ?? 'music' });
+      if (queried.size >= 40) continue;
+      queried.add(key);
+      const params = new URLSearchParams({ mood, q: scene.query, kind: scene.kind ?? 'music' });
       const response = await fetcher(`/api/music?${params}`, { signal });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? '曲を取得できません。分析は保存済みなので、BGM取得で再開できます。');
       tracks = data.tracks; reused.set(key, tracks);
     }
-    plan = { ...plan, scenes: plan.scenes.map((item, i) => i === index ? { ...item, candidates: tracks, selectedId: tracks[0]?.id ?? null } : item) };
+    if (group === 'cues') tracks = tracks.filter(track => track.kind === scene.kind);
+    plan = { ...plan, [group]: plan[group].map((item, i) => i === index ? { ...item, candidates: tracks, selectedId: tracks[0]?.id ?? null } : item) };
     plan = (await request('save', plan)).plan;
     onPlan(plan);
   }
