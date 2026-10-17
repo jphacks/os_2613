@@ -20,6 +20,102 @@ const value = { format: 'manga-v2', cast: '太郎は短髪、花子は帽子を�
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5XkAAAAASUVORK5CYII=';
 const post = body => new Request('http://localhost/api/comic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
+test('句点のない発言全体と引用符付きの脚本を原文へ照合し、切れた文は除く', () => {
+  const text = '私は「愉快ですね」と言った。先生は「もう帰りませんか」と答えた。';
+  assert.equal(dialogueEvidence(text, '「愉快ですね」').quote, '愉快ですね');
+  assert.equal(dialogueEvidence(text, 'もう帰りませんか').quote, 'もう帰りませんか');
+  assert.equal(dialogueEvidence(text, '愉快です'), null);
+  assert.equal(dialogueEvidence('「ただ、私に情をかけたいつもりなら、」', 'ただ、私に情をかけたいつもりなら、'), null);
+});
+
+test('画像通信・応答エラーを区別し、保存済み案の会話を課金なしで戻して試行上限を守る', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'dopabooks-page-error-test-'));
+  t.after(async () => { if (!resolve(root).startsWith(resolve(tmpdir()) + sep)) throw Error('Invalid temporary root'); await rm(root, { recursive: true, force: true }); });
+  let scripts = 0, images = 0;
+  const text = opening + '私は「愉快ですね」と言った。';
+  const candidate = structuredClone(value);
+  for (const panel of candidate.panels) {
+    const narration = panel.balloons.pop(); panel.narration = { text: narration.text, sourceId: narration.sourceId };
+    panel.balloons = [{ kind: 'speech', slot: 'right', speaker: '私', text: '「愉快ですね」', sourceId: 's1' }];
+  }
+  const provider = createBookArtifactProvider({ apiKey: 'fake-only', fetcher: async (url, init) => {
+    if (url.endsWith('/responses')) {
+      scripts++; const schema = JSON.parse(init.body).text.format.schema;
+      assert.equal(schema.properties.cast.maxLength, 600);
+      assert.equal(schema.properties.panels.items.properties.scene.maxLength, 240);
+      return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(candidate) }] }] });
+    }
+    images++;
+    if (images === 1) throw new TypeError('private-error-message', { cause: { code: 'UND_ERR_HEADERS_TIMEOUT' } });
+    if (images === 2) return new Response('not-json', { headers: { 'Content-Type': 'application/json' } });
+    return Response.json({ data: [{ b64_json: png }] });
+  } });
+  const endpoint = createComicEndpoint({ root, provider });
+  const registered = await (await endpoint(post({ action: 'register', bookId: 'errors', title: '物語', opening: text, context: text, edition: 'manga', revision: 5 }))).json();
+  async function run(extra = {}) {
+    await endpoint(post({ action: 'start', key: registered.key, ...extra }));
+    for (let i = 0; i < 100; i++) {
+      const state = await (await endpoint(new Request(`http://localhost/api/comic?key=${registered.key}`))).json();
+      if (state.status !== 'running') return state;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    throw Error('Not finished');
+  }
+  const failed = await run();
+  assert.equal(failed.failure.code, 'TIMEOUT'); assert.equal(failed.failureStage, 'image');
+  const storage = artifactStorage(root);
+  let record = await storage.read(registered.key);
+  assert.equal(record.providerDiagnostic.code, 'UND_ERR_HEADERS_TIMEOUT');
+  assert.ok(!JSON.stringify(record).includes('private-error-message'));
+  // 以前の検査で会話が落ちた保存脚本を再現する。
+  await storage.update(registered.key, r => ({ ...r, script: { ...r.script, panels: r.script.panels.map(p => ({ ...p, balloons: p.balloons.filter(b => b.kind === 'narration') })) } }));
+  const second = await run(); assert.equal(second.failure.code, 'RESPONSE_INVALID');
+  assert.ok(second.script.panels[0].balloons.some(b => b.text === '愉快ですね'));
+  assert.equal(scripts, 1); assert.equal(images, 2); assert.equal(second.canResumeRemaining, true);
+  const limited = await run(); assert.equal(limited.failure.code, 'LIMIT'); assert.equal(images, 2);
+  const ready = await run({ resumeRemaining: true });
+  assert.equal(ready.status, 'ready'); assert.equal(ready.completed, 1);
+  assert.equal(scripts, 1); assert.equal(images, 3);
+});
+
+test('1ページ版は脚本と文字をまとめてhigh品質1枚にし、保存後は再生成しない', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'dopabooks-page-test-'));
+  t.after(async () => { if (!resolve(root).startsWith(resolve(tmpdir()) + sep)) throw Error('Invalid temporary root'); await rm(root, { recursive: true, force: true }); });
+  const requests = [];
+  const provider = createBookArtifactProvider({ apiKey: 'fake-only', fetcher: async (url, init) => {
+    requests.push({ url, init });
+    return Response.json(url.endsWith('/responses') ? { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(value) }] }] } : { data: [{ b64_json: png }] });
+  } });
+  const endpoint = createComicEndpoint({ root, provider });
+  const register = async revision => (await endpoint(post({ action: 'register', bookId: 'page', title: '物語', opening, context: opening, edition: 'manga', revision }))).json();
+  const old = await register(4), page = await register(5);
+  assert.notEqual(old.key, page.key); assert.equal(page.totalImages, 1);
+  await endpoint(post({ action: 'start', key: page.key }));
+  let ready;
+  for (let i = 0; i < 100; i++) {
+    ready = await (await endpoint(new Request(`http://localhost/api/comic?key=${page.key}`))).json();
+    if (ready.status !== 'running') break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal(ready.status, 'ready'); assert.equal(ready.completed, 1);
+  assert.equal(ready.script.generation.revision, 5); assert.equal(ready.script.generation.imageModel, 'gpt-image-1.5');
+  assert.equal(requests.length, 2);
+  const form = requests[1].init.body;
+  assert.equal(form.get('model'), 'gpt-image-1.5'); assert.equal(form.get('quality'), 'high');
+  assert.equal(form.get('n'), '1'); assert.equal(form.get('size'), '1024x1536');
+  assert.equal(form.getAll('image[]').length, 1);
+  assert.match(form.get('prompt'), /ONE COMPLETE/); assert.match(form.get('prompt'), /明日、橋で会おう。/);
+  assert.match(form.get('prompt'), /EXACTLY/); assert.ok(!form.get('prompt').includes('NO text'));
+  assert.ok(!JSON.parse(requests[0].init.body).instructions.includes('別工程で組版'));
+  const image = await endpoint(new Request(`http://localhost/api/comic?key=${page.key}&image=1`));
+  assert.equal(image.headers.get('Content-Type'), 'image/png');
+  assert.equal((await endpoint(new Request(`http://localhost/api/comic?key=${page.key}&image=2`))).status, 503);
+  await register(5); await endpoint(post({ action: 'start', key: page.key }));
+  assert.equal(requests.length, 2);
+  assert.equal((await register(4)).completed, 0);
+  await assert.rejects(provider.image(ready.script, 1, null), /INVALID_INPUT/);
+});
+
 test('新しい1.5版はMini版と保存先を分け、話者配置を画像へ伝える', async t => {
   const root = await mkdtemp(join(tmpdir(), 'dopabooks-edition-test-'));
   t.after(async () => { if (!resolve(root).startsWith(resolve(tmpdir()) + sep)) throw Error('Invalid temporary root'); await rm(root, { recursive: true, force: true }); });

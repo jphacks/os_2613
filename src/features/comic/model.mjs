@@ -4,10 +4,14 @@ export function isCompleteComicText(text) {
   return typeof text === 'string' && /[。！？!?]$/.test(text.trim()) && !/[、,：:…]$/.test(text.trim());
 }
 export function dialogueEvidence(opening, text) {
-  if (!isCompleteComicText(text)) return null;
+  if (typeof text !== 'string') return null;
+  text = text.replace(/^「([^「」]*)」$/, '$1');
+  if (!text || /[、,：:]$/.test(text)) return null;
   for (const match of opening.matchAll(/「([^「」]*)」/g)) {
     const offset = match[1].indexOf(text);
     if (offset < 0) continue;
+    // 引用符内の発言全体なら、原文にない句点を追加せずそのまま使える。
+    if (match[1] !== text && !isCompleteComicText(text)) continue;
     // 文中の従属節だけを切り出さず、発言または文の先頭から使う。
     if (offset && !/[。！？!?]/.test(match[1][offset - 1])) continue;
     const start = match.index + 1 + offset;
@@ -47,7 +51,7 @@ export function scriptFromPassages(value, opening, { recoverBalloons = false, ed
         if (balloon.kind === 'narration' || typeof balloon.text !== 'string') return editorial && !isCompleteComicText(balloon.text) ? [] : [balloon];
         if (editorial) {
           const evidence = dialogueEvidence(opening, balloon.text);
-          return evidence ? [{ ...balloon, ...evidence }] : [];
+          return evidence ? [{ ...balloon, ...evidence, text: evidence.quote }] : [];
         }
         const start = opening.indexOf(balloon.text);
         if (start < 0) return [];
@@ -80,6 +84,9 @@ export function comicFailureMessage(code, hasScript, completed = 0) {
     INVALID_RESULT: '脚本の形式や文字数を確認できず止まりました。保存済みの脚本案から修正できます。',
     PROVIDER_INPUT: '生成サービスが要求の形式を受け付けませんでした。サーバーの更新が必要です。',
     PROVIDER_FAILED: '生成サービスがエラーを返しました。時間をおいて状態を確認してください。',
+    NETWORK: '生成サービスとの通信を完了できませんでした。再試行を繰り返さず、接続状況を確認してください。',
+    RESPONSE_INVALID: '生成サービスの応答を読み取れませんでした。保存済みの脚本は残っています。',
+    INVALID_IMAGE: '生成結果に有効なPNG画像を確認できませんでした。脚本は保存されています。',
     SCRIPT_INCOMPLETE: '説明枠の内容を確認できず、画像生成前に止めました。もう一度お試しください。',
     STORY_INCOMPLETE: '物語の約束や期限を説明しきれず、画像生成前に止めました。もう一度お試しください。',
     INCOMPLETE: '紹介内容を最後まで作れませんでした。もう一度お試しください。',
@@ -117,7 +124,7 @@ export function validateScript(value, opening) {
     return { title: panel.title, caption: panel.caption, scene: panel.scene, quote: panel.quote, start, end: start + panel.quote.length, ...(balloons ? { balloons } : {}) };
   });
   const generation = value.generation;
-  if (generation !== undefined && (![3, 4].includes(generation.revision) || !['gpt-5.4-mini', 'gpt-5.4'].includes(generation.textModel) || generation.imageModel !== (generation.revision === 4 ? 'gpt-image-1.5' : 'gpt-image-1-mini'))) throw new Error('INVALID_RESULT');
+  if (generation !== undefined && (![3, 4, 5].includes(generation.revision) || !['gpt-5.4-mini', 'gpt-5.4'].includes(generation.textModel) || generation.imageModel !== (generation.revision >= 4 ? 'gpt-image-1.5' : 'gpt-image-1-mini'))) throw new Error('INVALID_RESULT');
   return { cast: value.cast, panels, ...(value.format ? { format: value.format } : {}), ...(generation ? { generation } : {}) };
 }
 function validateBalloons(value, opening) {
@@ -137,3 +144,5 @@ function validateBalloons(value, opening) {
     return { kind: item.kind, slot: item.slot, speaker: narration ? '' : item.speaker, text: item.text, quote: item.quote, start: item.start ?? start, end: item.end ?? start + item.quote.length };
   });
 }
+
+export function comicImageCount(revision) { return revision === 5 ? 1 : 4; }
