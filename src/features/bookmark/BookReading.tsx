@@ -24,7 +24,8 @@ function Action({ children, onPress, disabled = false, filled = false }: { child
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, filled && styles.filled, disabled && styles.disabled]}><Text style={[styles.buttonText, filled && styles.light]}>{children}</Text></Pressable>;
 }
 
-export function BookReading({ book }: { book: SavedBook }) {
+// startAt：開いたときに表示する位置（ウィジェットから、しおりの位置を指定して開くとき）
+export function BookReading({ book, startAt }: { book: SavedBook; startAt?: number }) {
   const store = useMemo(() => createReadingStore(AsyncStorage, `dopabooks:reading:v1:${book.id}`, book.text), [book.id, book.text]);
   const [reading, setReading] = useState<Reading>(() => emptyReading(book.text));
   const [ready, setReady] = useState(false);
@@ -83,7 +84,7 @@ export function BookReading({ book }: { book: SavedBook }) {
     const latestMark = [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt)[0];
     if (!latestMark) { void forgetWidgetBook(book.id); return; }
     void rememberWidgetBook({
-      bookId: book.id, title: book.title, author: book.author,
+      bookId: book.id, title: book.title, author: book.author, offset: latestMark.offset,
       excerpt: book.text.slice(Math.max(0, latestMark.offset - 60), latestMark.offset).replace(/\s+/g, ' ').trim(),
       progress: Math.round((latestMark.offset / Math.max(1, book.text.length)) * 100),
       updatedAt: latestMark.updatedAt,
@@ -98,7 +99,7 @@ export function BookReading({ book }: { book: SavedBook }) {
   }, []);
   useEffect(() => {
     alive.current = true;
-    void store.load().then(value => { if (alive.current) { setReading(value); setFocus({ offset: value.cursor, token: Date.now() }); setReady(true); } })
+    void store.load().then(value => { if (alive.current) { setReading(value); setFocus({ offset: startAt !== undefined ? Math.max(0, startAt - 1) : value.cursor, token: Date.now() }); setReady(true); } })
       .catch(() => { if (alive.current) setError('読書記録を読み込めません。端末の保存設定や本文の変更を確認し、本を開き直してください。記録は上書きしていません。'); });
     return () => { alive.current = false; if (viewTimer.current) clearTimeout(viewTimer.current); };
   }, [store]);

@@ -2,31 +2,31 @@ import SwiftUI
 import WidgetKit
 
 // ホーム画面のウィジェット「しおり」。
-// アプリが App Group に保存した「しおりを挟んだ本」の一覧を読み、
-// 前回までのまとめ（まだ無ければしおりの直前の文）を、本としおりをイメージした見た目で表示する。
+// アプリが App Group に保存した「しおりを挟んだ本」の一覧を読み、前回までのあらすじと進み具合を表示する。
+//   小：しおりの印と、円で表した進み具合
+//   中：ウィジェットいっぱいの「上から見た本」（左が表紙の背、残りがページ）
+//   大：ウィジェットいっぱいの「開いた本」（左右に紙の重なり、あらすじは左ページから右ページへ続く）
 // しおりを挟んだ本が何冊もあるときは、15分ごとに順番に切り替える。
-// タップすると、その本の読書画面（dopabooks://book/本のID）を開く。
+// タップすると、その本のしおりの位置（dopabooks://book/本のID?mark=位置）を開く。
 
 private let groupId = "group.jp.dopabooks.app"
 private let rotateMinutes = 15
 
-// MARK: - 色（アプリの配色と合わせる）
+// MARK: - 色（アプリの配色を薄めにしたもの）
 
 private enum Palette {
-  static let paper = Color(red: 0.965, green: 0.949, blue: 0.914)    // #F6F2E9
-  static let surface = Color(red: 1.0, green: 0.992, blue: 0.973)    // #FFFDF8
-  static let ink = Color(red: 0.161, green: 0.180, blue: 0.161)      // #292E29
-  static let muted = Color(red: 0.451, green: 0.467, blue: 0.431)    // #73776E
-  static let accent = Color(red: 0.220, green: 0.380, blue: 0.286)   // #386149
-  static let line = Color(red: 0.871, green: 0.875, blue: 0.831)     // #DEDFD4
-  static let covers: [Color] = [
-    Color(red: 0.239, green: 0.353, blue: 0.275),  // #3D5A46
-    Color(red: 0.478, green: 0.231, blue: 0.204),  // #7A3B34
-    Color(red: 0.184, green: 0.290, blue: 0.388),  // #2F4A63
-    Color(red: 0.420, green: 0.322, blue: 0.188),  // #6B5230
-    Color(red: 0.290, green: 0.227, blue: 0.361),  // #4A3A5C
-    Color(red: 0.184, green: 0.357, blue: 0.357),  // #2F5B5B
-  ]
+  static let paper = Color(red: 0.980, green: 0.973, blue: 0.953)    // #FAF8F3 背景
+  static let page = Color(red: 1.0, green: 0.992, blue: 0.973)       // #FFFDF8 紙
+  static let ink = Color(red: 0.161, green: 0.180, blue: 0.161)      // #292E29 文字
+  static let body = Color(red: 0.239, green: 0.259, blue: 0.239)     // #3D423D 本文
+  static let muted = Color(red: 0.549, green: 0.565, blue: 0.529)    // #8C9087 補足
+  static let green = Color(red: 0.498, green: 0.647, blue: 0.549)    // #7FA58C 表紙・進み具合
+  static let label = Color(red: 0.369, green: 0.541, blue: 0.439)    // #5E8A70 見出し
+  static let track = Color(red: 0.902, green: 0.886, blue: 0.847)    // #E6E2D8 進み具合の地
+  static let edge = Color(red: 0.886, green: 0.863, blue: 0.804)     // #E2DCCD 紙の縁
+  static let sheet1 = Color(red: 0.953, green: 0.937, blue: 0.902)   // #F3EFE6 重なった紙（奥）
+  static let sheet2 = Color(red: 0.969, green: 0.957, blue: 0.925)   // #F7F4EC 重なった紙（中）
+  static let pageLine = Color(red: 0.910, green: 0.890, blue: 0.843) // #E8E3D7 ページの線
 }
 
 // MARK: - データ
@@ -36,6 +36,7 @@ struct WidgetBook: Codable {
   let title: String
   let author: String
   let excerpt: String
+  let offset: Double?
   let summary: String
   let progress: Double
   let updatedAt: Double
@@ -55,9 +56,27 @@ private func loadBooks() -> [WidgetBook] {
 
 private let sample = WidgetBook(
   bookId: "", title: "走れメロス", author: "太宰 治",
-  excerpt: "メロスは激怒した。必ず、かの邪智暴虐の王を除かなければならぬと決意した。",
-  summary: "村の牧人メロスは、人を信じられない王に怒り、城へ乗り込む。妹の結婚式のため、友セリヌンティウスを人質にして三日の猶予をもらった。",
+  excerpt: "メロスは激怒した。必ず、かの邪智暴虐の王を除かなければならぬと決意した。", offset: nil,
+  summary: "村の牧人メロスは、人を信じられない暴君ディオニスに激怒し、王を除こうと城へ乗り込んで捕らえられる。妹の結婚式を挙げるため、竹馬の友セリヌンティウスを人質に差し出し、三日のうちに戻ると約束した。",
   progress: 32, updatedAt: 0)
+
+// あらすじ（まだ作っていなければ、しおりの直前の文）
+private func recap(_ book: WidgetBook) -> String {
+  book.summary.isEmpty ? "「\(book.excerpt)」" : book.summary
+}
+
+// 大の見開き用に、あらすじを真ん中あたりの「。」で左右のページに分ける
+private func splitRecap(_ text: String) -> (String, String) {
+  let chars = Array(text)
+  guard chars.count > 60 else { return (text, "") }
+  let middle = chars.count * 2 / 5
+  var cut = middle
+  for (i, c) in chars.enumerated() where c == "。" && i >= middle / 2 {
+    cut = i + 1
+    if i >= middle { break }
+  }
+  return (String(chars[..<cut]), String(chars[cut...]))
+}
 
 // MARK: - タイムライン（本を順番に切り替える）
 
@@ -75,14 +94,14 @@ struct Provider: TimelineProvider {
     let books = loadBooks()
     let now = Date()
     if books.isEmpty {
-      completion(Timeline(entries: [BookmarkEntry(date: now, book: nil, index: 0, total: 0)], policy: .never))
+      // 書き出しは日替わりなので、日付が変わったら作り直す
+      let tomorrow = Calendar.current.startOfDay(for: now.addingTimeInterval(86400))
+      completion(Timeline(entries: [BookmarkEntry(date: now, book: nil, index: 0, total: 0)], policy: .after(tomorrow)))
       return
     }
     // 1冊ずつ15分おきに表示し、一巡したら作り直す
     let entries = books.enumerated().map { offset, book in
-      BookmarkEntry(
-        date: now.addingTimeInterval(Double(offset * rotateMinutes * 60)),
-        book: book, index: offset, total: books.count)
+      BookmarkEntry(date: now.addingTimeInterval(Double(offset * rotateMinutes * 60)), book: book, index: offset, total: books.count)
     }
     completion(Timeline(entries: entries, policy: .atEnd))
   }
@@ -90,216 +109,241 @@ struct Provider: TimelineProvider {
 
 // MARK: - 部品
 
-// しおりのリボン（下が V 字に切れた帯）
+// しおりの形（下が V 字に切れた帯）
 struct Ribbon: Shape {
   func path(in rect: CGRect) -> Path {
     var path = Path()
     path.move(to: CGPoint(x: rect.minX, y: rect.minY))
     path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
     path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-    path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY - rect.width * 0.45))
+    path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY - rect.width * 0.5))
     path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
     path.closeSubpath()
     return path
   }
 }
 
-// 縦書きの文字（1文字ずつ縦に並べる）
-struct VerticalText: View {
-  let text: String
-  let size: CGFloat
-  let limit: Int
-  var body: some View {
-    let chars = Array(text.prefix(limit))
-    VStack(spacing: 0) {
-      ForEach(Array(chars.enumerated()), id: \.offset) { _, char in
-        Text(String(char)).font(.system(size: size, weight: .semibold, design: .serif))
-      }
-    }
-  }
-}
-
-// 本の表紙（背の影と縦書きの題名）
-struct Cover: View {
-  let book: WidgetBook
-  let width: CGFloat
-  let titleSize: CGFloat
-  var color: Color {
-    let sum = book.bookId.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-    return Palette.covers[sum % Palette.covers.count]
-  }
-  var body: some View {
-    ZStack(alignment: .topTrailing) {
-      RoundedRectangle(cornerRadius: 4).fill(color)
-      HStack(spacing: 0) {
-        Rectangle().fill(Color.black.opacity(0.22)).frame(width: width * 0.08)
-        Spacer(minLength: 0)
-      }
-      VerticalText(text: book.title, size: titleSize, limit: 7)
-        .foregroundStyle(Palette.surface)
-        .padding(.top, 8)
-        .padding(.trailing, width * 0.18)
-      // 表紙の上から垂れるしおり
-      Ribbon().fill(Palette.accent).frame(width: width * 0.16, height: width * 0.55)
-        .offset(x: -width * 0.02, y: -2)
-        .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
-    }
-    .frame(width: width, height: width * 1.45)
-    .shadow(color: .black.opacity(0.18), radius: 3, x: 1, y: 2)
-  }
-}
-
-// 見出し（しおりの印＋文字）
+// 見出し（小さなしおりの印＋文字）
 struct Eyebrow: View {
   let text: String
   var body: some View {
     HStack(spacing: 4) {
-      Ribbon().fill(Palette.accent).frame(width: 7, height: 11)
-      Text(text).font(.system(size: 10, weight: .bold)).foregroundStyle(Palette.accent).tracking(1)
+      Ribbon().fill(Palette.green).frame(width: 7, height: 11)
+      Text(text).font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label)
     }
   }
 }
 
-// 何冊目かを示す点
-struct Dots: View {
-  let index: Int
-  let total: Int
-  var body: some View {
-    HStack(spacing: 4) {
-      ForEach(0..<min(total, 8), id: \.self) { i in
-        Circle().fill(i == index ? Palette.accent : Palette.line).frame(width: 5, height: 5)
-      }
-    }
-  }
-}
-
-// 読み進めた割合（しおりの位置）
-struct ReadProgress: View {
+// 棒の進み具合
+struct ProgressBar: View {
   let value: Double
   var body: some View {
     GeometryReader { geo in
       ZStack(alignment: .leading) {
-        Capsule().fill(Palette.line)
-        Capsule().fill(Palette.accent).frame(width: geo.size.width * min(1, max(0, value / 100)))
+        Capsule().fill(Palette.track)
+        Capsule().fill(Palette.green).frame(width: max(5, geo.size.width * min(1, max(0, value / 100))))
       }
     }
-    .frame(height: 4)
+    .frame(height: 5)
   }
 }
 
-private func recap(_ book: WidgetBook) -> String {
-  book.summary.isEmpty ? "「\(book.excerpt)」" : book.summary
+// 進み具合の行：棒 → 右下に「32%」と「つづきを読む ›」
+struct ProgressFooter: View {
+  let value: Double
+  var body: some View {
+    HStack(spacing: 8) {
+      ProgressBar(value: value)
+      Text("\(Int(value))%").font(.system(size: 12)).foregroundStyle(Palette.ink).fixedSize()
+      Text("つづきを読む ›").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label).fixedSize()
+    }
+  }
 }
 
-private func recapLabel(_ book: WidgetBook) -> String {
-  book.summary.isEmpty ? "しおりの位置" : "前回までのあらすじ"
+// 中の背景：上から見た本（左は丸い表紙の背、右はページの束。ページの線は上下の縁だけ）
+struct TopViewBook: Shape {
+  func path(in rect: CGRect) -> Path {
+    let inset: CGFloat = 8
+    let r = rect.height / 2 - inset
+    let left: CGFloat = 58
+    var path = Path()
+    path.move(to: CGPoint(x: rect.maxX, y: rect.minY + inset))
+    path.addLine(to: CGPoint(x: left, y: rect.minY + inset))
+    path.addArc(center: CGPoint(x: left, y: rect.midY), radius: r, startAngle: .degrees(-90), endAngle: .degrees(90), clockwise: true)
+    path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - inset))
+    path.closeSubpath()
+    return path
+  }
+}
+
+struct TopViewBackground: View {
+  var body: some View {
+    GeometryReader { geo in
+      let w = geo.size.width, h = geo.size.height
+      ZStack(alignment: .topLeading) {
+        Palette.green
+        TopViewBook().fill(Palette.page)
+        // ページの束の線（上下の縁だけ。文字には重ねない）
+        ForEach([13.0, 17.0, h - 17, h - 13], id: \.self) { y in
+          Rectangle().fill(Palette.pageLine).frame(width: w - 62, height: 1).offset(x: 62, y: y)
+        }
+      }
+    }
+  }
+}
+
+// 大の背景：開いた本（左右のページの外側に紙を重ね、真ん中にのどの線）
+struct OpenBookBackground: View {
+  var body: some View {
+    GeometryReader { geo in
+      let w = geo.size.width, h = geo.size.height
+      let half = (w - 32) / 2
+      ZStack(alignment: .topLeading) {
+        Palette.green
+        // 奥の紙 → 手前の紙の順に、少しずつ外側へずらして重ねる
+        ForEach(0..<3, id: \.self) { layer in
+          let shift = CGFloat(2 - layer) * 4
+          let fill = layer == 0 ? Palette.sheet1 : layer == 1 ? Palette.sheet2 : Palette.page
+          RoundedRectangle(cornerRadius: 3).fill(fill)
+            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Palette.edge, lineWidth: 1))
+            .frame(width: half, height: h - 16)
+            .offset(x: 16 - shift, y: 8 + shift / 2)
+          RoundedRectangle(cornerRadius: 3).fill(fill)
+            .overlay(RoundedRectangle(cornerRadius: 3).stroke(Palette.edge, lineWidth: 1))
+            .frame(width: half, height: h - 16)
+            .offset(x: 16 + half + shift, y: 8 + shift / 2)
+        }
+        Rectangle().fill(Palette.edge).frame(width: 1.5, height: h - 16).offset(x: 16 + half - 0.75, y: 8)
+      }
+    }
+  }
 }
 
 // MARK: - 大きさごとの見た目
 
-// 小：表紙としおり、題名と読み進めた割合
+// 小：しおりの印と円の進み具合
 struct SmallView: View {
-  let entry: BookmarkEntry
   let book: WidgetBook
   var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack(alignment: .top, spacing: 8) {
-        Cover(book: book, width: 46, titleSize: 9)
-        VStack(alignment: .leading, spacing: 3) {
-          Eyebrow(text: "しおり")
-          Text(book.title).font(.system(size: 14, weight: .semibold, design: .serif)).foregroundStyle(Palette.ink).lineLimit(3)
-          Text(book.author).font(.system(size: 10)).foregroundStyle(Palette.muted).lineLimit(1)
-        }
+    VStack(spacing: 6) {
+      HStack { Eyebrow(text: "しおり"); Spacer() }
+      ZStack {
+        Circle().stroke(Palette.track, lineWidth: 7)
+        Circle().trim(from: 0, to: min(1, max(0.02, book.progress / 100)))
+          .stroke(Palette.green, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+          .rotationEffect(.degrees(-90))
+        Text("\(Int(book.progress))%").font(.system(size: 17, weight: .medium)).foregroundStyle(Palette.ink)
       }
-      Spacer(minLength: 0)
-      ReadProgress(value: book.progress)
-      HStack {
-        Text("\(Int(book.progress))%").font(.system(size: 10)).foregroundStyle(Palette.muted)
-        Spacer()
-        Text("つづき ›").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.accent)
+      .frame(width: 76, height: 76)
+      VStack(spacing: 1) {
+        Text(book.title).font(.system(size: 13, weight: .semibold, design: .serif)).foregroundStyle(Palette.ink).lineLimit(1)
+        Text(book.author).font(.system(size: 10)).foregroundStyle(Palette.muted).lineLimit(1)
       }
     }
+    .padding(14)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Palette.paper)
   }
 }
 
-// 中：表紙＋前回までのあらすじ
+// 中：上から見た本の上に、題名・あらすじ・進み具合
 struct MediumView: View {
-  let entry: BookmarkEntry
   let book: WidgetBook
   var body: some View {
-    HStack(alignment: .top, spacing: 14) {
-      Cover(book: book, width: 70, titleSize: 12)
-      VStack(alignment: .leading, spacing: 5) {
-        HStack {
-          Eyebrow(text: recapLabel(book))
-          Spacer()
-          if entry.total > 1 { Dots(index: entry.index, total: entry.total) }
-        }
+    VStack(alignment: .leading, spacing: 3) {
+      Eyebrow(text: "しおり")
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text(book.title).font(.system(size: 15, weight: .semibold, design: .serif)).foregroundStyle(Palette.ink).lineLimit(1)
-        Text(recap(book)).font(.system(size: 12)).foregroundStyle(Palette.ink.opacity(0.85)).lineLimit(3).lineSpacing(2)
-        Spacer(minLength: 0)
-        HStack(spacing: 8) {
-          ReadProgress(value: book.progress)
-          Text("つづきを読む ›").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.accent).fixedSize()
-        }
+        Text(book.author).font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
       }
+      Text(recap(book)).font(.system(size: 12)).foregroundStyle(Palette.body).lineSpacing(2).lineLimit(3)
+      Spacer(minLength: 0)
+      ProgressFooter(value: book.progress)
     }
+    .padding(.top, 24).padding(.bottom, 22).padding(.leading, 62).padding(.trailing, 20)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .background(TopViewBackground())
   }
 }
 
-// 大：本のページのような紙面に、あらすじとしおりの位置
+// 大：開いた本。左ページに題名・作者とあらすじの前半、右ページにあらすじの続きと進み具合
 struct LargeView: View {
-  let entry: BookmarkEntry
   let book: WidgetBook
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(alignment: .top, spacing: 14) {
-        Cover(book: book, width: 78, titleSize: 13)
-        VStack(alignment: .leading, spacing: 4) {
-          Eyebrow(text: "しおりを挟んだ本")
-          Text(book.title).font(.system(size: 19, weight: .semibold, design: .serif)).foregroundStyle(Palette.ink).lineLimit(2)
-          Text(book.author).font(.system(size: 12)).foregroundStyle(Palette.muted)
+    let parts = splitRecap(recap(book))
+    GeometryReader { geo in
+      let half = (geo.size.width - 32) / 2
+      HStack(alignment: .top, spacing: 0) {
+        VStack(alignment: .leading, spacing: 5) {
+          Eyebrow(text: "しおり")
+          Text(book.title).font(.system(size: 18, weight: .semibold, design: .serif)).foregroundStyle(Palette.ink).lineLimit(2)
+          Text(book.author).font(.system(size: 11)).foregroundStyle(Palette.muted)
+          Text(book.summary.isEmpty ? "しおりの位置" : "前回までのあらすじ")
+            .font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label).padding(.top, 8)
+          Text(parts.0).font(.system(size: 12.5, design: .serif)).foregroundStyle(Palette.body).lineSpacing(4)
           Spacer(minLength: 0)
-          HStack {
-            ReadProgress(value: book.progress)
-            Text("\(Int(book.progress))%").font(.system(size: 10)).foregroundStyle(Palette.muted)
+        }
+        .padding(.horizontal, 14)
+        .frame(width: half, alignment: .topLeading)
+        VStack(alignment: .leading, spacing: 5) {
+          Text(parts.1).font(.system(size: 12.5, design: .serif)).foregroundStyle(Palette.body).lineSpacing(4)
+          Spacer(minLength: 0)
+          ProgressBar(value: book.progress)
+          HStack(spacing: 8) {
+            Spacer()
+            Text("\(Int(book.progress))%").font(.system(size: 12)).foregroundStyle(Palette.ink)
+            Text("つづきを読む ›").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label)
           }
         }
+        .padding(.leading, 16).padding(.trailing, 14)
+        .frame(width: half, alignment: .topLeading)
       }
-      .frame(height: 113)
-      // 紙面
-      VStack(alignment: .leading, spacing: 8) {
-        Text("前回までのあらすじ").font(.system(size: 11, weight: .bold)).foregroundStyle(Palette.accent)
-        Text(book.summary.isEmpty ? "まだまとめていません。アプリでしおりを開き「ここまでを振り返る」を押すと、ここに出ます。" : book.summary)
-          .font(.system(size: 13, design: .serif)).foregroundStyle(Palette.ink).lineSpacing(3).lineLimit(6)
-        Divider().overlay(Palette.line)
-        Text("しおりの位置").font(.system(size: 11, weight: .bold)).foregroundStyle(Palette.accent)
-        Text("「\(book.excerpt)」").font(.system(size: 12, design: .serif)).foregroundStyle(Palette.muted).lineLimit(2)
-      }
-      .padding(12)
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      .background(RoundedRectangle(cornerRadius: 6).fill(Palette.surface))
-      .overlay(RoundedRectangle(cornerRadius: 6).stroke(Palette.line))
-      HStack {
-        if entry.total > 1 { Dots(index: entry.index, total: entry.total) }
-        Spacer()
-        Text("タップしてつづきを読む ›").font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.accent)
-      }
+      .padding(.leading, 16)
+      .padding(.vertical, 24)
     }
+    .background(OpenBookBackground())
   }
 }
 
-// しおりがまだ無いとき
+// しおりがまだ無いときに出す「名作の書き出し」（青空文庫で読める、著作権の切れた作品）。日替わりで1つ。
+private let openings: [(text: String, title: String, author: String)] = [
+  ("メロスは激怒した。", "走れメロス", "太宰 治"),
+  ("吾輩は猫である。名前はまだ無い。", "吾輩は猫である", "夏目 漱石"),
+  ("親譲りの無鉄砲で小供の時から損ばかりしている。", "坊っちゃん", "夏目 漱石"),
+  ("ある日の暮方の事である。一人の下人が、羅生門の下で雨やみを待っていた。", "羅生門", "芥川 龍之介"),
+  ("恥の多い生涯を送って来ました。", "人間失格", "太宰 治"),
+  ("山路を登りながら、こう考えた。", "草枕", "夏目 漱石"),
+]
+
+// しおりがまだ無いとき：名作の書き出しと、しおりの使い方の案内
 struct NoBookView: View {
+  let family: WidgetFamily
   var body: some View {
+    let day = Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
+    let pick = openings[day % openings.count]
+    let small = family == .systemSmall
     VStack(alignment: .leading, spacing: 6) {
-      Eyebrow(text: "しおり")
-      Text("本にしおりを挟むと、ここに前回までのあらすじが出ます")
-        .font(.system(size: 13, design: .serif)).foregroundStyle(Palette.ink)
+      Eyebrow(text: "今日の書き出し")
+      Text(pick.text)
+        .font(.system(size: small ? 13 : 16, weight: .medium, design: .serif))
+        .foregroundStyle(Palette.ink).lineSpacing(3).lineLimit(small ? 4 : 3)
+      Text("— \(pick.author)『\(pick.title)』").font(.system(size: 10)).foregroundStyle(Palette.muted).lineLimit(1)
       Spacer(minLength: 0)
-      Text("ドパBOOKs を開く ›").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.accent)
+      if !small {
+        Text("本にしおりを挟むと、ここに前回までのあらすじが出ます").font(.system(size: 11)).foregroundStyle(Palette.muted)
+      }
+      Text("本棚をひらく ›").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.label)
     }
+    .padding(.top, small ? 14 : 24).padding(.bottom, small ? 14 : 22)
+    .padding(.leading, small ? 14 : family == .systemMedium ? 62 : 30).padding(.trailing, small ? 14 : 20)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .background(
+      Group {
+        if family == .systemMedium { TopViewBackground() }
+        else if family == .systemLarge { OpenBookBackground() }
+        else { Palette.paper }
+      }
+    )
   }
 }
 
@@ -307,19 +351,26 @@ struct DopaBooksWidgetView: View {
   @Environment(\.widgetFamily) var family
   let entry: BookmarkEntry
 
+  // 押したときに開く場所：しおりがあればその本のしおりの位置、無ければ本棚
+  private var link: URL? {
+    guard let book = entry.book, !book.bookId.isEmpty else { return URL(string: "dopabooks://") }
+    let mark = book.offset.map { "?mark=\(Int($0))" } ?? ""
+    return URL(string: "dopabooks://book/\(book.bookId)\(mark)")
+  }
+
   var body: some View {
     Group {
       if let book = entry.book {
         switch family {
-        case .systemSmall: SmallView(entry: entry, book: book)
-        case .systemLarge: LargeView(entry: entry, book: book)
-        default: MediumView(entry: entry, book: book)
+        case .systemSmall: SmallView(book: book)
+        case .systemLarge: LargeView(book: book)
+        default: MediumView(book: book)
         }
       } else {
-        NoBookView()
+        NoBookView(family: family)
       }
     }
-    .widgetURL(URL(string: entry.book.map { "dopabooks://book/\($0.bookId)" } ?? "dopabooks://"))
+    .widgetURL(link)
     .containerBackground(Palette.paper, for: .widget)
   }
 }
@@ -330,8 +381,10 @@ struct DopaBooksWidget: Widget {
       DopaBooksWidgetView(entry: entry)
     }
     .configurationDisplayName("しおり")
-    .description("しおりを挟んだ本の、前回までのあらすじを表示します。")
+    .description("しおりを挟んだ本の、前回までのあらすじと進み具合を表示します。")
     .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+    // 本の絵をウィジェットの端まで描くため、標準の余白を外す（余白は各サイズの中で付ける）
+    .contentMarginsDisabled()
   }
 }
 

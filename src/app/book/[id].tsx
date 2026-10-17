@@ -42,8 +42,11 @@ export default function BookScreen() {
 function NovelBook({ id }: { id: string }) {
   const { books, ready } = useLibrary();
   const book = books.find(item => item.id === id);
+  // ウィジェットから開いたときは ?mark=しおりの位置 が付くので、その位置から表示する
+  const { mark } = useLocalSearchParams<{ mark?: string }>();
+  const startAt = mark !== undefined && Number.isFinite(Number(mark)) ? Number(mark) : undefined;
 
-  if (ready && book) return <BookReading key={`${book.id}:${book.importedAt}`} book={book} />;
+  if (ready && book) return <BookReading key={`${book.id}:${book.importedAt}:${mark ?? ''}`} book={book} startAt={startAt} />;
 
   return (
     <View style={styles.container}>
