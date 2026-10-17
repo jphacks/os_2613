@@ -8,6 +8,7 @@ import PdfBook from '@/features/pdf/PdfBook';
 import { colors } from '@/shared/theme';
 import { useLibrary } from '@/features/library/LibraryProvider';
 import { BookReading } from '@/features/bookmark/BookReading';
+import { MusicPanel } from '@/features/music/MusicPanel';
 
 // 同梱している教材のPDF。require は静的に書く必要があるので、ここで本のIDと結びつける。
 const pdfFiles: Record<string, number> = {
@@ -39,7 +40,7 @@ function NovelBook({ id }: { id: string }) {
   const { books, ready } = useLibrary();
   const book = books.find(item => item.id === id);
 
-  if (ready && book) return <BookReading key={`${book.id}:${book.importedAt}`} book={book} />;
+  if (ready && book) return <View key={`${book.id}:${book.importedAt}`} style={{ flex: 1 }}><MusicPanel /><BookReading book={book} /></View>;
 
   return (
     <View style={styles.container}>

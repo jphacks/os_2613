@@ -40,7 +40,15 @@
           "imageWidth": 76
         }
       ],
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

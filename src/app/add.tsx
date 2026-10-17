@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Chips } from '@/shared/Chips';
 import { colors } from '@/shared/theme';
@@ -77,19 +77,20 @@ export default function AddScreen() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       if (controller.signal.aborted) return;
-      await addBook(data as SavedBook); setMessage(`「${data.title}」を本棚に追加しました。`);
+      await addBook(data as SavedBook);
+      if (!controller.signal.aborted) setMessage(`「${data.title}」を本棚に追加しました。`);
     } catch (reason) {
       if (!controller.signal.aborted) setError(reason instanceof Error && reason.message.includes('ください') ? reason.message : '追加できません。通信を確認して再試行してください。');
     } finally { if (!controller.signal.aborted) setAdding(null); }
   }
 
   return (
-    <View style={styles.backdrop}>
+    <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* 背景を押すと閉じる */}
       <Pressable style={StyleSheet.absoluteFill} onPress={() => router.back()} />
 
       <View style={styles.card}>
-        <ScrollView contentContainerStyle={styles.body}>
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <View style={styles.headRow}>
             <Text style={styles.eyebrow}>ADD A BOOK</Text>
             <Pressable onPress={() => router.back()}>
@@ -156,7 +157,7 @@ export default function AddScreen() {
           </>}
         </ScrollView>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
