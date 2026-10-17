@@ -39,13 +39,13 @@ export function Chips({ items, value, onChange, variant = 'main' }: Props) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  segmentRow: { flexWrap: 'nowrap', gap: 0, borderWidth: 1, borderColor: colors.line, borderRadius: 10, overflow: 'hidden' },
+  segmentRow: { backgroundColor: colors.line, flexWrap: 'nowrap', gap: 3, padding: 3, borderWidth: 1, borderColor: colors.line, borderRadius: 999, overflow: 'hidden' },
   chip: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   chipSub: { paddingHorizontal: 11, paddingVertical: 6, backgroundColor: 'transparent' },
-  segment: { flex: 1, alignItems: 'center', borderWidth: 0, borderRadius: 0, paddingVertical: 10 },
+  segment: { flex: 1, alignItems: 'center', borderWidth: 0, backgroundColor: 'transparent', borderRadius: 999, paddingVertical: 10 },
   on: { backgroundColor: colors.accent, borderColor: colors.accent },
   onSub: { backgroundColor: colors.ink, borderColor: colors.ink },
   text: { fontSize: 12, color: colors.ink },
   textSub: { fontSize: 11 },
-  textOn: { color: colors.surface },
+  textOn: { color: colors.surface, fontWeight: '600' },
 });

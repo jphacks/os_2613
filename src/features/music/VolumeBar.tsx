@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { colors } from '@/shared/theme';
 
 export function VolumeBar({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   const [width, setWidth] = useState(1);
   const change = (x: number) => onChange(Math.max(0, Math.min(1, x / width)));
   return <View style={styles.row}>
-    <Text style={styles.label}>音量 {Math.round(value * 100)}%</Text>
     <View accessible accessibilityRole="adjustable" accessibilityLabel="BGM音量" accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
       accessibilityActions={[{ name: 'increment', label: '音量を上げる' }, { name: 'decrement', label: '音量を下げる' }]}
       onAccessibilityAction={event => onChange(Math.max(0, Math.min(1, value + (event.nativeEvent.actionName === 'increment' ? 0.05 : -0.05))))}
@@ -18,7 +17,7 @@ export function VolumeBar({ value, onChange }: { value: number; onChange: (value
   </View>;
 }
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 8 }, label: { color: colors.ink, fontSize: 13, width: 80 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 0, paddingHorizontal: 2 }, label: { color: colors.ink, fontSize: 13, width: 80 },
   touch: { flex: 1, height: 36, justifyContent: 'center', marginHorizontal: 10 },
   track: { height: 5, borderRadius: 3, overflow: 'hidden', backgroundColor: colors.line }, fill: { height: 5, backgroundColor: colors.accent },
   thumb: { position: 'absolute', width: 18, height: 18, borderRadius: 9, marginLeft: -9, top: 9, backgroundColor: colors.accent },

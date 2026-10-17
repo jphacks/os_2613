@@ -1,8 +1,10 @@
 import type { MusicTrack } from '../../server/music.mjs';
 export type MusicScene = { kind?: 'ambience' | 'music'; start: number; end: number; label: string; reason: string; mood: 'calm' | 'tense' | 'sad' | 'bright'; query: string; candidates: MusicTrack[]; selectedId: number | null };
-export type MusicPlan = { version: number; hash: string; title: string; revision: string; scenes: MusicScene[]; usage: { input: number; output: number; total: number } };
+export type SoundCue = { id: string; start: number; end: number; mode: 'once' | 'loop'; kind: 'effect' | 'ambience'; label: string; query: string; gain: number; candidates: MusicTrack[]; selectedId: number | null };
+export type MusicPlan = { version: number; hash: string; title: string; revision: string; scenes: MusicScene[]; cues?: SoundCue[]; usage: { input: number; output: number; total: number } };
 export const planVersion: number;
 export const bookTextLimit: number;
 export function textUnits(text: string): { id: number; start: number; end: number; text: string }[];
 export function validTrack(track: unknown): boolean;
 export function validateScenes(scenes: unknown, length: number): MusicScene[];
+export function validateCues(cues: unknown, length: number): SoundCue[];

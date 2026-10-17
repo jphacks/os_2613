@@ -16,6 +16,7 @@ export type WidgetBook = {
   title: string;
   author: string;
   excerpt: string; // しおりの直前の文
+  offset: number; // しおりの位置（ウィジェットを押したとき、ここを開く）
   summary: string; // 前回までのまとめ（まだ作っていなければ空）
   progress: number; // しおりの位置が本の何%か
   updatedAt: number;
@@ -56,7 +57,7 @@ export async function rememberWidgetBook(update: Partial<WidgetBook> & { bookId:
   // しおりの位置が変わったら、古い位置のまとめは外す
   const moved = before && update.excerpt !== undefined && update.excerpt !== before.excerpt;
   const next: WidgetBook = {
-    title: '', author: '', excerpt: '', summary: '', progress: 0, updatedAt: Date.now(),
+    title: '', author: '', excerpt: '', offset: 0, summary: '', progress: 0, updatedAt: Date.now(),
     ...before,
     ...(moved ? { summary: '' } : null),
     ...update,

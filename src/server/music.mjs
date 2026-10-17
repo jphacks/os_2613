@@ -3,7 +3,7 @@ export function createMusicService({ key = () => process.env.FREESOUND_API_KEY, 
   const cache = new Map();
   return async function search(mood, query, kind = 'music') {
     if (!Object.hasOwn(queries, mood)) throw new Error('MOOD');
-    if (!['music', 'ambience'].includes(kind)) throw new Error('QUERY');
+    if (!['music', 'ambience', 'effect'].includes(kind)) throw new Error('QUERY');
     if (query !== undefined && (typeof query !== 'string' || !/^[a-zA-Z0-9 -]{2,100}$/.test(query))) throw new Error('QUERY');
     const token = key()?.trim();
     if (!token) throw new Error('KEY');
@@ -11,7 +11,7 @@ export function createMusicService({ key = () => process.env.FREESOUND_API_KEY, 
     const saved = cache.get(cacheKey);
     if (saved && saved.until > Date.now()) return saved.tracks;
     const url = new URL('https://freesound.org/apiv2/search/');
-    url.search = new URLSearchParams({ query: query ?? queries[mood], filter: 'duration:[20 TO 240] (license:"Creative Commons 0" OR license:"Attribution")', fields: 'id,name,username,url,license,previews,tags', page_size: '30', sort: 'score' }).toString();
+    url.search = new URLSearchParams({ query: query ?? queries[mood], filter: `duration:${kind === 'effect' ? '[0.15 TO 12]' : '[20 TO 240]'} (license:"Creative Commons 0" OR license:"Attribution")`, fields: 'id,name,username,url,license,previews,tags,duration', page_size: '30', sort: 'score' }).toString();
     const response = await fetcher(url, { headers: { Authorization: `Token ${token}` }, signal: AbortSignal.timeout(15000) });
     if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'AUTH' : response.status === 429 ? 'LIMIT' : 'UPSTREAM');
     const data = await response.json();
@@ -23,13 +23,13 @@ export function createMusicService({ key = () => process.env.FREESOUND_API_KEY, 
       .filter(item => {
         const metadata = `${item.name} ${(item.tags ?? []).join(' ')}`;
         const musical = /\b(music|piano|synth|melody|soundtrack|pad|drone|strings|orchestra|guitar|instrumental)\b/i.test(metadata);
-        return kind === 'music' ? musical : !musical && !/\b(gunshot|explosion|scream|jump-scare|thunderclap)\b/i.test(metadata) && relevance(item, query, true) > 0;
+        return kind === 'music' ? musical : !musical && (kind === 'effect' || !/\b(gunshot|explosion|scream|jump-scare|thunderclap)\b/i.test(metadata)) && relevance(item, query, true) > 0;
       })
       .filter(item => kind !== 'music' || !['tense', 'sad'].includes(mood) || !/\b(happy|cheerful|comedy|uplifting)\b/i.test(`${item.name} ${(item.tags ?? []).join(' ')}`))
       .sort((a, b) => relevance(b, query) - relevance(a, query))
       .slice(0, 3).map(item => ({ id: item.id, name: item.name, creator: item.username, license: item.license, url: item.url, audioUrl: item.previews['preview-lq-mp3'], kind }));
     // A narrow context query may have no recording; broaden only within the same mood.
-    if (!tracks.length && query) tracks = await search(mood, undefined, 'music');
+    if (!tracks.length && query && kind !== 'effect') tracks = await search(mood, undefined, 'music');
     if (cache.size >= 100) cache.delete(cache.keys().next().value);
     cache.set(cacheKey, { tracks, until: Date.now() + 3600000 });
     return tracks;

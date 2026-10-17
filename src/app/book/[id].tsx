@@ -1,3 +1,4 @@
+import { useAccount } from '@/features/account/AccountProvider';
 import { Asset } from 'expo-asset';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -9,6 +10,7 @@ import { colors } from '@/shared/theme';
 import { useLibrary } from '@/features/library/LibraryProvider';
 import { BookReading } from '@/features/bookmark/BookReading';
 import { IntroComic } from '@/features/comic/IntroComic';
+import { validOffset } from '@/features/bookmark/model.mjs';
 
 // 同梱している教材のPDF。require は静的に書く必要があるので、ここで本のIDと結びつける。
 const pdfFiles: Record<string, number> = {
@@ -35,20 +37,25 @@ export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   return <>
-    <Stack.Screen options={{ headerLeft: () => <Pressable accessibilityRole="button" accessibilityLabel="本棚へ戻る" onPress={() => router.dismissTo('/')} style={styles.shelfButton}><Text style={styles.shelfButtonText}>← 本棚へ</Text></Pressable> }} />
+    <Stack.Screen options={{ headerLeft: () => <Pressable accessibilityRole="button" accessibilityLabel="本棚へ戻る" onPress={() => router.dismissTo('/shelf')} style={styles.shelfButton}><Text style={styles.shelfButtonText}>← 本棚へ</Text></Pressable> }} />
     {pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook key={id} id={id} />}
   </>;
 }
 
 function NovelBook({ id }: { id: string }) {
+  const { prefs } = useAccount();
   const { books, ready } = useLibrary();
   const book = books.find(item => item.id === id);
+  const { mark } = useLocalSearchParams<{ mark?: string }>();
+  const markPosition = typeof mark === 'string' && /^\d+$/.test(mark) ? Number(mark) : NaN;
+  const markOffset = book && validOffset(book.text, markPosition) ? Math.max(0, markPosition - 1) : undefined;
   const [entry, setEntry] = useState<'intro' | 'read'>('intro');
-  useFocusEffect(useCallback(() => { setEntry('intro'); }, [id]));
+  // 本棚からは漫画、しおりのウィジェットからは指定位置の本文を開く。
+  useFocusEffect(useCallback(() => { setEntry(markOffset === undefined ? 'intro' : 'read'); }, [id, markOffset]));
 
-  if (ready && book) return <View key={`${book.id}:${book.importedAt}`} style={{ flex: 1 }}>
+  if (ready && book) return <View key={`${book.id}:${book.importedAt}:${mark ?? ''}`} style={{ flex: 1 }}>
     <Stack.Screen options={{ title: book.title }} />
-    {entry === 'intro' ? <IntroComic book={book} read={() => setEntry('read')} /> : <BookReading book={book} initialOffset={0} />}
+    {entry === 'intro' && markOffset === undefined && prefs.comic ? <IntroComic book={book} read={() => setEntry('read')} /> : <BookReading book={book} initialOffset={markOffset ?? 0} />}
   </View>;
 
   return (
