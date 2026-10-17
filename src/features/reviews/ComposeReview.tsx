@@ -18,7 +18,7 @@ import { Button, Stars, s } from './ui';
 type Result = Awaited<ReturnType<typeof publishReview>>;
 export default function ComposeReview() {
   const params = useLocalSearchParams<{ book?: string }>();
-  const { identity, prefs, ready: accountReady, refreshIdentity, update } = useAccount(), { books, ready } = useLibrary();
+  const { identity, prefs, ready: accountReady, refreshIdentity, update, complete } = useAccount(), { books, ready } = useLibrary();
   const [choosing, setChoosing] = useState(false), [displayName, setDisplayName] = useState('');
   useEffect(() => { if (accountReady) setDisplayName(prefs.name); }, [accountReady, identity?.did]);
   const [bookId, setBookId] = useState(''), [extra, setExtra] = useState<ReviewBook[]>([]), [query, setQuery] = useState('');
@@ -74,8 +74,10 @@ export default function ComposeReview() {
     setBusy(true); setError('');
     try {
       const draft = JSON.stringify({ bookId, rating, text, spoiler, share });
+      // 認証の窓は、ボタンを押した直後（待ち時間の前）に開かないとブラウザーに止められるので、先に呼び出す
+      const authorizing = authorizeReviews(share);
       await AsyncStorage.setItem(key, draft);
-      const connected = await authorizeReviews(share);
+      const connected = await authorizing;
       if (connected) {
         await AsyncStorage.setItem(`dopabooks:review-draft:v1:${connected.did}`, draft);
         await refreshIdentity();
@@ -93,7 +95,7 @@ export default function ComposeReview() {
       const now = new Date().toISOString();
       const record = lastRecord.current ?? validateReview({ $type: reviewCollection, book: selected, displayName: prefs.nameChosen ? prefs.name : displayName.trim(), rating, text, spoiler, createdAt: created.current || now, updatedAt: now });
       lastRecord.current = record;
-      const next = await publishReview(identity.did, record, share); setResult(next); setExisting(true); created.current = record.createdAt;
+      const next = await publishReview(identity.did, record, share); complete('review'); setResult(next); setExisting(true); created.current = record.createdAt;
       if (!next.indexError && !next.blueskyError) {
         await AsyncStorage.removeItem(key).catch(() => {});
         setReviewNotice(share ? 'BlueskyとドパBOOKsに投稿しました' : 'ドパBOOKsに投稿しました', next.blueskyUrl || undefined);
@@ -114,7 +116,7 @@ export default function ComposeReview() {
     <Stack.Screen options={{ title: '感想を書く', headerLeft: () => <NavigationButton label="タイムライン" onPress={() => router.dismissTo('/timeline')} /> }} />
     <>
       <View style={s.between}><Text style={s.title}>{existing ? '感想を編集する' : '感想を書く'}</Text>{identity && <View style={s.row}><Avatar uri={identity.avatar} size={32} /><Text style={s.note}>{prefs.nameChosen ? prefs.name : identity.name}</Text></View>}</View>
-      {!identity && <View style={s.card}><Text style={s.heading}>Blueskyと接続して投稿</Text><Text style={s.note}>閲覧はログインなしでできます。投稿にはアカウントが必要です。</Text><Button disabled={busy || !loginAvailable || !loaded} onPress={() => void permit()}>{busy ? '接続中…' : 'Blueskyでサインインする ↗'}</Button></View>}
+      {!identity && <View style={s.card}><Text style={s.heading}>Blueskyと接続して投稿</Text><Text style={s.note}>閲覧はログインなしでできます。投稿にはアカウントが必要です。</Text><Button disabled={busy || !loginAvailable || !loaded} onPress={() => void permit()}>{busy ? '接続中…' : 'Blueskyでサインインする ↗'}</Button>{!loginAvailable && <Text style={s.error}>iPhone のアプリからのサインインは準備中です。PC のブラウザーでお試しください。</Text>}{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}</View>}
       <View style={s.section}><Text style={s.heading}>本</Text>
         {selected && <View style={[s.bookLink, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }]}><View style={s.miniBook}><Text style={s.miniBookText}>本</Text></View><View style={s.grow}><Text style={s.bookTitle}>{selected.title}</Text><Text style={s.note}>{selected.author}</Text></View><Button subtle disabled={busy || !!result} onPress={() => setChoosing(value => !value)}>{choosing ? '閉じる' : '変更'}</Button></View>}
         {(!selected || choosing) && <View style={{ gap: 8 }}><TextInput accessibilityLabel="本棚のタイトルや著者で絞り込む" value={query} onChangeText={setQuery} placeholder="タイトル・著者で探す" placeholderTextColor={colors.muted} style={s.input} editable={!busy && !result} />

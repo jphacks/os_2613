@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { reviewCollection, validateReview, parseReviewUri, reviewStats, blueskyText } from '../src/features/reviews/model.mjs';
+import { reviewCollection, validateReview, parseReviewUri, reviewStats, blueskyText, likeCollection, likeKey, parseLikeUri, validateLike } from '../src/features/reviews/model.mjs';
 import { createReviewService, createReviewsEndpoint, verifyReview } from '../src/server/reviews.mjs';
 const did = 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa';
 const uri = `at://${did}/${reviewCollection}/aozora-1567`;
@@ -58,6 +58,27 @@ test('投稿の追加・更新・削除と、本別の全件集計を同期す�
   assert.equal((await service.list({ book: 'calculus' })).total, 0);
   next = { uri, removed: true }; await service.sync(uri);
   assert.equal((await service.list()).total, 0);
+});
+test('いいねは1人1件で数え、取り消すと減り、他人の感想と混ざらない', async () => {
+  const other = 'did:plc:bbbbbbbbbbbbbbbbbbbbbbbb';
+  const likeUri = (by, subject = uri) => `at://${by}/${likeCollection}/${likeKey(subject)}`;
+  assert.equal(likeKey(uri), 'aaaaaaaaaaaaaaaaaaaaaaaa-aozora-1567');
+  assert.throws(() => parseLikeUri('at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/app.dopabooks.like/../x'));
+  assert.throws(() => validateLike({ $type: likeCollection, subject: 'https://evil.test', createdAt: '2026-01-01T00:00:00.000Z' }));
+  // 保存の名前ごとに分けて持つ仮の保存先
+  const store = new Map();
+  const storage = { read: async key => store.get(String(key)) ?? null, update: async (key, change) => { store.set(String(key), change(store.get(String(key)) ?? null)); } };
+  let likeState = {};
+  const service = createReviewService({ storage, verify: async () => view(), verifyLikeRecord: async u => likeState[u] ?? { uri: u, removed: true } });
+  await service.sync(uri);
+  likeState[likeUri(did)] = { uri: likeUri(did), did, subject: uri };
+  likeState[likeUri(other)] = { uri: likeUri(other), did: other, subject: uri };
+  await service.sync(likeUri(did)); await service.sync(likeUri(other)); await service.sync(likeUri(other));
+  let review = (await service.list()).reviews[0];
+  assert.equal(review.likes, 2); assert.deepEqual(review.likedBy.sort(), [did, other].sort());
+  delete likeState[likeUri(other)]; await service.sync(likeUri(other));
+  review = (await service.list()).reviews[0];
+  assert.equal(review.likes, 1); assert.deepEqual(review.likedBy, [did]);
 });
 test('共有APIは別オリジンの書込み・不正なIDを拒否する', async () => {
   let called = false;

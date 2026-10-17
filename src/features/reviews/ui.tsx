@@ -5,6 +5,7 @@ import { router, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/shared/theme';
 import type { Review } from './model.mjs';
+import { likeReview } from './publishing';
 export function Stars({ value, onChange, disabled = false }: { value: number; onChange?: (value: number) => void; disabled?: boolean }) {
   return <View style={s.row} accessibilityLabel={`${value} / 5`}>{[1, 2, 3, 4, 5].map(star => onChange ? <Pressable key={star} accessibilityRole="button" accessibilityLabel={`${star}つ星`} accessibilityState={{ selected: star === value, disabled }} disabled={disabled} onPress={() => onChange(star)} style={{ paddingVertical: 8, paddingHorizontal: 3 }}><Text style={s.bigStar}>{star <= value ? '★' : '☆'}</Text></Pressable> : <Text key={star} style={s.star}>{star <= value ? '★' : '☆'}</Text>)}</View>;
 }
@@ -19,7 +20,34 @@ export function ReviewCard({ review, own = false, hideBook = false, beforeNaviga
     {!hideBook && <Pressable accessibilityRole="link" onPress={() => { beforeNavigate?.(); router.push(`/reviews/${review.book.id}` as Href); }} style={s.bookLink}><View style={s.miniBook}><Text style={s.miniBookText}>本</Text></View><View style={s.grow}><Text style={s.bookTitle}>{review.book.title}</Text><Text style={s.meta}>{review.book.author}</Text></View><Text style={s.link}>›</Text></Pressable>}
     <Stars value={review.rating} />
     {review.spoiler && !reveal ? <Pressable accessibilityRole="button" onPress={() => setReveal(true)} style={s.spoiler}><Text style={s.link}>ネタバレを含む感想を読む　＋</Text></Pressable> : !!review.text && <Text selectable style={s.reviewText}>{review.text}</Text>}
-    <View style={s.between}><Text style={s.meta}>読書レビュー</Text>{own && <Pressable accessibilityRole="button" onPress={() => { beforeNavigate?.(); router.push(`/compose-review?book=${review.book.id}` as Href); }}><Text style={s.link}>編集する</Text></Pressable>}</View>
+    <View style={s.between}>
+      <LikeButton review={review} />
+      {own && <Pressable accessibilityRole="button" onPress={() => { beforeNavigate?.(); router.push(`/compose-review?book=${review.book.id}` as Href); }}><Text style={s.link}>編集する</Text></Pressable>}
+    </View>
+  </View>;
+}
+
+// いいねボタン：押すとすぐ数を変えて（先に見た目を更新）、保存に失敗したら元に戻す
+function LikeButton({ review }: { review: Review }) {
+  const { identity } = useAccount();
+  const [liked, setLiked] = useState(!!identity && !!review.likedBy?.includes(identity.did));
+  const [count, setCount] = useState(review.likes ?? 0);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  async function toggle() {
+    if (!identity) { setMessage('いいねするには、Bluesky でサインインしてください。'); return; }
+    const next = !liked;
+    setBusy(true); setMessage(''); setLiked(next); setCount(c => c + (next ? 1 : -1));
+    try { await likeReview(identity.did, review.uri, next); }
+    catch (error) { setLiked(!next); setCount(c => c + (next ? -1 : 1)); setMessage(error instanceof Error ? error.message : 'いいねできませんでした。'); }
+    finally { setBusy(false); }
+  }
+  return <View style={{ flexShrink: 1, gap: 4 }}>
+    <Pressable accessibilityRole="button" accessibilityLabel={liked ? 'いいねを取り消す' : 'いいねする'} accessibilityState={{ selected: liked, disabled: busy }} disabled={busy} onPress={() => void toggle()} style={s.like}>
+      <Text style={[s.heart, liked && s.heartOn]}>{liked ? '♥' : '♡'}</Text>
+      <Text style={[s.meta, liked && { color: colors.accent }]}>{count > 0 ? count : 'いいね'}</Text>
+    </Pressable>
+    {!!message && <Text style={s.error}>{message}</Text>}
   </View>;
 }
 export const s = StyleSheet.create({
@@ -36,5 +64,7 @@ export const s = StyleSheet.create({
   bookTitle: { color: colors.ink, fontSize: 16, fontWeight: '600', lineHeight: 24 }, reviewText: { color: colors.ink, fontSize: 15, lineHeight: 27 },
   star: { color: colors.rating, fontSize: 18 }, bigStar: { color: colors.rating, fontSize: 34 }, spoiler: { borderRadius: 12, backgroundColor: colors.paper, padding: 16 },
   input: { color: colors.ink, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 14, padding: 14, fontSize: 15, lineHeight: 26 },
-  error: { color: '#8A3D35', fontSize: 13, lineHeight: 22 }, selected: { borderColor: colors.accent, backgroundColor: '#EDF1EA' }, section: { gap: 10 },
+  error: { color: '#8A3D35', fontSize: 13, lineHeight: 22 },
+  like: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingRight: 8 },
+  heart: { color: colors.muted, fontSize: 18 }, heartOn: { color: '#C2543F' }, selected: { borderColor: colors.accent, backgroundColor: '#EDF1EA' }, section: { gap: 10 },
 });

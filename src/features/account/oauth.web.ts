@@ -1,5 +1,5 @@
 import { avatarUrl } from '@/shared/avatar.mjs';
-import { reviewCollection, reviewScope } from '../reviews/model.mjs';
+import { likeCollection, reviewCollection, reviewScope } from '../reviews/model.mjs';
 import type { BrowserOAuthClient } from '@atproto/oauth-client-browser';
 import { loopbackClientId, loginError } from './login-input.mjs';
 export type Identity = { did: string; handle: string; name: string; avatar?: string };
@@ -50,8 +50,19 @@ async function popupIdentity(scope: string): Promise<Identity> {
     return identity;
   } finally { popup.close(); }
 }
+// Bluesky の決まりで、開発中のログインの戻り先は 127.0.0.1 でないといけない。
+// localhost で開いているときは、同じ画面の 127.0.0.1 のアドレスへ移ってから、もう一度押してもらう。
+function moveToLoopback() {
+  if (window.location.hostname !== 'localhost') return false;
+  const url = new URL(window.location.href);
+  url.hostname = '127.0.0.1';
+  window.location.assign(url.toString());
+  return true;
+}
+const movingMessage = 'ログイン用のアドレス（127.0.0.1）に移動しています。開き直したら、もう一度ボタンを押してください。';
+
 export async function signIn(_input: string): Promise<Identity | null> {
-  if (window.location.hostname === 'localhost') throw new Error('開発版の認証は http://[::1]:8082/ で開いてください。');
+  if (moveToLoopback()) throw new Error(movingMessage);
   try { return await popupIdentity('atproto'); }
   catch (error) { if (error instanceof Error && /[ぁ-んァ-ン一-龠]/.test(error.message)) throw error; throw new Error(loginError(error)); }
 }
@@ -71,11 +82,11 @@ async function reviewSession() {
 export async function reviewAccess() {
   const info = await (await reviewSession()).getTokenInfo();
   const scopes = info.scope.split(' ');
-  return { review: scopes.includes(`repo:${reviewCollection}`), bluesky: scopes.includes('repo:app.bsky.feed.post?action=create') || scopes.includes('repo:app.bsky.feed.post') };
+  return { review: scopes.includes(`repo:${reviewCollection}`), like: scopes.includes(`repo:${likeCollection}`), bluesky: scopes.includes('repo:app.bsky.feed.post?action=create') || scopes.includes('repo:app.bsky.feed.post') };
 }
 export async function authorizeReviews(bluesky = false): Promise<Identity | null> {
-  if (window.location.hostname === 'localhost') throw new Error('開発版の投稿は http://[::1]:8082/ で開いてください。');
-  try { return await popupIdentity(bluesky ? reviewScope : `atproto repo:${reviewCollection}`); }
+  if (moveToLoopback()) throw new Error(movingMessage);
+  try { return await popupIdentity(bluesky ? reviewScope : `atproto repo:${reviewCollection} repo:${likeCollection}`); }
   catch (error) { if (error instanceof Error && /[ぁ-んァ-ン一-龠]/.test(error.message)) throw error; throw new Error(loginError(error)); }
 }
 export function hasOAuthCallback() {

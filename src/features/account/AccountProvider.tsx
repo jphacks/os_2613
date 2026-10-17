@@ -15,7 +15,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       if (typeof value.name === 'string' && value.name.trim()) next.name = value.name.slice(0, 40);
       next.nameChosen = value.nameChosen === true;
       for (const key of ['music', 'comic', 'characters', 'quests'] as const) if (typeof value[key] === 'boolean') next[key] = value[key];
-      next.done = Array.isArray(value.done) ? value.done.filter((id: unknown) => ['add', 'bookmark', 'guide'].includes(String(id))) : [];
+      next.done = Array.isArray(value.done) ? value.done.filter((id: unknown) => ['add', 'read', 'bluesky', 'review', 'focus', 'widget'].includes(String(id))) : [];
       if (active) { current.current = next; setPrefs(next); loaded.current = true; }
     }).catch(() => { if (active) setError('設定を読み込めません。既存の設定は上書きしません。'); }).finally(() => { if (active) setReady(true); });
     return () => { active = false; };
@@ -30,6 +30,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     });
     queue.current = task.catch(() => {}); return task;
   }
+  // 読書クエスト「Bluesky と連携」：ログインできたら完了
+  useEffect(() => { if (identity && ready) complete('bluesky'); }, [identity, ready]);
   function complete(quest: Quest) { if (!loaded.current || current.current.done.includes(quest)) return; void update(before => ({ done: [...new Set([...before.done, quest])] })).catch(() => setError('クエストを保存できません。')); }
   return <Context.Provider value={{ identity, prefs, ready, error, update, complete, refreshIdentity: async () => { const value = await restoreIdentity(); setIdentity(value); }, login: async handle => { setError(''); const value = await signIn(handle); if (value) setIdentity(value); }, logout: async () => { await signOut(); setIdentity(null); } }}>{children}</Context.Provider>;
 }
