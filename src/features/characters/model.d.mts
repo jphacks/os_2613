@@ -2,5 +2,9 @@ export type Person = { id: string; name: string; quote: string; start: number; e
 export type Relation = { from: string; to: string; label: string; quote: string; start: number; end: number };
 export type Graph = { people: Person[]; relations: Relation[] };
 export const characterLimit: number;
+export function characterPassages(text: string): { id: string; quote: string }[];
+export function graphFromPassages(value: unknown, text: string): Graph;
+export function relationshipPassages(text: string, people: Person[]): { id: string; from: string; to: string; quote: string }[];
+export function relationshipsFromPassages(value: unknown, text: string, people: Person[], sources: ReturnType<typeof relationshipPassages>): Graph;
 export function textToBookmark(text: string, marks: { id: string; offset: number }[], id: string): string;
 export function groundedGraph(value: unknown, text: string): Graph;
