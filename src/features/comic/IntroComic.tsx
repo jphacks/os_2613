@@ -5,10 +5,16 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import type { SavedBook } from '@/features/library/types';
 import { documentVersion } from '@/features/bookmark/model.mjs';
 import { colors } from '@/shared/theme';
-import { comicFailureMessage, comicImageCount, introSource, validateScript, type Script } from './model.mjs';
+import { comicImageCount, introSource, validateScript, type Script } from './model.mjs';
 import { artifactRequest, artifactUrl } from './api';
 import { MangaPanel } from './MangaPanel';
-type Edition = 'page' | 'manga' | 'mini-manga' | 'previous-manga' | 'original' | 'comparison';
+function comicNotice(code: string | undefined, completed: number) {
+  if (code === 'NETWORK') return '通信が途切れました。接続を確認して、もう一度お試しください。';
+  if (code === 'TIMEOUT') return '漫画の作成に時間がかかっています。しばらくしてからもう一度お試しください。';
+  if (code === 'RATE_LIMIT' || code === 'BUSY' || code === 'LIMIT') return 'ただいま漫画を作成できません。時間をおいてお試しください。';
+  if (code === 'STORAGE') return '漫画を保存できませんでした。時間をおいてもう一度お試しください。';
+  return completed > 0 ? '漫画の作成が途中で止まりました。できあがったコマから再開できます。' : '紹介漫画を作成できませんでした。もう一度お試しください。';
+}
 type State = { key: string; status: 'idle' | 'running' | 'ready' | 'error'; script: Script | null; completed: number; totalImages?: 1 | 4; canResumeRemaining?: boolean; canResumeScript?: boolean; hasScriptDraft?: boolean; failureStage?: 'script' | 'image' | 'storage' | null; failure?: { code: string; error: string } };
 function checked(value: State, opening: string): State {
   if (!/^[a-f0-9]{64}$/.test(value?.key) || !['idle', 'running', 'ready', 'error'].includes(value.status) || !Number.isInteger(value.completed) || value.completed < 0 || value.completed > (value.totalImages ?? 4)) throw new Error('保存内容を確認できません。画面を開き直してください。');
@@ -19,14 +25,11 @@ function checked(value: State, opening: string): State {
   return { ...value, script };
 }
 export function IntroComic({ book, read }: { book: SavedBook; read: () => void }) {
-  const [edition, setEdition] = useState<Edition>('manga');
-  return <ComicEdition key={`${book.id}:${edition}`} book={book} read={read} edition={edition} switchEdition={setEdition} />;
+  return <ComicEdition key={book.id} book={book} read={read} />;
 }
-function ComicEdition({ book, read, edition, switchEdition }: { book: SavedBook; read: () => void; edition: Edition; switchEdition: (edition: Edition) => void }) {
-  const pageEdition = edition === 'page';
-  const comparison = edition === 'comparison', manga = edition === 'manga', previousManga = edition === 'previous-manga', miniManga = edition === 'mini-manga';
+function ComicEdition({ book, read }: { book: SavedBook; read: () => void }) {
   const source = useMemo(() => introSource(book.text, book.title), [book.text, book.title]);
-  const cacheKey = `${pageEdition ? 'dopabooks:comic:manga:v5' : manga ? 'dopabooks:comic:manga:v4' : miniManga ? 'dopabooks:comic:manga:v3' : previousManga ? 'dopabooks:comic:manga:v2' : comparison ? 'dopabooks:comic:comparison:v1' : 'dopabooks:comic:v1'}:${book.id}:${documentVersion(JSON.stringify({ title: book.title, ...source }))}`;
+  const cacheKey = `dopabooks:comic:manga:v4:${book.id}:${documentVersion(JSON.stringify({ title: book.title, ...source }))}`;
   const [pageWidth, setPageWidth] = useState(0);
   const [state, setState] = useState<State | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(true), [working, setWorking] = useState(false);
   const active = useRef(true), request = useRef<AbortController | null>(null);
@@ -42,7 +45,7 @@ function ComicEdition({ book, read, edition, switchEdition }: { book: SavedBook;
     const timer = setTimeout(() => controller.abort(), 20000);
     try {
       try { const raw = await AsyncStorage.getItem(cacheKey); if (raw && active.current) { const cached = JSON.parse(raw); if (cached.title === book.title && JSON.stringify(cached.source) === JSON.stringify(source)) setState(checked(cached.value, source.opening)); } } catch { /* 派生データだけを再取得する。本文・しおりは変更しない。 */ }
-      const value = await artifactRequest('/api/comic', { action: 'register', bookId: book.id, title: book.title, ...source, ...(pageEdition || manga || previousManga || miniManga ? { edition: 'manga', ...(pageEdition ? { revision: 5 } : manga ? { revision: 4 } : miniManga ? { revision: 3 } : {}) } : comparison ? { edition } : {}) }, controller.signal);
+      const value = await artifactRequest('/api/comic', { action: 'register', bookId: book.id, title: book.title, ...source, edition: 'manga', revision: 4 }, controller.signal);
       if (active.current) await remember(value);
     } catch { if (active.current && !controller.signal.aborted) setError('漫画の保存状態を取得できませんでした。通信を確認して、もう一度お試しください。'); else if (active.current) setError('取得に時間がかかっています。もう一度お試しください。'); }
     finally { clearTimeout(timer); if (active.current) setLoading(false); }
@@ -64,34 +67,20 @@ function ComicEdition({ book, read, edition, switchEdition }: { book: SavedBook;
     setWorking(true); setError(''); const controller = new AbortController(); request.current = controller;
     const timer = setTimeout(() => controller.abort(), 20000);
     try { await remember(await artifactRequest('/api/comic', { action: 'start', key: state.key, ...(state.canResumeRemaining ? { resumeRemaining: true } : {}), ...(state.canResumeScript ? { resumeScript: true } : {}) }, controller.signal)); }
-    catch (reason) { if (active.current) setError(reason instanceof Error && reason.name !== 'AbortError' ? reason.message : '通信が中断しました。保存状態を確認してください。'); }
+    catch { if (active.current) setError('漫画の作成状況を確認できませんでした。通信を確認し、もう一度読み込んでください。'); }
     finally { clearTimeout(timer); if (active.current) setWorking(false); }
   }
   return <ScrollView contentContainerStyle={styles.body}>
     <Text style={styles.kicker}>物語の入口</Text><Text style={styles.title}>{book.title}</Text><Text style={styles.text}>{book.author}</Text>
     <Text style={styles.heading}>漫画から、読んでみよう。</Text>
     <Pressable accessibilityRole="button" style={styles.button} onPress={read}><Text style={styles.buttonText}>原文を読む →</Text></Pressable>
-    <View style={styles.editions}>
-      <Pressable accessibilityRole="button" disabled={working || state?.status === 'running'} style={styles.button} onPress={() => switchEdition(pageEdition ? 'manga' : 'page')}><Text style={styles.buttonText}>{pageEdition ? '以前の4枚版を見る' : '1ページ漫画版を見る'}</Text></Pressable>
-      {!pageEdition && <>
-        <Pressable accessibilityRole="button" disabled={working || state?.status === 'running'} style={styles.button} onPress={() => switchEdition('original')}><Text style={styles.buttonText}>以前の漫画を見る</Text></Pressable>
-        <Pressable accessibilityRole="button" disabled={working || state?.status === 'running'} style={styles.button} onPress={() => switchEdition('mini-manga')}><Text style={styles.buttonText}>Mini版を見る</Text></Pressable>
-        <Pressable accessibilityRole="button" disabled={working || state?.status === 'running'} style={styles.button} onPress={() => switchEdition('previous-manga')}><Text style={styles.buttonText}>修正前の吹き出し版を見る</Text></Pressable>
-        <Pressable accessibilityRole="button" disabled={working || state?.status === 'running'} style={styles.button} onPress={() => switchEdition('comparison')}><Text style={styles.buttonText}>以前の比較版を見る</Text></Pressable>
-      </>}
-    </View>
-    {previousManga && <Text style={styles.text}>修正前の吹き出し版です。保存済みの漫画を比較できます。</Text>}
-    {!!state?.script?.generation && <Text style={styles.text}>脚本：{state.script.generation.textModel} ／ 画像：{state.script.generation.imageModel}</Text>}
-    {(manga || pageEdition) && state?.status === 'idle' && <Text style={styles.text}>セリフや説明枠を含む漫画を作ります。以前の版は残ります。初回は{pageEdition ? 'high品質の1ページ画像1枚' : '画像4枚'}の生成料金と参考画像の入力料金がかかります。</Text>}
-    {pageEdition && state?.script && <Text style={styles.text}>画像：high品質 ／ 1ページ。文字も画像内で生成しています。</Text>}
-    {comparison && <Text style={styles.text}>以前の比較用の別版です。保存済みの内容は再利用します。</Text>}
+    {state?.status === 'idle' && <Text style={styles.text}>物語のはじまりを、4コマの漫画でのぞいてみませんか。</Text>}
     {loading && <ActivityIndicator color={colors.accent} />}
-    {state?.status === 'running' ? <View style={styles.card}><ActivityIndicator color={colors.accent} /><Text accessibilityLiveRegion="polite" style={styles.text}>{state.script ? (pageEdition ? '1ページの漫画を描いています…' : `漫画を描いています（${state.completed} / 4 コマ）`) : state.hasScriptDraft ? '保存した脚本案を修正しています…' : '物語の紹介を考えています…'}</Text></View> : state?.status !== 'ready' && state && <Pressable accessibilityRole="button" disabled={working || loading || (state.failure?.code === 'LIMIT' && !state.canResumeRemaining && !state.canResumeScript)} style={styles.primary} onPress={() => void generate()}><Text style={styles.light}>{working ? '準備しています…' : state.canResumeScript ? (state.hasScriptDraft ? '保存した脚本案を修正する' : '脚本を追加で1回試す') : state.canResumeRemaining ? (pageEdition ? 'ページの作成を再開する' : `残り${4 - state.completed}コマを作る`) : state.script ? '漫画の作成を再開する' : '紹介漫画を作る'}</Text></Pressable>}
-    {state?.canResumeScript && <Text style={styles.text}>追加の脚本生成料金がかかります。脚本が完成すると画像の生成にも進みます。過去の試行回数は残し、1回だけ追加します。</Text>}
+    {state?.status === 'running' ? <View style={styles.card}><ActivityIndicator color={colors.accent} /><Text accessibilityLiveRegion="polite" style={styles.text}>{state.script ? `漫画を描いています（${state.completed} / 4 コマ）` : '物語の紹介を考えています…'}</Text></View> : state?.status !== 'ready' && state && <Pressable accessibilityRole="button" disabled={working || loading || (state.failure?.code === 'LIMIT' && !state.canResumeRemaining && !state.canResumeScript)} style={styles.primary} onPress={() => void generate()}><Text style={styles.light}>{working ? '準備しています…' : state.script ? '漫画の作成を再開する' : state.status === 'error' ? 'もう一度作る' : '紹介漫画を作る'}</Text></Pressable>}
     {!!error && <Text accessibilityRole="alert" style={styles.text}>{error}</Text>}
-    {state?.status === 'error' && <Text accessibilityRole="alert" style={styles.text}>{comicFailureMessage(state.failure?.code, !!state.script, state.completed).replaceAll('コマ', pageEdition ? 'ページ' : 'コマ')}{'\n'}原因：{state.failure?.code ?? 'UNKNOWN'}{state.failureStage ? ` ／ ${state.failureStage === 'script' ? '脚本' : state.failureStage === 'image' ? '画像生成' : '保存'}` : ''}</Text>}
-    {(!!error || state?.status === 'error') && <Pressable accessibilityRole="button" disabled={loading || working} style={styles.button} onPress={() => void load()}><Text style={styles.buttonText}>保存状態を確認する</Text></Pressable>}
-    {pageEdition && state?.script ? (state.completed === 1 ? <ComicImage comicKey={state.key} index={1} caption={state.script.panels.map(panel => panel.caption).join(' ')} portrait fullPage /> : null) : state?.script?.format === 'manga-v2' ? <View style={[styles.mangaPage, { flexDirection: pageWidth >= 620 ? 'row-reverse' : 'column' }]} onLayout={event => setPageWidth(event.nativeEvent.layout.width)}>
+    {state?.status === 'error' && <Text accessibilityRole="alert" style={styles.text}>{comicNotice(state.failure?.code, state.completed)}</Text>}
+    {(!!error || state?.status === 'error') && <Pressable accessibilityRole="button" disabled={loading || working} style={styles.button} onPress={() => void load()}><Text style={styles.buttonText}>もう一度読み込む</Text></Pressable>}
+    {state?.script?.format === 'manga-v2' ? <View style={[styles.mangaPage, { flexDirection: pageWidth >= 620 ? 'row-reverse' : 'column' }]} onLayout={event => setPageWidth(event.nativeEvent.layout.width)}>
       {state.script.panels.slice(0, state.completed).map((panel, index) => <View key={index} style={{ width: pageWidth >= 620 ? '49%' : '100%' }}>
         <MangaPanel panel={panel} index={index} width={pageWidth >= 620 ? pageWidth * 0.49 : pageWidth || 340}><ComicImage comicKey={state.key} index={index + 1} caption={panel.caption} portrait /></MangaPanel>
       </View>)}
@@ -103,15 +92,15 @@ function ComicEdition({ book, read, edition, switchEdition }: { book: SavedBook;
     {state?.status === 'ready' && <Pressable accessibilityRole="button" style={styles.primary} onPress={read}><Text style={styles.light}>原文を読む →</Text></Pressable>}
   </ScrollView>;
 }
-function ComicImage({ comicKey, index, caption, portrait = false, fullPage = false }: { comicKey: string; index: number; caption: string; portrait?: boolean; fullPage?: boolean }) {
+function ComicImage({ comicKey, index, caption, portrait = false }: { comicKey: string; index: number; caption: string; portrait?: boolean }) {
   const [failed, setFailed] = useState(false), [retry, setRetry] = useState(0);
   let uri: string;
-  try { uri = artifactUrl(`/api/comic?key=${comicKey}&image=${index}${fullPage ? '' : '&format=webp'}`); }
+  try { uri = artifactUrl(`/api/comic?key=${comicKey}&image=${index}&format=webp`); }
   catch { return <Text style={styles.text}>画像の接続先が未設定です。配信設定を確認してください。</Text>; }
-  return <View>{failed ? <Pressable accessibilityRole="button" style={styles.button} onPress={() => { setFailed(false); setRetry(value => value + 1); }}><Text style={styles.buttonText}>保存画像を読み直す</Text></Pressable> : <Image key={retry} source={{ uri, cacheKey: `${comicKey}:${index}:preview-v1` }} onError={() => setFailed(true)} style={[styles.image, portrait && { aspectRatio: 2 / 3 }]} contentFit="contain" cachePolicy="disk" accessibilityLabel={fullPage ? `紹介漫画1ページ：${caption}` : `${index}コマ目：${caption}`} />}</View>;
+  return <View>{failed ? <Pressable accessibilityRole="button" style={styles.button} onPress={() => { setFailed(false); setRetry(value => value + 1); }}><Text style={styles.buttonText}>保存画像を読み直す</Text></Pressable> : <Image key={retry} source={{ uri, cacheKey: `${comicKey}:${index}:preview-v1` }} onError={() => setFailed(true)} style={[styles.image, portrait && { aspectRatio: 2 / 3 }]} contentFit="contain" cachePolicy="disk" accessibilityLabel={`${index}コマ目：${caption}`} />}</View>;
 }
 const styles = StyleSheet.create({
-  editions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, mangaPage: { backgroundColor: '#fff', padding: 8, gap: 8, flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start' },
+  mangaPage: { backgroundColor: '#fff', padding: 8, gap: 8, flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start' },
   body: { padding: 20, paddingBottom: 40, gap: 18, width: '100%', maxWidth: 760, alignSelf: 'center' }, kicker: { color: colors.accent, fontSize: 12, letterSpacing: 2 }, title: { fontSize: 28, color: colors.ink }, heading: { fontSize: 19, fontWeight: '600', color: colors.ink }, text: { color: colors.ink, fontSize: 16, lineHeight: 28 }, card: { gap: 14, paddingVertical: 12 },
   image: { width: '100%', aspectRatio: 1.5, backgroundColor: colors.surface }, button: { alignSelf: 'flex-start', padding: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: colors.surface }, buttonText: { color: colors.accent, fontSize: 15 }, primary: { alignSelf: 'flex-start', backgroundColor: colors.accent, padding: 14, borderRadius: 10 }, light: { color: colors.surface, fontSize: 16 },
 });
