@@ -11,6 +11,9 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "jp.dopabooks.app",
       "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.jp.dopabooks.app"
