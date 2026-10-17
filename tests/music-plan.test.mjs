@@ -42,7 +42,7 @@ test('OpenAIには本文だけを資料として1回送信し、構造化出力�
   const planner = createMusicPlanner({ key: () => 'secret-test', fetcher: async (url, options) => {
     calls++; assert.equal(url, 'https://api.openai.com/v1/responses');
     const body = JSON.parse(options.body);
-    assert.equal(body.store, false); assert.equal(body.model, 'gpt-4.1-mini');
+    assert.equal(body.store, false); assert.equal(body.model, 'gpt-5.6-luna');
     assert.equal(body.text.format.type, 'json_schema'); assert.equal(body.max_output_tokens, 10000);
     assert.equal(JSON.parse(body.input).units[0].text, book.text);
     assert.ok(!options.body.includes('secret-test'));

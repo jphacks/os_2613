@@ -14,6 +14,35 @@ function setup() {
 const cue = (id, start, mode = 'once', end = start + 5) => ({ id, start, end, mode, gain: 0.4, selectedId: start,
   candidates: [{ id: start, audioUrl: `https://cdn.freesound.org/${id}.mp3` }] });
 
+test('足音は背景より前に出し、音量上限とミュートを守る', () => {
+  const { mixer, players, advance } = setup();
+  const footsteps = { ...cue('steps', 0, 'loop', 100), label: '足音', query: 'walking footsteps', gain: 0.25 };
+  mixer.update([footsteps], 0, true, 0.5);
+  for (let i = 0; i < 30; i++) advance(80);
+  assert.equal(mixer.ducking, 0.22);
+  assert.ok(players[0].volume > 0.5 * 0.8 * mixer.ducking);
+  mixer.update([footsteps], 1, true, 1); assert.ok(players[0].volume <= 1);
+  mixer.update([footsteps], 2, true, 0); assert.equal(players[0].volume, 0);
+});
+test('BGMをONにしても、先読み済みの打撃音を無音で先に再生しない', () => {
+  const { mixer, players, advance } = setup();
+  mixer.update([cue('punch', 20)], 0, false, 0.5); advance();
+  mixer.arm(); assert.equal(players[2].playing, false);
+  mixer.update([cue('punch', 20)], 20, true, 0.5);
+  assert.equal(players[2].playing, true);
+});
+
+test('同じ環境音が隣の区間へ続くときは音源を置き換えず再生を保つ', () => {
+  const { mixer, players, advance } = setup();
+  const first = cue('rain1', 0, 'loop', 20);
+  const next = { ...first, id: 'rain2', start: 20, end: 40 };
+  mixer.update([first, next], 1, true, 0.5); advance();
+  const volume = players[0].volume;
+  players[0].replace = () => assert.fail('同じ音源を再読み込みしない');
+  mixer.update([first, next], 20, true, 0.5);
+  assert.equal(players[0].playing, true); assert.ok(players[0].volume >= volume);
+});
+
 test('扉の音を先読みするが該当位置まで鳴らさず、一度だけ鳴らし、一時停止後に再発火しない', () => {
   const { mixer, players, advance } = setup(), door = cue('door', 10);
   mixer.update([door], 0, true, 0.5); advance();

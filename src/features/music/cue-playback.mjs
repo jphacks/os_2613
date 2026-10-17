@@ -1,23 +1,26 @@
 const selectedTrack = cue => cue.candidates.find(track => track.id === cue.selectedId);
+const foreground = cue => cue.mode === 'once' || /footsteps?|walking|running|足音|歩く|歩行|走る|駆け/i.test(`${cue.query} ${cue.label}`);
 
 // Two environmental layers plus two non-looping effect voices.
 export class CueMixer {
-  constructor(players, onActive = () => {}, now = () => Date.now()) {
-    this.players = players; this.onActive = onActive; this.now = now;
+  constructor(players, onActive = () => {}, now = () => Date.now(), sourceFor = track => ({ uri: track.audioUrl })) {
+    this.players = players; this.onActive = onActive; this.now = now; this.sourceFor = sourceFor;
     this.slots = players.map(player => ({ player, cue: null, level: 0, triggered: null, started: null, at: 0 }));
     this.enabled = false; this.master = 0.25; this.previous = null; this.fired = new Set(); this.loops = []; this.activeKey = '';
   }
   stage(slot, cue) {
     const track = selectedTrack(cue);
     if (!track || slot.cue?.id === cue.id) return;
+    if (cue.mode === 'loop' && slot.cue?.mode === 'loop' && selectedTrack(slot.cue)?.id === track.id) { slot.cue = cue; return; }
     slot.player.pause(); slot.player.volume = 0;
     slot.cue = cue; slot.level = 0; slot.triggered = null; slot.started = null; slot.at = this.now();
-    slot.player.loop = cue.mode === 'loop'; slot.player.replace({ uri: track.audioUrl });
+    slot.player.loop = cue.mode === 'loop'; slot.player.replace(this.sourceFor({ ...track, kind: cue.kind }));
   }
   arm() {
-    for (const slot of this.slots) {
+    for (const [index, slot] of this.slots.entries()) {
       slot.player.volume = 0;
-      if (slot.player.isLoaded) { try { slot.player.play(); } catch { /* Actual playback resumes with the guide. */ } }
+      // Do not consume preloaded one-shot effects silently before their text anchor.
+      if (index < 2 && slot.player.isLoaded) { try { slot.player.play(); } catch { /* Actual playback resumes with the guide. */ } }
     }
   }
   stop() {
@@ -61,7 +64,8 @@ export class CueMixer {
   assignLoops() {
     for (const cue of this.loops) {
       if (this.slots.slice(0, 2).some(slot => slot.cue?.id === cue.id)) continue;
-      const slot = this.slots.slice(0, 2).find(slot => !slot.cue);
+      const slot = this.slots.slice(0, 2).find(slot => slot.cue && !this.loops.some(item => item.id === slot.cue.id) && selectedTrack(slot.cue)?.id === selectedTrack(cue)?.id)
+        ?? this.slots.slice(0, 2).find(slot => !slot.cue);
       if (slot) this.stage(slot, cue);
     }
   }
@@ -73,22 +77,23 @@ export class CueMixer {
       const { player, cue } = slot;
       if (!cue) return;
       if (index < 2) {
-        const target = this.loops.some(item => item.id === cue.id) ? cue.gain : 0;
+        const target = this.loops.some(item => item.id === cue.id) ? foreground(cue) ? Math.max(0.65, cue.gain) : Math.max(0.55, cue.gain) : 0;
         slot.level += (target - slot.level) * 0.25;
-        player.volume = this.master * slot.level * 0.6;
+        const emphasis = foreground(cue) ? 1.25 : this.loops[0]?.id === cue.id ? 0.95 : 0.65;
+        player.volume = Math.min(1, this.master * slot.level * emphasis);
         if (target && player.isLoaded && !player.isBuffering && !player.playing && now - slot.at > 150) { try { player.play(); } catch {} }
         if (!target && slot.level < 0.005) { player.pause(); slot.cue = null; slot.level = 0; }
       } else if (slot.triggered !== null) {
         if (slot.started === null) {
           if (now - slot.triggered > 2000) { player.pause(); slot.cue = null; slot.triggered = null; return; }
           if (player.isLoaded && !player.isBuffering && now - slot.at > 150) {
-            player.loop = false; player.volume = this.master * cue.gain * 0.8;
+            player.loop = false; player.volume = Math.min(1, this.master * Math.max(0.65, cue.gain) * 1.4);
             try { player.play(); } catch {}
             if (player.playing) slot.started = now;
           }
         } else {
           const elapsed = now - slot.started;
-          player.volume = this.master * cue.gain * 0.8 * Math.max(0, Math.min(1, (10000 - elapsed) / 300));
+          player.volume = Math.min(1, this.master * Math.max(0.65, cue.gain) * 1.4) * Math.max(0, Math.min(1, (10000 - elapsed) / 300));
           if (elapsed > 10000 || (!player.playing && elapsed > 200)) { player.pause(); slot.cue = null; slot.triggered = null; slot.started = null; }
         }
       }
@@ -96,6 +101,13 @@ export class CueMixer {
     this.publish();
   }
   get hasEffects() { return this.enabled && this.slots.slice(2).some(slot => slot.started !== null && slot.player.playing); }
+  get ducking() {
+    if (!this.enabled) return 1;
+    // Duck as soon as an anchored one-shot is due, including while its audio is loading.
+    if (this.slots.slice(2).some(slot => slot.triggered !== null || slot.started !== null)) return 0.1;
+    const audible = this.slots.filter(slot => slot.cue && slot.player.playing && slot.player.volume > 0.001);
+    return audible.some(slot => foreground(slot.cue)) ? 0.18 : audible.length ? 0.32 : 1;
+  }
   publish() {
     const active = this.enabled ? this.slots.filter(slot => slot.cue && slot.player.playing && slot.player.volume > 0.001).map(slot => selectedTrack(slot.cue)) : [];
     const key = active.map(track => track.id).join(',');
