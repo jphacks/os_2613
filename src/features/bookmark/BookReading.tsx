@@ -1,10 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Stack } from 'expo-router';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { SavedBook } from '@/features/library/types';
 import { colors } from '@/shared/theme';
 import { bookmarkPage, createReadingStore, emptyReading, pageAt, placeMark, readingPages, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
 import { Summary } from './Summary';
+import VerticalPage from '@/features/reader/VerticalPage';
+import { MusicPanel } from '@/features/music/MusicPanel';
+
+// 読みガイドの速さ（1分あたりの文字数）の選択肢
+const speeds = [300, 500, 800, 1200];
 
 function Action({ children, onPress, disabled = false, filled = false }: { children: string; onPress: () => void; disabled?: boolean; filled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, filled && styles.filled, disabled && styles.disabled]}><Text style={[styles.buttonText, filled && styles.light]}>{children}</Text></Pressable>;
@@ -25,7 +31,12 @@ export function BookReading({ book }: { book: SavedBook }) {
   const [moving, setMoving] = useState<string | null>(null);
   const [draft, setDraft] = useState<number | null>(null);
   const [undo, setUndo] = useState<{ before: Mark; after: Mark } | null>(null);
-  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const [guide, setGuide] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [speed, setSpeed] = useState(500);
+  const [sub, setSub] = useState(0);
+  const [subCount, setSubCount] = useState(1);
+  const [readPosition, setReadPosition] = useState(0);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -41,9 +52,24 @@ export function BookReading({ book }: { book: SavedBook }) {
     catch (reason) { if (alive.current) setError(reason instanceof Error && reason.message.includes('してください') ? reason.message : '記録を保存できません。端末の空き容量や保存設定を確認して、もう一度お試しください。'); return false; }
     finally { if (alive.current) setBusy(false); }
   }
-  async function go(index: number) {
-    if (await save(state => ({ ...state, cursor: pages[index].start }))) { setPage(index); scroll.current?.scrollTo({ y: 0, animated: false }); return true; }
+  // sub は区切ったページのどこから見せるか（-1 は最後のページ。前へ戻るときに使う）
+  async function go(index: number, from = 0) {
+    if (await save(state => ({ ...state, cursor: pages[index].start }))) { setPage(index); setSub(from); return true; }
     return false;
+  }
+  // 紙面は画面に収まる行数ごとに区切って見せる。区切りの端まで来たら、本文の次（前）のまとまりへ。
+  const shown = sub < 0 ? subCount - 1 : Math.min(sub, subCount - 1);
+  const progress = Math.round(((page + (shown + 1) / subCount) / pages.length) * 100);
+  function next() {
+    if (busy) return;
+    if (shown < subCount - 1) setSub(shown + 1);
+    else if (page < pages.length - 1) void go(page + 1).then(ok => { if (!ok) setRunning(false); });
+    else setRunning(false);
+  }
+  function prev() {
+    if (busy) return;
+    if (shown > 0) setSub(shown - 1);
+    else if (page > 0) void go(page - 1, -1);
   }
   function begin(id?: string) {
     setMoving(id ?? `mark-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
@@ -70,23 +96,61 @@ export function BookReading({ book }: { book: SavedBook }) {
   const target = reading.marks.find(mark => mark.id === selected);
   const range = target ? summaryRange(book.text, reading.marks, target.id, scope) : null;
   const sorted = [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt);
-  let position = current.start;
-  const characters = Array.from(current.text).map(char => { const start = position; position += char.length; return { char, start, end: position }; });
-  function ribbon(offset: number) {
+  // 紙面のしおりを押したら、そのしおりのふりかえりを開く
+  function openMark(offset: number) {
     const mark = reading.marks.find(item => item.offset === offset);
-    return <>{mark && <Text accessibilityLabel="しおり" onPress={() => { if (!moving) { setSelected(mark.id); setScope('previous'); setPanel(true); } }} style={[styles.ribbon, mark.id === moving && styles.faded]}>▮</Text>}{moving && draft === offset && <Text style={styles.ribbon}>▮</Text>}</>;
+    if (mark && !moving) { setSelected(mark.id); setScope('previous'); setPanel(true); }
   }
   return <View style={styles.screen}>
-    <View style={styles.toolbar}><Action disabled={!ready || busy || !!moving} onPress={() => begin()}>しおりを挟む</Action><Action disabled={!ready || busy || !!moving} onPress={() => { setSelected(null); setPanel(true); }}>しおり一覧</Action></View>
+    {/* ヘッダー：中央にタイトルと作者、右にしおりの操作 */}
+    <Stack.Screen options={{
+      headerTitleAlign: 'center',
+      headerTitle: () => <View style={styles.headTitle}><Text style={styles.title}>{book.title}</Text><Text style={styles.small}>{book.author}</Text></View>,
+      headerRight: () => <View style={styles.headRight}>
+        <Action disabled={!ready || busy || !!moving} onPress={() => begin()}>しおりを挟む</Action>
+        <Action disabled={!ready || busy || !!moving} onPress={() => { setSelected(null); setPanel(true); }}>しおり一覧</Action>
+      </View>,
+    }} />
+    <MusicPanel book={book} position={readPosition} guideActive={guide && running && !moving} />
+    {/* 読みガイドの操作は横1列。入りきらないときは横にスクロール */}
+    <ScrollView horizontal style={styles.bar} contentContainerStyle={styles.barContent} showsHorizontalScrollIndicator={false}>
+      <Action disabled={!ready || !!moving} filled={guide} onPress={() => { const nextGuide = !guide; setGuide(nextGuide); setRunning(nextGuide); }}>{guide ? '読みガイド ON' : '読みガイド OFF'}</Action>
+      {guide && <>
+        <Action disabled={!ready || !!moving} onPress={() => setRunning(value => !value)}>{running ? '一時停止' : 'ガイドを開始'}</Action>
+        {speeds.map(value => <Action key={value} filled={speed === value} onPress={() => setSpeed(value)}>{`${value}字/分`}</Action>)}
+      </>}
+    </ScrollView>
     {!!error && <Text accessibilityRole="alert" style={styles.message}>{error}</Text>}
     {!!notice && <View style={styles.toolbar}><Text accessibilityLiveRegion="polite" style={styles.note}>{notice}</Text>{undo && <Action disabled={busy} onPress={() => void undoMove()}>元に戻す</Action>}</View>}
     {moving && <View style={styles.placement}><Text style={styles.note}>読み終えた最後の文字を押してください。ページを移って選ぶこともできます。</Text><View style={styles.toolbar}><Action disabled={busy || draft === null} filled onPress={() => void confirm()}>この位置に挟む</Action><Action disabled={busy} onPress={() => { setMoving(null); setDraft(null); }}>キャンセル</Action></View></View>}
-    <ScrollView ref={scroll} style={styles.paper} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{book.title}</Text><Text style={styles.note}>{book.author}</Text>
-      <Text selectable={!moving} style={styles.body}>{ribbon(current.start)}{characters.map(({ char, start, end }) => <Text key={start} onPress={moving ? () => setDraft(end) : undefined} style={moving && draft === end ? styles.chosen : undefined}>{char}{ribbon(end)}</Text>)}</Text>
-      <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：青空文庫</Text></Pressable>
-    </ScrollView>
-    <View style={styles.paging}><Action disabled={!ready || busy || page >= pages.length - 1} onPress={() => void go(page + 1)}>‹ 次のページ</Action><Text style={styles.note}>{page + 1} / {pages.length}</Text><Action disabled={!ready || busy || page === 0} onPress={() => void go(page - 1)}>前のページ ›</Action></View>
+    {/* 紙面は画面いっぱい。左側を押すと次、右側を押すと前のページ */}
+    <View style={styles.paper}>
+      <VerticalPage
+        text={current.text}
+        start={current.start}
+        sub={sub}
+        marks={reading.marks.map(mark => mark.offset)}
+        faded={reading.marks.find(mark => mark.id === moving)?.offset ?? null}
+        picking={!!moving}
+        draft={draft}
+        guide={guide}
+        running={running}
+        speed={speed}
+        onPick={offset => setDraft(offset)}
+        onMarkPress={openMark}
+        onPages={setSubCount}
+        onPosition={setReadPosition}
+        onNext={next}
+        onPrev={prev}
+        dom={{ style: { flex: 1 } }}
+      />
+    </View>
+    <Pressable accessibilityRole="link" style={styles.source} onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：青空文庫</Text></Pressable>
+    {/* 進み具合：縦書きなので右から左へ伸びるバー */}
+    <View style={styles.paging}>
+      <View style={styles.track}><View style={[styles.fill, { width: `${progress}%` }]} /></View>
+      <Text style={styles.note}>{progress}%</Text>
+    </View>
     <Modal visible={panel} transparent animationType="slide" onRequestClose={() => setPanel(false)}>
       <View style={styles.overlay}><View style={styles.sheet}><View style={styles.toolbar}><Text style={styles.heading}>{target ? 'ふりかえり' : 'しおり'}</Text><Action onPress={() => setPanel(false)}>閉じる</Action></View>
         <ScrollView contentContainerStyle={styles.sheetContent}>
@@ -109,11 +173,13 @@ const styles = StyleSheet.create({
   button: { paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: colors.surface },
   buttonText: { color: colors.accent, fontSize: 14 }, filled: { backgroundColor: colors.accent }, light: { color: colors.surface }, disabled: { opacity: 0.4 },
   message: { color: colors.ink, backgroundColor: colors.surface, padding: 12, lineHeight: 24 }, note: { color: colors.muted, fontSize: 14, lineHeight: 24 },
-  title: { color: colors.ink, fontSize: 23 }, heading: { color: colors.ink, fontSize: 18, fontWeight: '600' },
-  paper: { flex: 1, marginHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 6, backgroundColor: colors.surface },
-  content: { padding: 24, gap: 12 }, body: { color: colors.ink, fontSize: 18, lineHeight: 34, paddingVertical: 16 },
-  ribbon: { color: colors.accent, fontWeight: 'bold' }, faded: { opacity: 0.25 }, chosen: { backgroundColor: colors.line },
-  placement: { paddingHorizontal: 12, paddingVertical: 8 }, paging: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, gap: 6 },
+  title: { color: colors.ink, fontSize: 17, letterSpacing: 3, fontFamily: 'serif' }, heading: { color: colors.ink, fontSize: 18, fontWeight: '600' },
+  paper: { flex: 1, marginHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 4, overflow: 'hidden', backgroundColor: colors.surface },
+  headTitle: { alignItems: 'center' }, small: { color: colors.muted, fontSize: 11, marginTop: 2 }, headRight: { flexDirection: 'row', gap: 8, marginRight: 8 },
+  track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.line, flexDirection: 'row-reverse', overflow: 'hidden' }, fill: { backgroundColor: colors.accent },
+  bar: { flexGrow: 0 }, barContent: { gap: 8, alignItems: 'center', padding: 10 },
+  source: { alignSelf: 'center', paddingTop: 6 },
+  placement: { paddingHorizontal: 12, paddingVertical: 8 }, paging: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
   overlay: { flex: 1, backgroundColor: colors.paper, justifyContent: 'center', padding: 16 }, sheet: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.line, maxHeight: '95%', width: '100%', maxWidth: 720, alignSelf: 'center' },
   sheetContent: { padding: 16, gap: 20 }, markCard: { gap: 8, paddingBottom: 16, borderBottomWidth: 1, borderColor: colors.line },
 });

@@ -55,13 +55,19 @@ async function readKey(label) {
 }
 
 try {
-  let key = await readKey('Freesound APIキー');
+  const args = process.argv.slice(2);
+  const quick = args.includes('--no-api-keys');
+  const web = args.includes('--web');
+  let key = quick ? '' : await readKey('Freesound APIキー');
   if (key === null) process.exit(130);
-  let openaiKey = await readKey('OpenAI APIキー（本文の分析用）');
+  let openaiKey = quick ? '' : await readKey('OpenAI APIキー（本文の分析用）');
   if (openaiKey === null) process.exit(130);
-  const child = spawn(process.execPath, [fileURLToPath(new URL('../node_modules/expo/bin/cli', import.meta.url)), 'start', ...process.argv.slice(2)], {
+  if (quick) console.log('Web確認用に起動します。保存済みBGMは利用できます。新規取得の確認は npm run web を使ってください。');
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../node_modules/expo/bin/cli', import.meta.url)), 'start', ...args.filter(arg => arg !== '--no-api-keys')], {
     stdio: 'inherit',
-    env: { ...process.env, FREESOUND_API_KEY: key, OPENAI_API_KEY: openaiKey },
+    env: { ...process.env, FREESOUND_API_KEY: key, OPENAI_API_KEY: openaiKey,
+      ...(web ? { EXPO_NO_QR_CODE: '1' } : {}), ...(quick ? { EXPO_NO_DOTENV: '1' } : {}),
+    },
   });
   key = '';
   openaiKey = '';
