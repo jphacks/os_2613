@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
-import { scriptFromPassages, validateScript } from '../src/features/comic/model.mjs';
+import { dialogueEvidence, scriptFromPassages, validateScript } from '../src/features/comic/model.mjs';
 import { createBookArtifactProvider } from '../src/server/book-artifact-provider.mjs';
 import { createComicEndpoint } from '../src/server/book-artifacts.mjs';
 import { artifactStorage } from '../src/server/artifact-storage.mjs';
@@ -20,6 +20,44 @@ const value = { format: 'manga-v2', cast: '太郎は短髪、花子は帽子を�
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5XkAAAAASUVORK5CYII=';
 const post = body => new Request('http://localhost/api/comic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
+test('修正版は地の文を会話にせず、読点で途切れる発言や文中の切り抜きを除く', () => {
+  const text = '首を振って答えなかった。無言で首肯き、うなずいた。「ただ、私に情をかけたいつもりなら、三日待ってくれ。」';
+  assert.equal(dialogueEvidence(text, '首を振って答えなかった。'), null);
+  assert.equal(dialogueEvidence(text, '無言で首肯き'), null);
+  assert.equal(dialogueEvidence(text, 'ただ、私に情をかけたいつもりなら、'), null);
+  assert.equal(dialogueEvidence(text, '三日待ってくれ。'), null);
+  assert.ok(dialogueEvidence(text, 'ただ、私に情をかけたいつもりなら、三日待ってくれ。'));
+  const copy = structuredClone(value);
+  copy.panels[0].balloons[0].text = 'と言った。';
+  const script = scriptFromPassages(copy, opening, { recoverBalloons: true, editorial: true });
+  assert.equal(script.panels[0].balloons.length, 2);
+  assert.ok(script.panels[0].balloons.some(item => item.kind === 'narration'));
+});
+
+test('修正版の脚本モデルを維持し、Mini画像と生成モデルの記録を確認する', async () => {
+  let candidate = structuredClone(value); const requests = [];
+  const provider = createBookArtifactProvider({ apiKey: 'fake-only', fetcher: async (url, init) => {
+    requests.push({ url, init });
+    return Response.json(url.endsWith('/responses') ? { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(candidate) }] }] } : { data: [{ b64_json: png }] });
+  } });
+  const script = await provider.script({ title: '物語', opening, context: opening, format: 'manga-v2', revision: 3 });
+  assert.equal(JSON.parse(requests[0].init.body).model, 'gpt-5.4-mini');
+  assert.deepEqual(validateScript(script, opening), script);
+  assert.equal(script.generation.imageModel, 'gpt-image-1-mini');
+  await provider.image(script, 0, null);
+  assert.equal(requests[1].init.body.get('model'), 'gpt-image-1-mini');
+  assert.equal(requests[1].init.body.get('quality'), 'medium');
+  assert.equal(requests[1].init.body.get('input_fidelity'), null);
+  const instructions = JSON.parse(requests[0].init.body).instructions;
+  assert.match(instructions, /地の文/); assert.match(instructions, /人質/); assert.match(instructions, /王冠/);
+  // captionにだけ要点があっても、表示文に期限・人質がなければ画像生成へ進まない。
+  await assert.rejects(provider.script({ title: '走れメロス', opening: opening + '三日、友を人質にした。', context: opening + '三日、友を人質にした。', format: 'manga-v2', revision: 3 }), /INCOMPLETE/);
+  candidate = structuredClone(value);
+  for (const panel of candidate.panels) panel.balloons[2].text = '友を人質に残し、三日以内に戻る約束をした。';
+  const plot = await provider.script({ title: '走れメロス', opening: opening + '三日、友を人質にした。', context: opening + '三日、友を人質にした。', format: 'manga-v2', revision: 3 });
+  assert.equal(plot.panels[2].balloons[2].text, candidate.panels[2].balloons[2].text);
+});
+
 test('吹き出しは先に原文へ照合し、絵とは別の正確な文字列で保存する', () => {
   const script = scriptFromPassages(value, opening);
   assert.equal(script.format, 'manga-v2'); assert.equal(script.panels[0].balloons[0].text, '明日、橋で会おう。');
@@ -31,6 +69,30 @@ test('吹き出しは先に原文へ照合し、絵とは別の正確な文字�
   assert.throws(() => scriptFromPassages(changed(items => { items[1].slot = 'right'; }), opening), /INVALID_RESULT/);
   assert.throws(() => scriptFromPassages(changed(items => { items[0].text = 'あ'.repeat(33); }), opening), /INVALID_RESULT/);
   assert.throws(() => scriptFromPassages(changed(items => { items[2].slot = 'left'; }), opening), /INVALID_RESULT/);
+});
+
+test('会話の言い換えは除き、照合済み説明を残す。全件不一致なら原文の説明枠で続行する', () => {
+  const copy = structuredClone(value);
+  copy.panels[0].balloons[0].text = '明日橋で会おう！';
+  const result = scriptFromPassages(copy, opening, { recoverBalloons: true });
+  assert.equal(result.panels[0].balloons.length, 2);
+  assert.equal(result.panels[0].balloons[0].text, '約束ね。');
+  copy.panels[0].balloons = [copy.panels[0].balloons[0]];
+  const fallback = scriptFromPassages(copy, opening, { recoverBalloons: true });
+  assert.equal(fallback.panels[0].balloons[0].kind, 'narration');
+  assert.ok(opening.includes(fallback.panels[0].balloons[0].text));
+  assert.ok(!JSON.stringify(fallback).includes('明日橋で会おう！'));
+  assert.deepEqual(validateScript(fallback, opening), fallback);
+  copy.panels[0].balloons[0].sourceId = 'future';
+  assert.throws(() => scriptFromPassages(copy, opening, { recoverBalloons: true }), /UNGROUNDED/);
+});
+
+test('会話が別の資料へ誤って紐付いても、紹介範囲の実在する文へ位置を復元する', () => {
+  const text = 'あ'.repeat(180) + opening;
+  const copy = structuredClone(value);
+  const script = scriptFromPassages(copy, text, { recoverBalloons: true });
+  assert.equal(script.panels[0].balloons[0].start, text.indexOf('明日、橋で会おう。'));
+  assert.deepEqual(validateScript(script, text), script);
 });
 
 test('漫画版は文字入り画像を要求せず、絵柄の見本と作品の1コマ目を役割別に渡す', async () => {
@@ -69,6 +131,9 @@ test('漫画版の新規保存は旧版を上書きせず、吹き出し付き�
   const input = { action: 'register', bookId: 'book', title: '物語', opening, context: opening };
   const original = await (await endpoint(post(input))).json();
   const manga = await (await endpoint(post({ ...input, edition: 'manga' }))).json();
+  const revised = await (await endpoint(post({ ...input, edition: 'manga', revision: 3 }))).json();
+  assert.notEqual(revised.key, manga.key); assert.equal(revised.status, 'idle');
+  assert.equal((await artifactStorage(root).read(revised.key)).source.revision, 3);
   assert.notEqual(manga.key, original.key); assert.equal(manga.status, 'idle'); assert.equal(scripts, 0);
   await endpoint(post({ action: 'start', key: manga.key }));
   let state;
@@ -82,4 +147,24 @@ test('漫画版の新規保存は旧版を上書きせず、吹き出し付き�
   assert.equal((await (await endpoint(post({ ...input, edition: 'manga' }))).json()).status, 'ready');
   assert.equal(scripts, 1); assert.equal(images, 4);
   assert.equal((await artifactStorage(root).read(original.key)).script, null);
+  const saved = await artifactStorage(root).read(manga.key);
+  await artifactStorage(root).write(manga.key, { ...saved, script: null, completed: 0, scriptAttempts: 3, status: 'error', error: { code: 'UNGROUNDED' } });
+  // 完成画像は残す。修正版脚本の明示した再試行だけを許し、画像は回収する。
+  await endpoint(post({ action: 'start', key: manga.key }));
+  for (let i = 0; i < 60; i++) {
+    state = await (await endpoint(new Request(`http://localhost/api/comic?key=${manga.key}`))).json();
+    if (state.status !== 'running') break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal(state.status, 'ready'); assert.equal(scripts, 2); assert.equal(images, 4);
+  const recovered = await artifactStorage(root).read(manga.key);
+  assert.equal(recovered.scriptAttempts, 4); assert.equal(recovered.balloonRecoveryTried, true);
+  await artifactStorage(root).write(manga.key, { ...recovered, script: null, status: 'error', error: { code: 'UNGROUNDED' } });
+  await endpoint(post({ action: 'start', key: manga.key }));
+  for (let i = 0; i < 60; i++) {
+    state = await (await endpoint(new Request(`http://localhost/api/comic?key=${manga.key}`))).json();
+    if (state.status !== 'running') break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal(state.failure.code, 'LIMIT'); assert.equal(scripts, 2);
 });

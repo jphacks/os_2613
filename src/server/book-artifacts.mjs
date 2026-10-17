@@ -53,10 +53,11 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
       let record = await storage.read(key); if (!record) throw new Error('NOT_FOUND');
       record = await storage.update(key, value => ({ ...value, status: 'running', error: null }));
       if (!record.script) {
-        if (record.scriptAttempts >= 3) throw new Error('LIMIT');
+        if (record.scriptAttempts >= (record.scriptLimit ?? 3)) throw new Error('LIMIT');
         record = await storage.update(key, value => ({ ...value, scriptAttempts: value.scriptAttempts + 1 }));
         const script = validateScript(await provider.script(record.source), record.source.opening);
         if (record.source.format === 'manga-v2' && script.format !== 'manga-v2') throw new Error('INVALID_RESULT');
+        if (record.source.revision === 3 && script.generation?.revision !== 3) throw new Error('INVALID_RESULT');
         record = await storage.update(key, value => ({ ...value, script }));
       }
       for (let index = record.completed; index < 4; index++) {
@@ -90,10 +91,11 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
       if (request.method !== 'POST') return send(405, { error: '紹介漫画の画面から操作してください。' });
       const input = await artifactInput(request, 210000);
       if (input.action === 'register') {
-        const { bookId, title, opening, context, edition } = input;
+        const { bookId, title, opening, context, edition, revision } = input;
+        if (revision !== undefined && (revision !== 3 || edition !== 'manga')) throw new Error('INVALID_INPUT');
         if (edition !== undefined && !['comparison', 'manga'].includes(edition)) throw new Error('INVALID_INPUT');
         if (typeof bookId !== 'string' || !bookId || bookId.length > 120 || typeof title !== 'string' || !title.trim() || title.length > 200 || typeof opening !== 'string' || !opening.trim() || opening.length > 12000 || typeof context !== 'string' || context.length > 20000 || !context.startsWith(opening)) throw new Error('INVALID_INPUT');
-        const source = { title, opening, context, ...(edition === 'manga' ? { format: 'manga-v2' } : {}) }, key = artifactKey([edition === 'manga' ? 'comic-manga-v2' : edition === 'comparison' ? 'comic-comparison-v1' : 'comic-v1', bookId, source]);
+        const source = { title, opening, context, ...(edition === 'manga' ? { format: 'manga-v2' } : {}), ...(revision === 3 ? { revision } : {}) }, key = artifactKey([edition === 'manga' ? 'comic-manga-v2' : edition === 'comparison' ? 'comic-comparison-v1' : 'comic-v1', bookId, source]);
         const record = await storage.update(key, value => value ?? { source, script: null, completed: 0, scriptAttempts: 0, imageAttempts: 0, status: 'idle', error: null });
         return send(200, state(key, record));
       }
@@ -104,6 +106,10 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
         if (provider.configured === false) throw new Error('NOT_CONFIGURED');
         if (jobs.size >= 1) throw new Error('BUSY');
         const job = Promise.resolve().then(async () => {
+          // 旧照合条件で上限まで失敗した漫画版は、明示した開始操作で修正版を一度だけ試せる。
+          if (record.source.format === 'manga-v2' && !record.script && record.error?.code === 'UNGROUNDED' && record.scriptAttempts >= 3 && !record.balloonRecoveryTried) {
+            await storage.update(key, value => ({ ...value, scriptLimit: value.scriptAttempts + 1, balloonRecoveryTried: true }));
+          }
           if (input.resumeRemaining === true && record.script && record.completed < 4) {
             await storage.update(key, value => value.imageAttempts >= (value.imageLimit ?? 8) ? { ...value, imageLimit: value.imageAttempts + 4 - value.completed } : value);
           }

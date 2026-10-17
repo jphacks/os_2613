@@ -24,6 +24,7 @@ export function MangaPanel({ panel, index, width, children }: { panel: ComicPane
         balloon.slot === 'left' && styles.left, balloon.slot === 'right' && styles.right,
         thought && styles.thought,
       ]}>
+        {!narration && <Text style={{ fontSize: Math.max(9, fontSize * 0.6), color: '#444', fontWeight: '700', textAlign: 'center', marginBottom: 4 }}>{balloon.speaker}</Text>}
         <BalloonText balloon={balloon} fontSize={fontSize} />
         {!narration && (thought ? <View accessible={false} style={[styles.thoughtTail, balloon.slot === 'right' ? { left: 15 } : { right: 15 }]}><View style={styles.thoughtDot} /><View style={[styles.thoughtDot, { width: 6, height: 6, marginTop: 3 }]} /></View> : <>
           <View accessible={false} style={[styles.tailEdge, balloon.slot === 'right' ? { left: 16 } : { right: 16 }]} />
