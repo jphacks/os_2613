@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
-import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/shared/theme';
 import type { SavedBook } from '@/features/library/types';
 import type { MusicPlan } from './plan-model.mjs';
@@ -13,9 +13,10 @@ import { CueMixer } from './cue-playback.mjs';
 import type { MusicTrack } from '@/server/music.mjs';
 
 const fallback = require('../../../assets/audio/reading-pad.wav');
-export function MusicPanel({ book, position, guideActive }: { book: SavedBook; position: number; guideActive: boolean }) {
+export function MusicPanel({ book, position, guideActive, visible = true }: { visible?: boolean; book: SavedBook; position: number; guideActive: boolean }) {
   const [plan, setPlan] = useState<MusicPlan | null>(null);
   const [enabled, setEnabled] = useState(false);
+  const [details, setDetails] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -34,7 +35,7 @@ export function MusicPanel({ book, position, guideActive }: { book: SavedBook; p
     const interval = setInterval(() => { cueMixer.tick(); mixer.setDucking(cueMixer.hasEffects ? 0.6 : 1); mixer.tick(); }, 80);
     return () => clearInterval(interval);
   }, [mixer, cueMixer]);
-  useEffect(() => { cueMixer.update(plan?.cues ?? [], position, enabled && guideActive && !!plan, volume); }, [plan, position, enabled, guideActive, volume, cueMixer]);
+  useEffect(() => { cueMixer.update(plan?.cues ?? [], position, visible && enabled && guideActive && !!plan, volume); }, [plan, position, enabled, guideActive, visible, volume, cueMixer]);
   useEffect(() => {
     void AsyncStorage.getItem('dopabooks:music-volume:v1').then(raw => {
       if (alive.current && raw !== null && Number.isFinite(Number(raw))) setVolume(Math.max(0, Math.min(1, Number(raw))));
@@ -66,9 +67,9 @@ export function MusicPanel({ book, position, guideActive }: { book: SavedBook; p
   }
   useEffect(() => { void loadPlan(); }, [book.id, book.text]);
   useEffect(() => {
-    if (enabled && guideActive && plan) mixer.start();
+    if (visible && enabled && guideActive && plan) mixer.start();
     else mixer.stop();
-  }, [enabled, guideActive, !!plan, mixer]);
+  }, [enabled, guideActive, visible, !!plan, mixer]);
   const current = musicAt(plan?.scenes ?? [], position);
   useEffect(() => { mixer.request(current ? String(current.id) : 'fallback', current ? { uri: current.audioUrl } : fallback); }, [current?.id, current?.audioUrl, mixer]);
   async function load() {
@@ -93,21 +94,38 @@ export function MusicPanel({ book, position, guideActive }: { book: SavedBook; p
     void setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false }).catch(() => setError('音声設定を変更できません。端末の音量をご確認ください。'));
     mixer.arm(); cueMixer.arm(); setEnabled(true); setNotice('');
   }
-  const button = (label: string, action: () => void, disabled = false) => <Pressable accessibilityRole="button" disabled={disabled} onPress={action} style={[styles.button, disabled && { opacity: 0.4 }]}><Text style={styles.text}>{label}</Text></Pressable>;
+  if (!visible) return null;
+  const icon = (symbol: string, label: string, action: () => void, disabled = false, active = false) => <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={action} style={[styles.button, active && styles.active, disabled && { opacity: 0.35 }]}><Text style={[styles.symbol, active && styles.light]}>{symbol}</Text></Pressable>;
   return <View style={styles.panel}>
-    <View style={styles.row}>{button(enabled ? 'BGM ON' : 'BGM OFF', enabled ? stop : start, !plan)}{button(busy ? 'BGM取得中…' : 'BGM取得', () => void load(), busy)}</View>
-    <VolumeBar value={volume} onChange={setVolume} />
-    <View style={[styles.row, { flexWrap: 'nowrap' }]}>
-      <Text style={[styles.text, { flex: 1 }]} numberOfLines={1}>ガイドに自動同期・{current ? <Text accessibilityRole="link" onPress={() => void Linking.openURL(current.url)}>{current.creator} / {current.name}</Text> : '同梱の予備BGM'}</Text>
-      {current && <Text style={styles.text} accessibilityRole="link" onPress={() => void Linking.openURL(current.license)}>{current.license.includes('/zero/') ? 'CC0' : 'CC BY'}</Text>}
+    <View style={styles.row}>
+      {icon('♫', enabled ? 'BGMをオフにする' : 'BGMをオンにする（読みガイドに同期）', enabled ? stop : start, !plan, enabled)}
+      {busy ? <View style={styles.button} accessibilityLabel="BGM取得中"><ActivityIndicator size="small" color={colors.accent} /></View> : icon('↓', 'BGMを取得（初回は有料AI分析）', () => void load())}
+      <View style={styles.volume}><VolumeBar value={volume} onChange={setVolume} /></View>
+      {icon(error ? '!' : 'ⓘ', 'BGMの情報・音源クレジット', () => setDetails(true))}
     </View>
-    <Text style={[styles.text, { height: 36 }]} numberOfLines={2}>{activeCues.length ? activeCues.map(track => <Text key={track.id}><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.url)}>{track.creator} / {track.name}</Text> <Text accessibilityRole="link" onPress={() => void Linking.openURL(track.license)}>{track.license.includes('/zero/') ? 'CC0' : 'CC BY'}</Text>　</Text>) : '環境音・効果音は、本文の該当箇所で重なります。'}</Text>
-    <Text accessibilityLiveRegion="polite" numberOfLines={3} style={[styles.text, { height: 54 }]}>{error || (enabled && !guideActive ? 'ガイドをONにすると、読んでいる位置の音が鳴ります。' : notice) || (plan?.version === 3 ? '環境音・効果音を保存済み。ガイドに自動で合わせます。' : '環境音・効果音の初回取得は本文をAI分析します（有料）。')}</Text>
+    {!!error && <Pressable onPress={() => setDetails(true)}><Text accessibilityRole="alert" style={styles.text} numberOfLines={1}>{error}</Text></Pressable>}
+    <Modal visible={details} transparent animationType="fade" onRequestClose={() => setDetails(false)}>
+      <View style={styles.backdrop}><View style={styles.card}><ScrollView contentContainerStyle={styles.details}>
+        <Text style={styles.heading}>BGM</Text>
+        <Text style={styles.text}>{error || notice || '読みガイドに合わせて再生します。初回取得は本文をAI分析します（有料）。'}</Text>
+        <Text style={styles.text}>{enabled && !guideActive ? '読みガイドを開始すると音が鳴ります。' : '環境音・効果音は本文の該当箇所で重なります。'}</Text>
+        {[...(current ? [current] : []), ...activeCues].map((track, index) => <View key={`${track.id}:${index}`} style={styles.credit}><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.url)} style={styles.text}>{track.creator} / {track.name}</Text><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.license)} style={styles.text}>{track.license.includes('/zero/') ? 'CC0' : 'CC BY'}</Text></View>)}
+        {!current && <Text style={styles.text}>同梱の予備BGM</Text>}
+        <Pressable accessibilityRole="button" onPress={() => setDetails(false)} style={styles.close}><Text style={styles.text}>閉じる</Text></Pressable>
+      </ScrollView></View></View>
+    </Modal>
   </View>;
 }
 const styles = StyleSheet.create({
-  panel: { backgroundColor: colors.surface, padding: 6, borderBottomWidth: 1, borderColor: colors.line },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
-  button: { padding: 7, borderWidth: 1, borderColor: colors.line, borderRadius: 8, marginVertical: 2 },
-  text: { color: colors.ink, fontSize: 12, lineHeight: 18 },
+  panel: { paddingHorizontal: 12, paddingVertical: 3 },
+  row: { flexDirection: 'row', gap: 4, alignItems: 'center', alignSelf: 'flex-end', width: '100%', maxWidth: 360 },
+  button: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  active: { backgroundColor: colors.accent }, light: { color: colors.surface },
+  symbol: { color: colors.accent, fontSize: 22 },
+  volume: { flex: 1 },
+  text: { color: colors.ink, fontSize: 12, lineHeight: 20 },
+  heading: { color: colors.ink, fontSize: 18, fontWeight: '600' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(41,46,41,0.35)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  card: { width: '100%', maxWidth: 420, maxHeight: '80%', backgroundColor: colors.surface, borderRadius: 14 },
+  details: { padding: 22, gap: 16 }, credit: { gap: 4 }, close: { alignSelf: 'flex-end', padding: 8 },
 });

@@ -1,3 +1,4 @@
+import { useAccount } from '@/features/account/AccountProvider';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -35,6 +36,7 @@ const sources = {
 } as const;
 
 export default function AddScreen() {
+  const { complete } = useAccount();
   const [tab, setTab] = useState<'novel' | 'study'>('novel');
   const [field, setField] = useState('keyword');
   const [query, setQuery] = useState('');
@@ -79,6 +81,7 @@ export default function AddScreen() {
       if (!response.ok) throw new Error(data.error);
       if (controller.signal.aborted) return;
       await addBook(data as SavedBook);
+      complete('add');
       void recordAdded((data as SavedBook).id); // 分析画面の「追加した本」用
       if (!controller.signal.aborted) setMessage(`「${data.title}」を本棚に追加しました。`);
     } catch (reason) {
@@ -180,14 +183,14 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: 10,
+    borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
     color: colors.ink,
     backgroundColor: colors.surface,
   },
-  searchButton: { backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 22, justifyContent: 'center' },
+  searchButton: { backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 22, justifyContent: 'center' },
   searchText: { color: colors.surface, fontSize: 15 },
   empty: { fontSize: 12, color: colors.muted, textAlign: 'center', paddingVertical: 24 },
   feedback: { color: colors.accent, fontSize: 13, lineHeight: 21 },
@@ -195,6 +198,6 @@ const styles = StyleSheet.create({
   result: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderColor: colors.line, paddingVertical: 16 },
   resultInfo: { flex: 1, gap: 4 },
   bookTitle: { fontSize: 17, color: colors.ink },
-  add: { backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 11 },
+  add: { backgroundColor: colors.accent, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 11 },
   pagination: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16 },
 });

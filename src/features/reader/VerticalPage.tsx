@@ -180,12 +180,17 @@ export default function VerticalPage(props: Props) {
       <div style={{ ...styles.clip, width: layout.width || '100%' }}><div ref={textRef} style={{ ...styles.text, color: guide ? paint.muted : paint.ink, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>
       {page === 0 && ribbon(start, true)}{chars.map(({ char, end }, index) => <span key={end} data-i={index} data-offset={end} style={{ position: 'relative', color: guide && index <= cursor ? paint.ink : undefined, background: picking && draft === end ? paint.chosen : undefined }}>{char}{ribbon(end)}</span>)}
     </div></div></div>
+    {!picking && !ghost && <>
+      {page < layout.count - 1 && <span aria-hidden="true" style={{ ...styles.turnHint, left: 4, color: paint.ink }}>←</span>}
+      {page > 0 && <span aria-hidden="true" style={{ ...styles.turnHint, right: 4, color: paint.ink }}>→</span>}
+    </>}
     {ghost && <span aria-hidden="true" style={{ position: 'fixed', pointerEvents: 'none', left: ghost.x - 9, top: ghost.y - 5, zIndex: 9999, color: paint.accent }}><Ribbon /></span>}
     {ghost && edge && <span aria-hidden="true" style={{ position: 'absolute', bottom: 8, left: edge === 'next' ? 8 : undefined, right: edge === 'prev' ? 8 : undefined, color: paint.ink, background: paint.background, pointerEvents: 'none', padding: 6 }}>{edge === 'next' ? '‹ 次のページへ' : '前のページへ ›'}</span>}
   </div>;
 }
 const styles: Record<string, React.CSSProperties> = {
   root: { height: '100%', width: '100%', padding: '24px 24px', boxSizing: 'border-box', userSelect: 'none', touchAction: 'none', position: 'relative' },
+  turnHint: { position: 'absolute', top: '50%', transform: 'translateY(-50%)', fontSize: 22, opacity: 0.16, pointerEvents: 'none', lineHeight: 1 },
   view: { height: '100%', display: 'flex', justifyContent: 'flex-end', position: 'relative', minHeight: 0, overflow: 'hidden' },
   clip: { position: 'relative', height: '100%', overflow: 'hidden' },
   text: { position: 'absolute', top: 0, right: 0, height: '100%', width: 'max-content', writingMode: 'vertical-rl', letterSpacing: '0.05em', whiteSpace: 'pre-wrap' },

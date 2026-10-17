@@ -1,3 +1,4 @@
+import { useAccount } from '@/features/account/AccountProvider';
 import { Asset } from 'expo-asset';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -37,12 +38,13 @@ export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   return <>
-    <Stack.Screen options={{ headerLeft: () => <Pressable accessibilityRole="button" accessibilityLabel="本棚へ戻る" onPress={() => router.dismissTo('/')} style={styles.shelfButton}><Text style={styles.shelfButtonText}>← 本棚へ</Text></Pressable> }} />
+    <Stack.Screen options={{ headerLeft: () => <Pressable accessibilityRole="button" accessibilityLabel="本棚へ戻る" onPress={() => router.dismissTo('/shelf')} style={styles.shelfButton}><Text style={styles.shelfButtonText}>← 本棚へ</Text></Pressable> }} />
     {pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook id={id} />}
   </>;
 }
 
 function NovelBook({ id }: { id: string }) {
+  const { prefs } = useAccount();
   const { books, ready } = useLibrary();
   const book = books.find(item => item.id === id);
   // ウィジェットから開いたときは ?mark=しおりの位置 が付くので、紹介の漫画を飛ばしてその位置から表示する
@@ -63,7 +65,7 @@ function NovelBook({ id }: { id: string }) {
 
   if (ready && book && entry !== 'loading') return <View key={`${book.id}:${book.importedAt}:${mark ?? ''}`} style={{ flex: 1 }}>
     <Stack.Screen options={{ title: book.title }} />
-    {entry === 'intro' ? <IntroComic book={book} read={() => { setOffset(0); setEntry('read'); void AsyncStorage.setItem(`dopabooks:opened:v1:${book.id}`, book.importedAt).catch(() => {}); }} /> : <BookReading book={book} initialOffset={offset} />}
+    {entry === 'intro' && prefs.comic ? <IntroComic book={book} read={() => { setOffset(0); setEntry('read'); void AsyncStorage.setItem(`dopabooks:opened:v1:${book.id}`, book.importedAt).catch(() => {}); }} /> : <BookReading book={book} initialOffset={offset} />}
   </View>;
 
   return (

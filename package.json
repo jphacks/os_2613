@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@atproto/oauth-client-browser": "^0.5.10",
     "@expo/ui": "~58.0.20",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~58.0.14",

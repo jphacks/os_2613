@@ -1,3 +1,4 @@
+import { useAccount } from '@/features/account/AccountProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, Stack } from 'expo-router';
@@ -28,6 +29,7 @@ function Action({ children, onPress, disabled = false, filled = false }: { child
 }
 
 export function BookReading({ book, initialOffset }: { book: SavedBook; initialOffset?: number }) {
+  const { prefs, complete } = useAccount();
   const store = useMemo(() => createReadingStore(AsyncStorage, `dopabooks:reading:v1:${book.id}`, book.text), [book.id, book.text]);
   const [reading, setReading] = useState<Reading>(() => emptyReading(book.text));
   const [ready, setReady] = useState(false);
@@ -43,6 +45,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
   const [readPosition, setReadPosition] = useState(0);
   const [guide, setGuide] = useState(false);
   const [running, setRunning] = useState(false);
+  useEffect(() => { if (guide && running) complete('guide'); }, [guide, running]);
   const [speed, setSpeed] = useState(500);
   const [sub, setSub] = useState(0);
   const [subCount, setSubCount] = useState(1);
@@ -84,6 +87,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
   // しおりが変わったら、ウィジェットに出す「最新のしおり」も更新する（しおりが無くなった本は外す）
   useEffect(() => {
     if (!ready) return;
+    if (reading.marks.length) complete('bookmark');
     const latestMark = [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt)[0];
     if (!latestMark) { void forgetWidgetBook(book.id); return; }
     void rememberWidgetBook({
@@ -190,7 +194,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
       // iPhone ではヘッダーのボタンに標準の枠が付くので、こちらでは枠を付けない（枠が二重になるため）
       headerRight: () => <Pressable accessibilityRole="button" disabled={!ready || !!moving} onPress={() => { setRunning(false); setMenu(true); }} style={[styles.headButton, (!ready || !!moving) && styles.disabled]}><Text style={styles.buttonText}>☰ メニュー</Text></Pressable>,
     }} />
-    <MusicPanel book={book} position={readPosition} guideActive={guide && running && !moving && !menu && !panel && !settingsOpen && !feature} />
+    <MusicPanel visible={prefs.music} book={book} position={readPosition} guideActive={guide && running && !moving && !menu && !panel && !settingsOpen && !feature} />
     {/* 読みガイドがONのときだけ、開始・一時停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
     {guide && <View style={styles.toolbar}>
       <Action filled disabled={!ready || !!moving} onPress={() => setRunning(value => !value)}>{running ? '一時停止' : '▶ ガイドを開始'}</Action>
@@ -204,8 +208,8 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
           <Action disabled={busy} onPress={() => { setMenu(false); begin(); }}>しおりを挟む</Action>
           <Action onPress={() => { setMenu(false); setSelected(null); setPanel(true); }}>しおり一覧・ふりかえり</Action>
           <Text style={styles.menuHead}>物語</Text>
-          <Action onPress={() => { setMenu(false); setRunning(false); setFeature('comic'); }}>紹介4コマ</Action>
-          <Action onPress={() => { setMenu(false); setRunning(false); setFeature('characters'); }}>人物相関図</Action>
+          {prefs.comic && <Action onPress={() => { setMenu(false); setRunning(false); setFeature('comic'); }}>紹介4コマ</Action>}
+          {prefs.characters && <Action onPress={() => { setMenu(false); setRunning(false); setFeature('characters'); }}>人物相関図</Action>}
           <Text style={styles.menuHead}>表示</Text>
           <Action disabled={!displayReady} onPress={() => { setMenu(false); setSettingsOpen(true); }}>Aa 表示設定</Action>
           <Action onPress={() => { setMenu(false); router.push('/focus'); }}>読書集中モード（通知を止める）</Action>
@@ -287,7 +291,7 @@ export function BookReading({ book, initialOffset }: { book: SavedBook; initialO
 }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper }, toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: 10 },
-  button: { paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: colors.surface },
+  button: { paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 999, backgroundColor: colors.surface },
   buttonText: { color: colors.accent, fontSize: 14 }, filled: { backgroundColor: colors.accent }, light: { color: colors.surface }, disabled: { opacity: 0.4 },
   message: { color: colors.ink, backgroundColor: colors.surface, padding: 12, lineHeight: 24 }, note: { color: colors.muted, fontSize: 14, lineHeight: 24 },
   title: { color: colors.ink, fontSize: 17, letterSpacing: 3, fontFamily: 'serif' }, heading: { color: colors.ink, fontSize: 18, fontWeight: '600' },
