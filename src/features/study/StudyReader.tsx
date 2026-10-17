@@ -20,6 +20,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   const [chapterIndex, setChapterIndex] = useState(0);
   const { width } = useWindowDimensions();
   const [busy, setBusy] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
@@ -76,6 +77,18 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
     } catch (reason) { if (alive.current) setError(reason instanceof Error ? reason.message : '作成できませんでした。'); }
     finally { running.current = false; if (alive.current) setBusy(false); }
   }
+  async function illustrate() {
+    if (busy || running.current || level === 'original') return;
+    setBusy(true); setImageBusy(true); running.current = true; setError('');
+    try {
+      controller.current = new AbortController();
+      const response = await fetch('/api/study', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.current.signal,
+        body: JSON.stringify({ action: 'illustrate', id: book.id, chapter: chapterIndex, unit: index, level }) });
+      const result = await response.json(); if (!response.ok) throw new Error(result.error ?? '挿絵を作成できませんでした。');
+      if (alive.current) setState(result);
+    } catch (reason) { if (alive.current) setError(reason instanceof Error ? reason.message : '挿絵を作成できませんでした。'); }
+    finally { running.current = false; if (alive.current) { setBusy(false); setImageBusy(false); } }
+  }
   const current = state?.units[index], lesson = current?.lesson;
   const chapter = state?.chapters[chapterIndex];
   const selected = levels.find(item => item.id === level)!;
@@ -86,10 +99,12 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
       <Text style={styles.note}>{selected.description}</Text>
       <Text style={styles.text} numberOfLines={2}>{chapter?.title ?? '左の一覧から学びたい章を選びます。'}</Text>
       <View style={styles.row}>
-        {(level !== 'original' || busy) && action(busy ? 'この範囲の保存後に停止' : chapter?.complete ? 'この章は保存済み' : chapter?.needsVisuals && chapter.baseComplete ? 'この章に図解・公式を追加（有料）' : 'この章を図解付きで作成・再開（有料）', () => { if (busy) running.current = false; else void generate(); }, loading || (!busy && (!chapter || chapter.complete)))}
+        {!imageBusy && (level !== 'original' || busy) && action(busy ? 'この範囲の保存後に停止' : chapter?.complete ? 'この章は保存済み' : chapter?.needsVisuals && chapter.baseComplete ? 'この章に図解・公式を追加（有料）' : 'この章を図解付きで作成・再開（有料）', () => { if (busy) running.current = false; else void generate(); }, loading || (!busy && (!chapter || chapter.complete)))}
         {!state && !loading && action('保存状態を再確認', () => void load())}
       </View>
+      {imageBusy && <Text accessibilityLiveRegion="polite" style={styles.note}>挿絵を作成しています。数分かかる場合があります。完成した画像から保存します。</Text>}
       {level !== 'original' && chapter?.complete && !chapter.enhanced && !busy && action('この章の図・グラフを増やす（有料）', () => void generate('enhance'))}
+      {level !== 'original' && lesson && !busy && action(lesson.illustrationsComplete?.[level] ? 'この範囲の挿絵は保存済み' : `この範囲に挿絵を追加（有料・${level === 'beginner' ? '最大2枚' : '最大1枚'}）`, () => void illustrate(), !!lesson.illustrationsComplete?.[level])}
       <Text accessibilityLiveRegion="polite" style={styles.note}>{loading ? '保存済み教材を確認しています…' : chapter ? `${chapter.units.filter(i => state?.units[i].lesson).length}/${chapter.units.length}範囲の本文を保存済み。${busy ? '選択した章だけを作成中です。' : chapter.complete ? '図解も保存済み。難易度を変えても再生成しません。' : `図解を含め残り${chapter.remainingRequests}回の生成。他の章は生成しません。`}` : ''}</Text>
       {!!(error || current?.error) && <Text accessibilityLiveRegion="polite" style={styles.error}>{error || current?.error}</Text>}
       {level !== 'original' && state && chapter && <>

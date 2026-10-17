@@ -1,11 +1,19 @@
 const short = (value, length) => typeof value === 'string' && value.length <= length;
+export function validChart(chart) {
+  return !!chart && ['line', 'bar'].includes(chart.type) && ['source', 'example'].includes(chart.basis)
+    && short(chart.xLabel, 30) && short(chart.yLabel, 30)
+    && Array.isArray(chart.labels) && chart.labels.length >= 2 && chart.labels.length <= 8 && chart.labels.every(v => short(v, 12) && v.trim())
+    && Array.isArray(chart.series) && chart.series.length >= 1 && chart.series.length <= 3
+    && chart.series.every(s => short(s.name, 40) && s.name.trim() && Array.isArray(s.values) && s.values.length === chart.labels.length && s.values.every(v => Number.isFinite(v) && Math.abs(v) <= 1e9));
+}
 export function cleanVisuals(value, text) {
   if (!Array.isArray(value)) return undefined;
   const lastLine = text.split('\n').filter(line => line.trim()).at(-1) ?? '';
   return value.slice(0, 8).map(item => item && short(item.after, 160) && item.after.trim() && !text.includes(item.after) && lastLine
     ? { ...item, after: lastLine.slice(-160), supplement: true } : item).filter(item => {
-    if (!item || !['graph', 'flow', 'comparison', 'formula'].includes(item.kind) || !short(item.title, 100) || !short(item.caption, 500)
+    if (!item || !['graph', 'chart', 'flow', 'comparison', 'formula'].includes(item.kind) || !short(item.title, 100) || !short(item.caption, 500)
       || !short(item.after, 160) || !item.after.trim() || !text.includes(item.after)) return false;
+    if (item.kind === 'chart') return validChart(item.chart);
     if (item.kind === 'formula') return Array.isArray(item.terms) && item.terms.length > 0 && item.terms.length <= 12
       && item.terms.every(term => short(term.text, 120) && short(term.meaning, 160) && ['input', 'operation', 'result', 'plain'].includes(term.role));
     if (item.kind === 'flow' || item.kind === 'comparison') return Array.isArray(item.nodes) && item.nodes.length >= 2 && item.nodes.length <= 6

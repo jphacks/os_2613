@@ -71,6 +71,21 @@ test('同時の作成をまとめ、同じ単元への二重課金を防ぐ', as
   assert.equal(calls.lesson, 1);
 });
 
+test('挿絵は明示した範囲と難易度だけに作り、章や難易度の切替では生成しない', async t => {
+  const { directory, service } = await fixture(t);
+  await service.generate('calculus', 0);
+  const calls = [];
+  const reader = createStudyService({ storage: artifactStorage(directory), readSource: async () => source,
+    illustrations: { read: async () => ({ complete: false, visuals: [] }), generate: async input => { calls.push(input); } } });
+  await reader.status('calculus'); assert.equal(calls.length, 0);
+  await reader.illustrate('calculus', 0, 0, 'beginner');
+  assert.equal(calls.length, 1); assert.equal(calls[0].level, 'beginner');
+  assert.ok(!calls[0].source.includes('微分は変化')); assert.ok(!('standard' in calls[0]));
+  await assert.rejects(reader.illustrate('calculus', 1, 0, 'beginner'), /INVALID_INPUT/);
+  await assert.rejects(reader.illustrate('calculus', 0, 0, 'original'), /INVALID_INPUT/);
+  assert.equal(calls.length, 1);
+});
+
 test('保存済みの文章を再生成せず図解だけ明示的に追加して再利用する', async t => {
   let enrichCalls = 0;
   const { service, calls, make } = await fixture(t, {
