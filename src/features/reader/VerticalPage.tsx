@@ -10,6 +10,7 @@ type Props = {
   text: string; start: number; sub: number; marks: number[]; faded: number | null; picking: boolean; draft: number | null;
   guide: boolean; running: boolean; speed: number; display: DisplayPreferences; paint: Paint; disabled: boolean;
   focus: { offset: number; token: number } | null;
+  onPosition: (offset: number) => void;
   onPages: (count: number) => void; onReflow: (page: number) => void; onVisible: (offset: number) => void;
   onNext: () => void; onPrev: () => void; onAdvance: () => void; onPause: () => void;
   onPick: (offset: number) => void; onMarkPress: (offset: number) => void;
@@ -107,6 +108,12 @@ export default function VerticalPage(props: Props) {
     const timer = setInterval(() => { if (gesture.current?.dragged || gesture.current?.placing) edge === 'next' ? latest.current.onNext() : latest.current.onPrev(); }, 650);
     return () => clearInterval(timer);
   }, [edge, !!ghost]);
+
+  useEffect(() => {
+    if (picking || ghost || disabled || !layout.width) return;
+    const char = chars[guide ? cursor : 0];
+    if (char) latest.current.onPosition(char.begin);
+  }, [cursor, chars, guide, picking, ghost, disabled, layout.width]);
 
   function pointOffset(x: number, y: number) {
     const root = rootRef.current?.getBoundingClientRect();
