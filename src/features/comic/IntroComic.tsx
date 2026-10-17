@@ -19,7 +19,7 @@ function checked(value: State, opening: string): State {
   return { ...value, script };
 }
 export function IntroComic({ book, read }: { book: SavedBook; read: () => void }) {
-  const [edition, setEdition] = useState<Edition>('page');
+  const [edition, setEdition] = useState<Edition>('manga');
   return <ComicEdition key={`${book.id}:${edition}`} book={book} read={read} edition={edition} switchEdition={setEdition} />;
 }
 function ComicEdition({ book, read, edition, switchEdition }: { book: SavedBook; read: () => void; edition: Edition; switchEdition: (edition: Edition) => void }) {
