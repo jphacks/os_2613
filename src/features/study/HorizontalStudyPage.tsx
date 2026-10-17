@@ -81,7 +81,7 @@ export default function HorizontalStudyPage(props: Props) {
           padding: line.callout ? '14px 18px 18px' : undefined, background: line.callout ? paint.chosen : undefined,
           paddingLeft: line.heading && !line.title ? 12 : line.callout ? 18 : undefined }}>
           {line.callout && <span style={{ display: 'block', fontSize: '0.72em', letterSpacing: '0.08em', fontWeight: 800, color: paint.accent, marginBottom: 8 }}>{({ formula: '覚えておきたい公式', definition: '大切な定義', keypoint: '重要ポイント' })[line.callout]}</span>}
-          <span style={sharedUnderline ? { display: 'inline-block', maxWidth: '100%', borderBottom: `2px solid ${paint.accent}`, paddingBottom: '0.18em' } : undefined}>
+          <span style={sharedUnderline ? { display: 'inline-block', maxWidth: '100%', borderBottom: `2px solid ${paint.accent}`, lineHeight: 1.4, paddingBottom: '0.03em' } : undefined}>
           {Array.from(line.text).map((char, j) => {
             const begin = offset; offset += char.length; const end = offset;
             const local = begin - start - line.start;
@@ -98,7 +98,7 @@ export default function HorizontalStudyPage(props: Props) {
                 latest.current.onPause();
                 if (picking) latest.current.onPick(mathEnd); else { setCursor(mathBegin); latest.current.onPosition(mathBegin); latest.current.onVisible(mathBegin); }
               }} style={{ display: equation.display ? 'block' : 'inline-block', maxWidth: '100%', verticalAlign: 'middle', position: 'relative',
-                padding: '0.2em 0.1em', fontSize: line.callout === 'formula' ? '1.18em' : undefined, outline: highlighted ? `1px solid ${paint.accent}` : undefined,
+                padding: sharedUnderline ? '0.03em 0.1em' : '0.2em 0.1em', lineHeight: sharedUnderline ? 1.2 : undefined, fontSize: line.callout === 'formula' ? '1.18em' : undefined, outline: highlighted ? `1px solid ${paint.accent}` : undefined,
                 background: highlighted || (picking && draft !== null && draft >= mathBegin && draft <= mathEnd) ? paint.chosen : undefined }}>
                 <span className="study-math-scroll" style={{ display: 'inline-block', maxWidth: '100%', overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', verticalAlign: 'middle' }} dangerouslySetInnerHTML={{ __html: equation.markup }} />
                 {Array.from(equation.raw).map((character, n) => {
@@ -115,7 +115,7 @@ export default function HorizontalStudyPage(props: Props) {
             }} style={{ fontWeight: bold ? 800 : undefined, color: bold ? (line.tone === 'neutral' ? paint.accent : tone) : undefined,
               background: active || (picking && draft === end) ? paint.chosen : undefined,
               outline: active ? `1px solid ${paint.accent}` : undefined, textDecoration: !sharedUnderline && (active || bold) ? 'underline' : undefined, textDecorationThickness: bold ? '2px' : undefined,
-              textUnderlineOffset: '0.2em', cursor: picking ? 'crosshair' : undefined }}>{char}{mark(end)}</span>;
+              textUnderlineOffset: '0.12em', cursor: picking ? 'crosshair' : undefined }}>{char}{mark(end)}</span>;
           })}
           </span>
         </Tag>{figures.filter(item => item.line === i).map((item, n) => <StudyFigure key={n} visual={item.visual} ink={paint.ink} background={paint.background} />)}</Fragment>;

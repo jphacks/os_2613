@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanVisuals, curveFormula, curveValue, graphData } from '../src/features/study/visuals.mjs';
+import { validChart } from '../src/features/study/visuals.mjs';
+
+test('折れ線と棒グラフは全項目の数値を検証し、欠落や不正値を描かない', () => {
+  const chart = { type: 'bar', basis: 'example', xLabel: '項目', yLabel: '値', labels: ['項目1', '項目2', '項目3'], series: [{ name: '方法A', values: [60, 40, 70] }, { name: '方法B', values: [80, 30, 50] }] };
+  assert.equal(validChart(chart), true); assert.equal(validChart({ ...chart, type: 'line' }), true);
+  for (const bad of [{ ...chart, basis: 'invented-real-data' }, { ...chart, series: [{ name: '欠落', values: [60] }] }, { ...chart, series: [{ name: '不正', values: [NaN, 40, 70] }] }]) assert.equal(validChart(bad), false);
+});
 const graph = { xMin: -2, xMax: 3, curves: [{ fn: 'quadratic', a: 1, b: 0, c: 0, label: 'y = x²' }, { fn: 'linear', a: 2, b: -1, c: 0, label: 'y = 2x − 1' }] };
 const visual = { kind: 'graph', title: '微分と接線', caption: '点 (1,1) で傾き2の接線が接します。', after: '微分の意味を考えます。', graph, terms: [], nodes: [] };
 
