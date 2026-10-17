@@ -1,6 +1,6 @@
 export type Balloon = { kind: 'speech' | 'thought' | 'narration'; slot: 'left' | 'right' | 'bottom'; speaker: string; text: string; quote: string; start: number; end: number };
 export type ComicPanel = { title: string; caption: string; scene: string; quote: string; start: number; end: number; balloons?: Balloon[] };
-export type Script = { cast: string; panels: ComicPanel[]; format?: 'manga-v2'; generation?: { revision: 3 | 4; textModel: 'gpt-5.4-mini' | 'gpt-5.4'; imageModel: 'gpt-image-1-mini' | 'gpt-image-1.5' } };
+export type Script = { cast: string; panels: ComicPanel[]; format?: 'manga-v2'; generation?: { revision: 3 | 4 | 5; textModel: 'gpt-5.4-mini' | 'gpt-5.4'; imageModel: 'gpt-image-1-mini' | 'gpt-image-1.5' } };
 export const comicVersion: number;
 export function introPassages(opening: string): { id: string; quote: string; start: number; end: number }[];
 export function isCompleteComicText(text: string): boolean;
@@ -9,3 +9,5 @@ export function scriptFromPassages(value: unknown, opening: string, options?: { 
 export function comicFailureMessage(code: string | undefined, hasScript: boolean, completed?: number): string;
 export function introSource(text: string, title: string): { opening: string; context: string };
 export function validateScript(value: unknown, opening: string): Script;
+
+export function comicImageCount(revision?: number): 1 | 4;
