@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { edgeTurn, horizontalTurn } from './gestures.mjs';
 import { measuredPagesAsync, pageAtOffset } from './pagination.mjs';
 import { fontFamilies, type DisplayPreferences } from './preferences.mjs';
+import { bindGuideKeyboard } from './guide-keyboard.mjs';
 
 type Paint = { background: string; ink: string; muted: string; accent: string; chosen: string };
 export type Props = {
@@ -14,6 +15,7 @@ export type Props = {
   onPosition: (offset: number) => void;
   onPages: (count: number) => void; onReflow: (page: number) => void; onVisible: (offset: number) => void;
   onNext: () => void; onPrev: () => void; onAdvance: () => void; onPause: () => void;
+  onToggleGuide?: () => void;
   onPick: (offset: number) => void; onMarkPress: (offset: number) => void;
   onDragStart: (offset: number) => void; onDrop: (from: number, to: number | null) => void;
   dom?: import('expo/dom').DOMProps;
@@ -25,6 +27,7 @@ export default function VerticalPage(props: Props) {
   const { text, start, sub, marks, faded, picking, draft, guide, running, speed, display, paint, disabled, focus } = props;
   const rootRef = useRef<HTMLDivElement>(null), viewRef = useRef<HTMLDivElement>(null), textRef = useRef<HTMLDivElement>(null), measureRef = useRef<HTMLDivElement>(null);
   const latest = useRef(props); latest.current = props;
+  useEffect(() => bindGuideKeyboard(document, () => latest.current.disabled || latest.current.picking ? undefined : latest.current.onToggleGuide), []);
   const [layout, setLayout] = useState({ count: 1, width: 0, starts: [0, 0] });
   const [cursor, setCursor] = useState(0);
   const gesture = useRef<Gesture | null>(null);

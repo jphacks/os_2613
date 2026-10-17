@@ -6,10 +6,12 @@ import { fontFamilies } from '@/features/reader/preferences.mjs';
 import { studyLines } from './format.mjs';
 import { StudyFigure, studyPalette } from './StudyFigure';
 import { mathSegments } from './math.mjs';
+import { bindGuideKeyboard } from '../reader/guide-keyboard.mjs';
 
 export default function HorizontalStudyPage(props: Props) {
   const { text, start, paint, display, guide, running, speed, disabled, picking, marks, draft, focus } = props;
   const root = useRef<HTMLDivElement>(null), latest = useRef(props); latest.current = props;
+  useEffect(() => bindGuideKeyboard(document, () => latest.current.disabled || latest.current.picking ? undefined : latest.current.onToggleGuide), []);
   const [cursor, setCursor] = useState(start);
   const dragging = useRef<number | null>(null);
   const lines = useMemo(() => studyLines(text), [text]);
