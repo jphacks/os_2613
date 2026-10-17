@@ -1,4 +1,7 @@
 import { csvFromZip } from './zip.mjs';
+import { mkdir, readFile, writeFile, rename, stat, unlink } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 export const catalogUrl = 'https://www.aozora.gr.jp/index_pages/list_person_all_extended_utf8.zip';
 
@@ -104,12 +107,30 @@ async function download(url, fetcher, limit) {
   return Buffer.concat(chunks);
 }
 
-export function createAozoraService({ fetcher = fetch } = {}) {
+export function createAozoraService({ fetcher = fetch, cachePath = null, maxAgeMs = 24 * 60 * 60 * 1000 } = {}) {
   let pending, expires = 0;
+  async function loadCatalog() {
+    if (cachePath) {
+      try {
+        const info = await stat(cachePath), age = Date.now() - info.mtimeMs;
+        // Windowsのファイル時刻はDate.now()より細かく、保存直後にわずかに未来になる場合がある。
+        if (info.size <= 10 * 1024 * 1024 && age >= -1000 && age < maxAgeMs) return parseCatalog(csvFromZip(await readFile(cachePath)));
+      } catch { /* 古い・壊れた一覧は公式データから再取得する。 */ }
+    }
+    const archive = await download(catalogUrl, fetcher, 10 * 1024 * 1024);
+    const books = parseCatalog(csvFromZip(archive));
+    if (cachePath) {
+      const temp = `${cachePath}.${randomUUID()}.tmp`;
+      try { await mkdir(dirname(cachePath), { recursive: true }); await writeFile(temp, archive); await rename(temp, cachePath); }
+      catch { /* 保存できなくても、取得済みの一覧で検索を続ける。 */ }
+      finally { await unlink(temp).catch(() => {}); }
+    }
+    return books;
+  }
   async function catalog() {
     if (!pending || Date.now() >= expires) {
-      expires = Date.now() + 24 * 60 * 60 * 1000;
-      pending = download(catalogUrl, fetcher, 10 * 1024 * 1024).then(csvFromZip).then(parseCatalog).catch(error => { pending = null; throw error; });
+      expires = Date.now() + maxAgeMs;
+      pending = loadCatalog().catch(error => { pending = null; throw error; });
     }
     return pending;
   }

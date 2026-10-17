@@ -5,7 +5,7 @@ export function artifactKey(value) { return createHash('sha256').update(JSON.str
 export function artifactStorage(root) {
   const queues = new Map();
   function path(key, file = 'record.json') {
-    if (!/^[a-f0-9]{64}$/.test(key) || !/^(record\.json|[1-4]\.png)$/.test(file)) throw new Error('INVALID_INPUT');
+    if (!/^[a-f0-9]{64}$/.test(key) || !/^(record\.json|[1-4]\.png|[1-4]\.preview-v1\.webp)$/.test(file)) throw new Error('INVALID_INPUT');
     return join(resolve(root), key, file);
   }
   async function read(key) {
@@ -29,6 +29,7 @@ export function artifactStorage(root) {
   }
   return { read: key => serial(key, () => read(key)), write: (key, value, file) => serial(key, () => write(key, value, file)),
     image: (key, index) => serial(key, () => readFile(path(key, `${index}.png`))),
+    preview: (key, index) => serial(key, () => readFile(path(key, `${index}.preview-v1.webp`))),
     update: (key, change) => serial(key, async () => { const next = await change(await read(key)); await write(key, next); return next; }),
   };
 }

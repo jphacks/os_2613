@@ -1,6 +1,6 @@
 import { createAozoraService } from '../../server/aozora.mjs';
 
-const aozora = createAozoraService();
+const aozora = createAozoraService({ cachePath: '.local/aozora/catalog.zip' });
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;

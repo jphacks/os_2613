@@ -1,7 +1,6 @@
 import { Asset } from 'expo-asset';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { findBook } from '@/content/books';
@@ -10,7 +9,6 @@ import { colors } from '@/shared/theme';
 import { useLibrary } from '@/features/library/LibraryProvider';
 import { BookReading } from '@/features/bookmark/BookReading';
 import { IntroComic } from '@/features/comic/IntroComic';
-import { parseReading } from '@/features/bookmark/model.mjs';
 
 // 同梱している教材のPDF。require は静的に書く必要があるので、ここで本のIDと結びつける。
 const pdfFiles: Record<string, number> = {
@@ -38,33 +36,24 @@ export default function BookScreen() {
   const router = useRouter();
   return <>
     <Stack.Screen options={{ headerLeft: () => <Pressable accessibilityRole="button" accessibilityLabel="本棚へ戻る" onPress={() => router.dismissTo('/')} style={styles.shelfButton}><Text style={styles.shelfButtonText}>← 本棚へ</Text></Pressable> }} />
-    {pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook id={id} />}
+    {pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook key={id} id={id} />}
   </>;
 }
 
 function NovelBook({ id }: { id: string }) {
   const { books, ready } = useLibrary();
   const book = books.find(item => item.id === id);
-  const [entry, setEntry] = useState<'loading' | 'intro' | 'read'>('loading');
-  const [offset, setOffset] = useState<number | undefined>();
-  useEffect(() => {
-    if (!book) return;
-    let active = true;
-    void Promise.all([AsyncStorage.getItem(`dopabooks:opened:v1:${book.id}`), AsyncStorage.getItem(`dopabooks:reading:v1:${book.id}`)]).then(([opened, raw]) => {
-      const reading = parseReading(raw, book.text);
-      if (active) setEntry(opened === book.importedAt || reading.cursor > 0 || reading.marks.length ? 'read' : 'intro');
-    }).catch(() => { if (active) setEntry('read'); });
-    return () => { active = false; };
-  }, [book]);
+  const [entry, setEntry] = useState<'intro' | 'read'>('intro');
+  useFocusEffect(useCallback(() => { setEntry('intro'); }, [id]));
 
-  if (ready && book && entry !== 'loading') return <View key={`${book.id}:${book.importedAt}`} style={{ flex: 1 }}>
+  if (ready && book) return <View key={`${book.id}:${book.importedAt}`} style={{ flex: 1 }}>
     <Stack.Screen options={{ title: book.title }} />
-    {entry === 'intro' ? <IntroComic book={book} read={() => { setOffset(0); setEntry('read'); void AsyncStorage.setItem(`dopabooks:opened:v1:${book.id}`, book.importedAt).catch(() => {}); }} /> : <BookReading book={book} initialOffset={offset} />}
+    {entry === 'intro' ? <IntroComic book={book} read={() => setEntry('read')} /> : <BookReading book={book} initialOffset={0} />}
   </View>;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.note}>{!ready || (book && entry === 'loading') ? '本を読み込んでいます…' : '本が見つかりません。本棚に戻って追加してください。'}</Text>
+      <Text style={styles.note}>{!ready ? '本を読み込んでいます…' : '本が見つかりません。本棚に戻って追加してください。'}</Text>
     </View>
   );
 }

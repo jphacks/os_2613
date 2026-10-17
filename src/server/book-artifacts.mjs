@@ -3,6 +3,7 @@ import { createBookArtifactProvider, validPng } from './book-artifact-provider.m
 import { groundedGraph, characterLimit } from '../features/characters/model.mjs';
 import { validateScript } from '../features/comic/model.mjs';
 import { resolve } from 'node:path';
+import { createComicPreview } from './comic-preview.mjs';
 const send = (status, value) => Response.json(value, { status, headers: { 'Cache-Control': 'no-store' } });
 const fail = error => send(error?.message === 'ORIGIN' ? 403 : error?.message === 'INVALID_INPUT' ? 400 : 503, artifactFailure(error));
 export function createCharactersEndpoint({ provider = createBookArtifactProvider(), root = '.local/character-graphs' } = {}) {
@@ -32,6 +33,7 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
   const identity = resolve(root);
   if (!registry.has(identity)) registry.set(identity, { storage: artifactStorage(root), jobs: new Map() });
   const { storage, jobs } = registry.get(identity);
+  const preview = registry.get(identity).preview ??= createComicPreview(storage);
   function state(key, record) {
     const interrupted = record.status === 'running' && !jobs.has(key);
     return { key, status: jobs.has(key) && record.status !== 'ready' ? 'running' : interrupted ? 'error' : record.status, script: record.script, completed: record.completed,
@@ -71,7 +73,8 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
         const record = await storage.read(key); if (!record) throw new Error('NOT_FOUND');
         if (image !== null) {
           const index = Number(image); if (!/^[1-4]$/.test(image) || index > record.completed) throw new Error('NOT_FOUND');
-          return new Response(new Uint8Array(await storage.image(key, index)), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' } });
+          const result = url.searchParams.get('format') === 'webp' ? await preview(key, index) : { bytes: await storage.image(key, index), type: 'image/png' };
+          return new Response(new Uint8Array(result.bytes), { headers: { 'Content-Type': result.type, 'Cache-Control': 'private, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' } });
         }
         return send(200, state(key, record));
       }

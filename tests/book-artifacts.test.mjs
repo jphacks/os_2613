@@ -8,6 +8,7 @@ import { comicFailureMessage, introPassages, introSource, scriptFromPassages, va
 import { createCharactersEndpoint, createComicEndpoint } from '../src/server/book-artifacts.mjs';
 import { createBookArtifactProvider } from '../src/server/book-artifact-provider.mjs';
 import { artifactStorage } from '../src/server/artifact-storage.mjs';
+import sharp from 'sharp';
 
 const text = '太郎と花子は友人だった。二人は橋へ向かった。';
 const quote = '太郎と花子は友人だった。';
@@ -18,6 +19,21 @@ const fake = { characters: async () => graph, script: async () => script, image:
 const post = value => new Request('http://localhost/api/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
 const status = key => new Request(`http://localhost/api/comic?key=${key}`);
 const register = endpoint => endpoint(post({ action: 'register', bookId: 'book', title: '物語', opening: text, context: text })).then(response => response.json());
+
+test('配信用画像の取得はWebPを返し、元のPNGと生成回数を変更しない', async t => {
+  const root = await temporary(t), storage = artifactStorage(root), key = 'e'.repeat(64);
+  const original = await sharp({ create: { width: 1536, height: 1024, channels: 3, background: '#999999' } }).png({ compressionLevel: 0 }).toBuffer();
+  await storage.write(key, { completed: 1, imageAttempts: 1 });
+  await storage.write(key, original, '1.png');
+  const endpoint = createComicEndpoint({ root, provider: { configured: false } });
+  const response = await endpoint(new Request(`http://localhost/api/comic?key=${key}&image=1&format=webp`));
+  assert.equal(response.status, 200); assert.equal(response.headers.get('content-type'), 'image/webp');
+  assert.ok((await response.arrayBuffer()).byteLength < original.length / 10);
+  const pngResponse = await endpoint(new Request(`http://localhost/api/comic?key=${key}&image=1`));
+  assert.deepEqual(Buffer.from(await pngResponse.arrayBuffer()), original);
+  assert.equal((await storage.read(key)).imageAttempts, 1);
+  assert.equal((await endpoint(new Request(`http://localhost/api/comic?key=${key}&image=2&format=webp`))).status, 503);
+});
 async function finished(endpoint, key) {
   for (let i = 0; i < 150; i++) { const value = await (await endpoint(status(key))).json(); if (value.status !== 'running') return value; await new Promise(resolve => setTimeout(resolve, 10)); }
   throw new Error('TEST_JOB_TIMEOUT');
