@@ -1,6 +1,7 @@
 import type { StudyVisual, Graph } from './visuals.mjs';
 import { curveFormula, graphData } from './visuals.mjs';
 import { MathText } from './MathText';
+import { StudyChart } from './StudyChart';
 
 export function studyPalette(ink: string) {
   const dark = /^#[a-f\d]{6}$/i.test(ink) && parseInt(ink.slice(1, 3), 16) > 150;
@@ -39,9 +40,11 @@ function Plot({ graph, colors }: { graph: Graph; colors: string[] }) {
 export function StudyFigure({ visual, ink, background }: { visual: StudyVisual; ink: string; background: string }) {
   const palette = studyPalette(ink);
   return <figure style={{ margin: '22px 0 30px', padding: 'clamp(12px, 2vw, 24px)', border: `${visual.kind === 'formula' ? 3 : 1}px solid ${palette.result}`, borderRadius: 12, background, color: ink }}>
-    <div style={{ color: palette.result, fontSize: '0.78em', fontWeight: 800, marginBottom: 6 }}>{visual.supplement ? '補足図解・' : ''}{({ graph: 'グラフで見る', flow: '流れ・関係で見る', comparison: '概念・具体例を比べる', formula: '覚えておきたい公式' })[visual.kind]}</div>
+    <div style={{ color: palette.result, fontSize: '0.78em', fontWeight: 800, marginBottom: 6 }}>{visual.supplement ? '補足図解・' : ''}{({ graph: 'グラフで見る', chart: '数値をグラフで比べる', flow: '流れ・関係で見る', comparison: '概念・具体例を比べる', formula: '覚えておきたい公式', illustration: '挿絵で理解する' })[visual.kind]}</div>
     <h3 style={{ fontSize: '1.1em', margin: '0 0 18px' }}><MathText text={visual.title} /></h3>
+    {visual.kind === 'illustration' && visual.imageUrl && <img src={visual.imageUrl} alt={`${visual.title}。${visual.caption}`} loading="lazy" style={{ display: 'block', width: '100%', height: 'auto', borderRadius: 8, background: '#fff' }} />}
     {visual.kind === 'graph' && visual.graph && <Plot graph={visual.graph} colors={[palette.input, palette.operation, palette.result, ink]} />}
+    {visual.kind === 'chart' && visual.chart && <StudyChart chart={visual.chart} colors={['#215a9c', '#a24b15', '#256348']} />}
     {visual.kind === 'comparison' && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 14 }}>{visual.nodes.map((node, i) => {
       const color = [palette.input, palette.operation, palette.result][i % 3];
       return <div key={i} style={{ border: `2px solid ${color}`, borderRadius: 14, padding: 18 }}>
