@@ -1,68 +1,66 @@
 'use dom';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { edgeTurn, horizontalTurn } from './gestures.mjs';
+import { measuredPages, pageAtOffset } from './pagination.mjs';
+import { fontFamilies, type DisplayPreferences } from './preferences.mjs';
 
-// 小説の本文を本のような縦書き（右から左へ読む）で表示し、画面に収まる行数ごとにページを区切る。
-// React Native では縦書きができないので、DOMコンポーネント（iOSでは内部のWebView）で描く。
-//
-// 区切り方：1行の幅（行送り）を固定し、紙面の幅に入る行数 × 行送り を1ページの幅とする。
-// 本文全体を横に長く組んでおき、ページの幅ずつ横へずらして見せる。
-// 読みガイドをONにすると、見えているページの中で今読む文字を決めた速さで順に強調する。
-
-const FONT_SIZE = 24;
-const STEP = 50; // 行送り（px）。行の幅をそろえると、ページの境目で行が切れない
-
+type Paint = { background: string; ink: string; muted: string; accent: string; chosen: string };
 type Props = {
-  text: string;
-  start: number; // この本文の先頭が本全体の何文字目か（しおりの位置と揃えるため）
-  sub: number; // 何ページ目を見せるか。-1 は最後のページ
-  marks: number[]; // しおりが挟まっている位置
-  faded: number | null; // 移動中のしおり（薄く表示する）
-  picking: boolean; // しおりを挟む位置を選んでいるところか
-  draft: number | null; // 選んだ位置
-  guide: boolean;
-  running: boolean;
-  speed: number; // 1分あたりの文字数
-  onPages: (count: number) => void; // 区切ったページ数を知らせる
-  onNext: () => void;
-  onPrev: () => void;
-  onPick: (offset: number) => void;
-  onMarkPress: (offset: number) => void;
+  text: string; start: number; sub: number; marks: number[]; faded: number | null; picking: boolean; draft: number | null;
+  guide: boolean; running: boolean; speed: number; display: DisplayPreferences; paint: Paint; disabled: boolean;
+  focus: { offset: number; token: number } | null;
+  onPages: (count: number) => void; onReflow: (page: number) => void; onVisible: (offset: number) => void;
+  onNext: () => void; onPrev: () => void; onAdvance: () => void; onPause: () => void;
+  onPick: (offset: number) => void; onMarkPress: (offset: number) => void;
+  onDragStart: (offset: number) => void; onDrop: (from: number, to: number | null) => void;
   dom?: import('expo/dom').DOMProps;
 };
+type Gesture = { id: number; x: number; y: number; from: number | null; dragged: boolean; placing: boolean };
+function Ribbon() { return <svg width="18" height="28" viewBox="0 0 18 28" aria-hidden="true"><path d="M1 1h16v25l-8-6-8 6z" fill="currentColor" /></svg>; }
 
-export default function VerticalPage({ text, start, sub, marks, faded, picking, draft, guide, running, speed, onPages, onNext, onPrev, onPick, onMarkPress }: Props) {
-  const viewRef = useRef<HTMLDivElement>(null);
-  const textRef = useRef<HTMLDivElement>(null);
-  const [layout, setLayout] = useState({ count: 1, width: 0, pageOf: [] as number[] });
-  const sentCount = useRef(0);
-  const [cursor, setCursor] = useState(0); // 読みガイドが今強調している文字の番号
+export default function VerticalPage(props: Props) {
+  const { text, start, sub, marks, faded, picking, draft, guide, running, speed, display, paint, disabled, focus } = props;
+  const rootRef = useRef<HTMLDivElement>(null), viewRef = useRef<HTMLDivElement>(null), textRef = useRef<HTMLDivElement>(null), measureRef = useRef<HTMLDivElement>(null);
+  const latest = useRef(props); latest.current = props;
+  const [layout, setLayout] = useState({ count: 1, width: 0, starts: [0, 0] });
+  const [cursor, setCursor] = useState(0);
+  const gesture = useRef<Gesture | null>(null);
+  const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
+  const [edge, setEdge] = useState<'next' | 'prev' | null>(null);
+  const anchor = useRef({ text, start, offset: start });
+  const measured = useRef('');
+  const focusSeen = useRef<number | null>(null);
+  const step = Math.round(display.fontSize * display.lineHeight);
+  const page = Math.min(Math.max(0, sub), layout.count - 1);
+  const begin = layout.starts[page] ?? 0, end = layout.starts[page + 1] ?? text.length;
+  const chars = useMemo(() => {
+    let position = start + begin;
+    return Array.from(text.slice(begin, end)).map(char => { const begin = position; position += char.length; return { char, begin, end: position }; });
+  }, [text, start, begin, end]);
 
-  // 1文字ずつに分け、本全体での位置（終わり）を持たせる。絵文字の途中では切らない。
-  let position = start;
-  const chars = Array.from(text).map(char => {
-    position += char.length;
-    return { char, end: position };
-  });
-
-  const page = sub < 0 ? layout.count - 1 : Math.min(sub, layout.count - 1);
-
-  // 紙面の大きさと本文から、ページ数と「各文字が何ページ目にあるか」を測る
   const measure = useCallback(() => {
-    const view = viewRef.current, body = textRef.current;
-    if (!view || !body) return;
-    const perPage = Math.max(1, Math.floor(view.clientWidth / STEP));
-    const width = perPage * STEP;
-    const lines = Math.max(1, Math.round(body.offsetWidth / STEP));
-    const count = Math.max(1, Math.ceil(lines / perPage));
+    const view = viewRef.current, body = measureRef.current;
+    if (!view || !body || !view.clientWidth || !view.clientHeight) return;
+    const perPage = Math.max(1, Math.floor(view.clientWidth / step));
+    const width = perPage * step;
+    const signature = `${text}:${start}:${width}:${view.clientHeight}:${display.font}:${display.fontSize}:${step}`;
+    if (measured.current === signature) return;
+    const sameText = anchor.current.text === text && anchor.current.start === start && !!measured.current;
+    const node = body.firstChild;
     const right = body.getBoundingClientRect().right;
-    const pageOf = Array.from(body.querySelectorAll<HTMLElement>('[data-i]')).map(node =>
-      Math.max(0, Math.floor((right - node.getBoundingClientRect().right) / width)));
-    setLayout({ count, width, pageOf });
-    // アプリ側への連絡は、ページ数が変わったときだけにする（送りすぎると iPhone でエラーになる）
-    if (sentCount.current !== count) { sentCount.current = count; onPages(count); }
-  }, [text]);
-
+    const range = document.createRange();
+    const starts = node ? measuredPages(text, offset => {
+      range.setStart(node, offset); range.setEnd(node, offset + (text.codePointAt(offset)! > 0xffff ? 2 : 1));
+      return Math.max(0, Math.floor((right - range.getBoundingClientRect().right + 0.5) / width));
+    }) : [0, 0];
+    const count = starts.length - 1;
+    measured.current = signature;
+    setLayout({ count, width, starts });
+    latest.current.onPages(count);
+    // 設定や画面幅が変わっても、読んでいた文字のあるページを残す。
+    if (sameText) latest.current.onReflow(pageAtOffset(starts, anchor.current.offset - start));
+  }, [text, start, step, display.font, display.fontSize]);
   useLayoutEffect(() => {
     // iPhone では内部のWebViewの中で描かれ、そのページの高さが0のままだと紙面が潰れる。
     // WebViewの中にいるときだけ、ページ全体の高さを画面いっぱいにする（Webでは親の高さに従う）。
@@ -71,121 +69,119 @@ export default function VerticalPage({ text, start, sub, marks, faded, picking, 
         if (el) { el.style.height = '100%'; el.style.margin = '0'; }
       }
     }
+    let active = true;
     measure();
-    void document.fonts?.ready.then(measure);
+    void document.fonts?.ready.then(() => { if (active) measure(); });
     const view = viewRef.current;
     if (!view) return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(view);
-    return () => observer.disconnect();
+    const observer = new ResizeObserver(measure); observer.observe(view);
+    return () => { active = false; observer.disconnect(); };
   }, [measure]);
-
-  // ページが変わったら、ガイドをそのページの最初の文字へ
   useEffect(() => {
-    const first = layout.pageOf.findIndex(p => p === page);
-    setCursor(first < 0 ? 0 : first);
-  }, [page, layout]);
-
-  // ガイドを進める。改行は待たずに飛ばし、次の文字が次のページなら めくる。
+    if (!layout.width) return;
+    const offset = start + (layout.starts[page] ?? 0);
+    anchor.current = { text, start, offset }; setCursor(0);
+    latest.current.onVisible(offset);
+  }, [page, layout, text, start]);
   useEffect(() => {
-    if (!guide || !running || picking || !layout.width) return;
-    const wait = chars[cursor]?.char === '\n' ? 0 : 60000 / speed;
+    if (!focus || focusSeen.current === focus.token || !layout.width || focus.offset < start || focus.offset > start + text.length) return;
+    focusSeen.current = focus.token;
+    latest.current.onReflow(pageAtOffset(layout.starts, focus.offset - start));
+  }, [focus, layout, start, text]);
+  useEffect(() => {
+    if (!guide || !running || picking || ghost || disabled || !layout.width) return;
     const timer = setTimeout(() => {
       const next = cursor + 1;
-      if (next >= chars.length || layout.pageOf[next] !== page) onNext();
-      else setCursor(next);
-    }, wait);
+      if (next >= chars.length) latest.current.onAdvance(); else setCursor(next);
+    }, chars[cursor]?.char === '\n' ? 0 : 60000 / speed);
     return () => clearTimeout(timer);
-  }, [guide, running, picking, cursor, speed, page, layout, chars.length]);
+  }, [guide, running, picking, ghost, disabled, cursor, speed, page, layout, chars]);
+  useEffect(() => {
+    const pause = () => { if (document.hidden) latest.current.onPause(); };
+    document.addEventListener('visibilitychange', pause);
+    return () => document.removeEventListener('visibilitychange', pause);
+  }, []);
+  useEffect(() => {
+    if (!edge || !ghost) return;
+    // 方向が同じ間は待機を作り直さない。指の小さな揺れでも端送りを続ける。
+    const timer = setInterval(() => { if (gesture.current?.dragged || gesture.current?.placing) edge === 'next' ? latest.current.onNext() : latest.current.onPrev(); }, 650);
+    return () => clearInterval(timer);
+  }, [edge, !!ghost]);
 
-  function ribbon(offset: number) {
-    const marked = marks.includes(offset);
-    const chosen = picking && draft === offset;
+  function pointOffset(x: number, y: number) {
+    const root = rootRef.current?.getBoundingClientRect();
+    if (!root || x < root.left || x > root.right || y < root.top || y > root.bottom) return null;
+    const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-offset]');
+    if (hit && textRef.current?.contains(hit)) return Number(hit.dataset.offset);
+    // 行間や紙の余白へ落としても、表示中の文字のうち一番近い位置を選べる。
+    let best: number | null = null, distance = Infinity;
+    textRef.current?.querySelectorAll<HTMLElement>('[data-i]').forEach(node => {
+      if (!node.textContent?.trim()) return;
+      const rect = node.getBoundingClientRect();
+      const d = Math.hypot(x - (rect.left + rect.right) / 2, y - (rect.top + rect.bottom) / 2);
+      if (d < distance) { best = Number(node.dataset.offset); distance = d; }
+    });
+    return best;
+  }
+  function movePoint(x: number, y: number) {
+    setGhost({ x, y });
+    const root = rootRef.current?.getBoundingClientRect();
+    setEdge(root && y >= root.top && y <= root.bottom ? edgeTurn(x, root.left, root.width) : null);
+  }
+  function pointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (disabled || !event.isPrimary || event.button !== 0 || gesture.current) return;
+    const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-mark]') : null;
+    gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, from: target ? Number(target.dataset.mark) : null, dragged: false, placing: picking };
+    latest.current.onPause();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    if (picking) movePoint(event.clientX, event.clientY);
+  }
+  function pointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const current = gesture.current;
+    if (!current || current.id !== event.pointerId) return;
+    if (current.from !== null && !current.dragged && !current.placing && Math.hypot(event.clientX - current.x, event.clientY - current.y) >= 7) {
+      current.dragged = true; latest.current.onDragStart(current.from);
+    }
+    if (current.dragged || current.placing) movePoint(event.clientX, event.clientY);
+  }
+  function finish(event: React.PointerEvent<HTMLDivElement>, cancelled = false) {
+    const current = gesture.current;
+    if (!current || current.id !== event.pointerId) return;
+    gesture.current = null; setGhost(null); setEdge(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (current.dragged && current.from !== null) { latest.current.onDrop(current.from, cancelled ? null : pointOffset(event.clientX, event.clientY)); return; }
+    if (cancelled) return;
+    if (current.placing) { const offset = pointOffset(event.clientX, event.clientY); if (offset !== null) latest.current.onPick(offset); return; }
+    const dx = event.clientX - current.x, dy = event.clientY - current.y;
+    const turn = horizontalTurn(dx, dy);
+    if (turn) { turn === 'next' ? latest.current.onNext() : latest.current.onPrev(); return; }
+    if (Math.hypot(dx, dy) > 12) return;
+    if (current.from !== null) { latest.current.onMarkPress(current.from); return; }
+    const rect = event.currentTarget.getBoundingClientRect();
+    event.clientX < rect.left + rect.width / 2 ? latest.current.onNext() : latest.current.onPrev();
+  }
+  function ribbon(offset: number, first = false) {
+    const marked = marks.includes(offset), chosen = picking && draft === offset;
     if (!marked && !chosen) return null;
-    return (
-      <span
-        style={{ ...styles.ribbon, opacity: marked && faded === offset ? 0.25 : 1 }}
-        onClick={e => { e.stopPropagation(); if (marked && !picking) onMarkPress(offset); }}
-      >▮</span>
-    );
+    return <span role="button" tabIndex={0} aria-label="しおり" data-offset={offset} data-mark={marked ? offset : undefined}
+      onKeyDown={event => { if (event.key === 'Enter' && marked && !picking) latest.current.onMarkPress(offset); }}
+      style={{ ...styles.ribbon, ...(first ? { top: 0, right: 0, left: 'auto' } : {}), color: paint.accent, opacity: marked && faded === offset ? 0.25 : 1 }}><Ribbon /></span>;
   }
-
-  // 読んだ所までの文字が、薄い色から濃い色へ浮かび上がる（背景は付けない）
-  function guideStyle(i: number): React.CSSProperties {
-    if (!guide) return {};
-    return i <= cursor ? { color: '#292E29' } : {};
-  }
-
-  // ページのめくり方
-  // ・スマホ：スワイプ。縦書きの本は左へ進むので、指を右へ動かすと次、左へ動かすと前のページ
-  // ・PC：紙面の左側を押すと次、右側を押すと前のページ
-  const touchX = useRef<number | null>(null);
-  const touch = typeof window !== 'undefined' && 'ontouchstart' in window;
-  function turn(e: React.MouseEvent<HTMLDivElement>) {
-    if (picking || touch) return;
-    const box = e.currentTarget.getBoundingClientRect();
-    if (e.clientX < box.left + box.width / 2) onNext(); else onPrev();
-  }
-  function swipeEnd(e: React.TouchEvent<HTMLDivElement>) {
-    const startX = touchX.current;
-    touchX.current = null;
-    if (startX === null || picking) return;
-    const dx = e.changedTouches[0].clientX - startX;
-    if (dx > 40) onNext();
-    else if (dx < -40) onPrev();
-  }
-
-  return (
-    <div style={styles.root} onClick={turn} onTouchStart={e => { touchX.current = e.touches[0].clientX; }} onTouchEnd={swipeEnd}>
-      <div ref={viewRef} style={styles.view}>
-        {/* ページの幅ちょうどで切り取り、右端（読み始め）にそろえる */}
-        <div style={{ ...styles.clip, width: layout.width || '100%' }}>
-          <div
-            ref={textRef}
-            style={{
-              ...styles.text,
-              color: guide ? '#C9CBC2' : '#292E29',
-              cursor: picking ? 'pointer' : 'auto',
-              transform: `translateX(${page * layout.width}px)`,
-            }}
-          >
-            {ribbon(start)}
-            {chars.map(({ char, end }, i) => (
-              <span
-                key={end}
-                data-i={i}
-                onClick={picking ? e => { e.stopPropagation(); onPick(end); } : undefined}
-                style={{ transition: 'color 0.4s', ...guideStyle(i), ...(picking && draft === end ? styles.chosen : null) }}
-              >
-                {char}
-                {ribbon(end)}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <div ref={rootRef} style={{ ...styles.root, background: paint.background }} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)} onLostPointerCapture={event => { if (gesture.current?.id === event.pointerId) finish(event, true); }}>
+    <div ref={viewRef} style={styles.view}>
+      <div ref={measureRef} aria-hidden="true" style={{ ...styles.text, visibility: 'hidden', pointerEvents: 'none', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>{text}</div>
+      <div style={{ ...styles.clip, width: layout.width || '100%' }}><div ref={textRef} style={{ ...styles.text, color: guide ? paint.muted : paint.ink, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>
+      {page === 0 && ribbon(start, true)}{chars.map(({ char, end }, index) => <span key={end} data-i={index} data-offset={end} style={{ position: 'relative', color: guide && index <= cursor ? paint.ink : undefined, background: picking && draft === end ? paint.chosen : undefined }}>{char}{ribbon(end)}</span>)}
+    </div></div></div>
+    {ghost && <span aria-hidden="true" style={{ position: 'fixed', pointerEvents: 'none', left: ghost.x - 9, top: ghost.y - 5, zIndex: 9999, color: paint.accent }}><Ribbon /></span>}
+    {ghost && edge && <span aria-hidden="true" style={{ position: 'absolute', bottom: 8, left: edge === 'next' ? 8 : undefined, right: edge === 'prev' ? 8 : undefined, color: paint.ink, background: paint.background, pointerEvents: 'none', padding: 6 }}>{edge === 'next' ? '‹ 次のページへ' : '前のページへ ›'}</span>}
+  </div>;
 }
-
 const styles: Record<string, React.CSSProperties> = {
-  root: { height: '100%', background: '#FFFDF8', padding: '48px 40px', boxSizing: 'border-box', userSelect: 'none' },
-  view: { position: 'relative', height: '100%', display: 'flex', justifyContent: 'flex-end' },
+  root: { height: '100%', width: '100%', padding: '24px 24px', boxSizing: 'border-box', userSelect: 'none', touchAction: 'none', position: 'relative' },
+  view: { height: '100%', display: 'flex', justifyContent: 'flex-end', position: 'relative', minHeight: 0, overflow: 'hidden' },
   clip: { position: 'relative', height: '100%', overflow: 'hidden' },
-  text: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    height: '100%',
-    width: 'max-content',
-    writingMode: 'vertical-rl',
-    fontFamily: '"Yu Mincho", "Hiragino Mincho ProN", serif',
-    fontSize: FONT_SIZE,
-    lineHeight: `${STEP}px`,
-    letterSpacing: '0.05em',
-    whiteSpace: 'pre-wrap',
-    transition: 'color 0.2s',
-  },
-  ribbon: { color: '#386149', fontWeight: 'bold', cursor: 'pointer' },
-  chosen: { background: '#DEDFD4' },
+  text: { position: 'absolute', top: 0, right: 0, height: '100%', width: 'max-content', writingMode: 'vertical-rl', letterSpacing: '0.05em', whiteSpace: 'pre-wrap' },
+  // 印のために行が伸びないよう、文字の上へ重ねる。
+  ribbon: { position: 'absolute', top: '100%', left: '50%', width: 18, height: 28, transform: 'translate(-50%, -6px)', zIndex: 3, cursor: 'grab', lineHeight: 0 },
 };

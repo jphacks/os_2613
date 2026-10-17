@@ -1,5 +1,5 @@
 import { Asset } from 'expo-asset';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -33,14 +33,18 @@ function usePdfUri(id: string) {
 // 教材（PDF）ならPDFの見開き表示、それ以外は青空文庫から追加した小説として開く
 export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  return pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook id={id} />;
+  const router = useRouter();
+  return <>
+    <Stack.Screen options={{ headerLeft: () => <Pressable accessibilityRole="button" accessibilityLabel="本棚へ戻る" onPress={() => router.dismissTo('/')} style={styles.shelfButton}><Text style={styles.shelfButtonText}>← 本棚へ</Text></Pressable> }} />
+    {pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook id={id} />}
+  </>;
 }
 
 function NovelBook({ id }: { id: string }) {
   const { books, ready } = useLibrary();
   const book = books.find(item => item.id === id);
 
-  if (ready && book) return <View key={`${book.id}:${book.importedAt}`} style={{ flex: 1 }}><MusicPanel /><BookReading book={book} /></View>;
+  if (ready && book) return <View key={`${book.id}:${book.importedAt}`} style={{ flex: 1 }}><MusicPanel book={book} /><BookReading book={book} /></View>;
 
   return (
     <View style={styles.container}>
@@ -96,6 +100,8 @@ function StudyBook({ id }: { id: string }) {
 }
 
 const styles = StyleSheet.create({
+  shelfButton: { paddingHorizontal: 8, paddingVertical: 12 },
+  shelfButtonText: { color: colors.accent, fontSize: 14 },
   container: { flex: 1, padding: 12, gap: 8 },
   page: {
     flex: 1,

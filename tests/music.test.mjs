@@ -27,3 +27,11 @@ test('upstream failures become safe error codes', async () => {
     await assert.rejects(search('calm'), new RegExp(code));
   }
 });
+test('文脈検索は検索語を使い、声・心情と逆の曲を避けて一致順に並べる', async () => {
+  const search = createMusicService({ key: () => 'test', fetcher: async url => {
+    assert.equal(url.searchParams.get('query'), 'dark strings music');
+    return Response.json({ results: [{ ...track, id: 1, name: 'Happy uplifting music' }, { ...track, id: 2, name: 'Dark strings music vocals' }, { ...track, id: 3, name: 'Piano music' }, { ...track, id: 4, name: 'Dark strings music' }] });
+  } });
+  assert.deepEqual((await search('tense', 'dark strings music')).map(item => item.id), [4, 3]);
+  await assert.rejects(search('tense', 'x&token=secret'), /QUERY/);
+});
