@@ -20,6 +20,77 @@ const value = { format: 'manga-v2', cast: '太郎は短髪、花子は帽子を�
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5XkAAAAASUVORK5CYII=';
 const post = body => new Request('http://localhost/api/comic', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
+test('新しい1.5版はMini版と保存先を分け、話者配置を画像へ伝える', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'dopabooks-edition-test-'));
+  t.after(async () => { if (!resolve(root).startsWith(resolve(tmpdir()) + sep)) throw Error('Invalid temporary root'); await rm(root, { recursive: true, force: true }); });
+  const requests = [];
+  const provider = createBookArtifactProvider({ apiKey: 'fake-only', fetcher: async (url, init) => {
+    requests.push({ url, init });
+    return Response.json(url.endsWith('/responses') ? { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(value) }] }] } : { data: [{ b64_json: png }] });
+  } });
+  const endpoint = createComicEndpoint({ root, provider });
+  const register = async revision => (await endpoint(post({ action: 'register', bookId: 'compare', title: '物語', opening, context: opening, edition: 'manga', revision }))).json();
+  const old = await register(3), next = await register(4);
+  assert.notEqual(old.key, next.key);
+  assert.equal((await register(3)).key, old.key);
+  const script = await provider.script({ title: '物語', opening, context: opening, format: 'manga-v2', revision: 4 });
+  assert.equal(validateScript(script, opening).generation.imageModel, 'gpt-image-1.5');
+  await provider.image(script, 1, png);
+  const form = requests[1].init.body;
+  assert.equal(form.get('model'), 'gpt-image-1.5');
+  assert.equal(form.get('quality'), 'medium');
+  assert.match(form.get('prompt'), /right: 太郎/);
+  assert.match(form.get('prompt'), /left: 花子/);
+  assert.match(form.get('prompt'), /Never copy the first panel cast/);
+  assert.match(form.get('prompt'), /Speaker placement takes priority/);
+  assert.equal(form.getAll('image[]').length, 2);
+});
+
+test('生成サービスの形式拒否は固定コードで識別し、任意のエラー本文を記録しない', async () => {
+  const provider = createBookArtifactProvider({ apiKey: 'fake-only', fetcher: async () => Response.json({ error: { code: 'invalid_json_schema', param: 'text.format.schema', message: 'private-error-body' } }, { status: 400 }) });
+  await assert.rejects(provider.script({ title: '物語', opening, context: opening, format: 'manga-v2', revision: 3 }), error => {
+    assert.equal(error.message, 'PROVIDER_INPUT');
+    assert.deepEqual(error.diagnostic, { status: 400, code: 'invalid_json_schema', param: 'text.format.schema' });
+    assert.ok(!JSON.stringify(error).includes('private-error-body')); return true;
+  });
+});
+
+test('脚本の検査で失敗しても案を保存し、次の手動開始ではその案を修正して画像へ進む', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'dopabooks-draft-test-'));
+  t.after(async () => { if (!resolve(root).startsWith(resolve(tmpdir()) + sep)) throw Error('Invalid temporary root'); await rm(root, { recursive: true, force: true }); });
+  let calls = 0; const bodies = [];
+  const provider = createBookArtifactProvider({ apiKey: 'fake-only', fetcher: async (url, init) => {
+    if (!url.endsWith('/responses')) return Response.json({ data: [{ b64_json: png }] });
+    bodies.push(JSON.parse(init.body)); calls++;
+    const candidate = structuredClone(value);
+    for (const panel of candidate.panels) {
+      const narration = panel.balloons.pop(); panel.narration = { text: narration.text, sourceId: narration.sourceId };
+    }
+    if (calls === 1) candidate.cast = '長'.repeat(1601);
+    return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(candidate) }] }] });
+  } });
+  const endpoint = createComicEndpoint({ root, provider });
+  const registered = await (await endpoint(post({ action: 'register', bookId: 'draft', title: '物語', opening, context: opening, edition: 'manga', revision: 3 }))).json();
+  async function run() {
+    await endpoint(post({ action: 'start', key: registered.key }));
+    for (let i = 0; i < 100; i++) {
+      const state = await (await endpoint(new Request(`http://localhost/api/comic?key=${registered.key}`))).json();
+      if (state.status !== 'running') return state;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    throw Error('Not completed');
+  }
+  const failed = await run();
+  assert.equal(failed.failure.code, 'INVALID_RESULT'); assert.equal(failed.hasScriptDraft, true);
+  assert.equal(failed.completed, 0); assert.equal(calls, 1);
+  assert.equal((await artifactStorage(root).read(registered.key)).scriptDraft.cast.length, 1601);
+  const ready = await run(); assert.equal(ready.status, 'ready'); assert.equal(ready.completed, 4); assert.equal(calls, 2);
+  const input = JSON.parse(bodies[1].input);
+  assert.equal(input.repairDraft.cast.length, 1601); assert.equal(input.opening, undefined); assert.equal(input.context, undefined);
+  assert.equal(bodies[1].reasoning.effort, 'none');
+  assert.equal(bodies[1].text.format.schema.properties.cast.maxLength, 1200);
+});
+
 test('修正版は地の文を会話にせず、読点で途切れる発言や文中の切り抜きを除く', () => {
   const text = '首を振って答えなかった。無言で首肯き、うなずいた。「ただ、私に情をかけたいつもりなら、三日待ってくれ。」';
   assert.equal(dialogueEvidence(text, '首を振って答えなかった。'), null);
@@ -34,15 +105,22 @@ test('修正版は地の文を会話にせず、読点で途切れる発言や�
   assert.ok(script.panels[0].balloons.some(item => item.kind === 'narration'));
 });
 
-test('修正版の脚本モデルを維持し、Mini画像と生成モデルの記録を確認する', async () => {
+test('修正版の脚本をGPT-5.4へ上げ、必須説明枠とMini画像のモデル記録を確認する', async () => {
   let candidate = structuredClone(value); const requests = [];
+  for (const panel of candidate.panels) {
+    const narration = panel.balloons.pop();
+    panel.narration = { text: narration.text, sourceId: narration.sourceId };
+  }
   const provider = createBookArtifactProvider({ apiKey: 'fake-only', fetcher: async (url, init) => {
     requests.push({ url, init });
     return Response.json(url.endsWith('/responses') ? { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(candidate) }] }] } : { data: [{ b64_json: png }] });
   } });
   const script = await provider.script({ title: '物語', opening, context: opening, format: 'manga-v2', revision: 3 });
-  assert.equal(JSON.parse(requests[0].init.body).model, 'gpt-5.4-mini');
+  assert.equal(JSON.parse(requests[0].init.body).model, 'gpt-5.4');
+  assert.equal(JSON.parse(requests[0].init.body).reasoning.effort, 'none');
+  assert.ok(JSON.parse(requests[0].init.body).text.format.schema.properties.panels.items.required.includes('narration'));
   assert.deepEqual(validateScript(script, opening), script);
+  assert.equal(script.generation.textModel, 'gpt-5.4');
   assert.equal(script.generation.imageModel, 'gpt-image-1-mini');
   await provider.image(script, 0, null);
   assert.equal(requests[1].init.body.get('model'), 'gpt-image-1-mini');
@@ -51,11 +129,14 @@ test('修正版の脚本モデルを維持し、Mini画像と生成モデルの�
   const instructions = JSON.parse(requests[0].init.body).instructions;
   assert.match(instructions, /地の文/); assert.match(instructions, /人質/); assert.match(instructions, /王冠/);
   // captionにだけ要点があっても、表示文に期限・人質がなければ画像生成へ進まない。
-  await assert.rejects(provider.script({ title: '走れメロス', opening: opening + '三日、友を人質にした。', context: opening + '三日、友を人質にした。', format: 'manga-v2', revision: 3 }), /INCOMPLETE/);
+  await assert.rejects(provider.script({ title: '走れメロス', opening: opening + '三日、友を人質にした。', context: opening + '三日、友を人質にした。', format: 'manga-v2', revision: 3 }), /STORY_INCOMPLETE/);
   candidate = structuredClone(value);
   for (const panel of candidate.panels) panel.balloons[2].text = '友を人質に残し、三日以内に戻る約束をした。';
   const plot = await provider.script({ title: '走れメロス', opening: opening + '三日、友を人質にした。', context: opening + '三日、友を人質にした。', format: 'manga-v2', revision: 3 });
   assert.equal(plot.panels[2].balloons[2].text, candidate.panels[2].balloons[2].text);
+  for (const panel of candidate.panels) panel.balloons[2].text = '友を身代わりに残し、３日以内に帰る。';
+  const alternate = await provider.script({ title: '走れメロス', opening: opening + '三日、友を人質にした。', context: opening + '三日、友を人質にした。', format: 'manga-v2', revision: 3 });
+  assert.equal(alternate.generation.textModel, 'gpt-5.4');
 });
 
 test('吹き出しは先に原文へ照合し、絵とは別の正確な文字列で保存する', () => {
@@ -103,8 +184,8 @@ test('漫画版は文字入り画像を要求せず、絵柄の見本と作品�
   } });
   const script = await provider.script({ title: '物語', opening, context: opening, format: 'manga-v2' });
   const body = JSON.parse(requests[0].init.body);
-  assert.equal(body.model, 'gpt-5.4-mini'); assert.equal(body.text.format.name, 'manga_introduction');
-  assert.equal(body.max_output_tokens, 10000); assert.equal(body.store, false);
+  assert.equal(body.model, 'gpt-5.4'); assert.equal(body.text.format.name, 'manga_introduction');
+  assert.equal(body.max_output_tokens, 12000); assert.equal(body.store, false);
   assert.equal(JSON.parse(body.input).sources[0].text, opening);
   assert.ok(body.text.format.schema.properties.panels.items.properties.balloons);
   await provider.image(script, 0, null); await provider.image(script, 1, png);
@@ -167,4 +248,19 @@ test('漫画版の新規保存は旧版を上書きせず、吹き出し付き�
     await new Promise(resolve => setTimeout(resolve, 10));
   }
   assert.equal(state.failure.code, 'LIMIT'); assert.equal(scripts, 2);
+  assert.equal(state.canResumeScript, true);
+  const before = await artifactStorage(root).read(manga.key);
+  await endpoint(post({ ...input, edition: 'manga' }));
+  assert.equal((await artifactStorage(root).read(manga.key)).scriptLimit, before.scriptLimit);
+  await endpoint(post({ action: 'start', key: manga.key, resumeScript: true }));
+  for (let i = 0; i < 60; i++) {
+    state = await (await endpoint(new Request(`http://localhost/api/comic?key=${manga.key}`))).json();
+    if (state.status !== 'running') break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  const retried = await artifactStorage(root).read(manga.key);
+  assert.equal(state.status, 'ready'); assert.equal(state.canResumeScript, false);
+  assert.equal(retried.scriptLimit, before.scriptAttempts + 1);
+  assert.equal(retried.scriptAttempts, before.scriptAttempts + 1);
+  assert.equal(scripts, 3); assert.equal(images, 4);
 });

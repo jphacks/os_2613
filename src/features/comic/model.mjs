@@ -65,7 +65,7 @@ export function scriptFromPassages(value, opening, { recoverBalloons = false, ed
     return { title: panel.title, caption: panel.caption, scene: panel.scene, quote: source.quote, start: source.start, end: source.end, ...(balloons ? { balloons } : {}) };
   });
   const result = validateScript({ cast: value.cast, panels, ...(value.format ? { format: value.format } : {}) }, opening);
-  if (editorial && result.panels.some(panel => !panel.balloons?.some(item => item.kind === 'narration'))) throw new Error('INCOMPLETE');
+  if (editorial && result.panels.some(panel => !panel.balloons?.some(item => item.kind === 'narration'))) throw new Error('SCRIPT_INCOMPLETE');
   return result;
 }
 export function comicFailureMessage(code, hasScript, completed = 0) {
@@ -77,6 +77,11 @@ export function comicFailureMessage(code, hasScript, completed = 0) {
     LIMIT: '作成回数の上限に達しました。保存済みの内容はそのまま残っています。',
     STORAGE: '保存できず作成を止めました。保存先の空き容量や設定を確認してください。',
     STYLE_REFERENCE: '参考漫画を読み込めず作成を止めました。サーバーに参考画像を配置して、もう一度お試しください。',
+    INVALID_RESULT: '脚本の形式や文字数を確認できず止まりました。保存済みの脚本案から修正できます。',
+    PROVIDER_INPUT: '生成サービスが要求の形式を受け付けませんでした。サーバーの更新が必要です。',
+    PROVIDER_FAILED: '生成サービスがエラーを返しました。時間をおいて状態を確認してください。',
+    SCRIPT_INCOMPLETE: '説明枠の内容を確認できず、画像生成前に止めました。もう一度お試しください。',
+    STORY_INCOMPLETE: '物語の約束や期限を説明しきれず、画像生成前に止めました。もう一度お試しください。',
     INCOMPLETE: '紹介内容を最後まで作れませんでした。もう一度お試しください。',
     TIMEOUT: '作成が時間切れになりました。保存状態を確認して、もう一度お試しください。',
   };
@@ -112,7 +117,7 @@ export function validateScript(value, opening) {
     return { title: panel.title, caption: panel.caption, scene: panel.scene, quote: panel.quote, start, end: start + panel.quote.length, ...(balloons ? { balloons } : {}) };
   });
   const generation = value.generation;
-  if (generation !== undefined && (generation.revision !== 3 || generation.textModel !== 'gpt-5.4-mini' || generation.imageModel !== 'gpt-image-1-mini')) throw new Error('INVALID_RESULT');
+  if (generation !== undefined && (![3, 4].includes(generation.revision) || !['gpt-5.4-mini', 'gpt-5.4'].includes(generation.textModel) || generation.imageModel !== (generation.revision === 4 ? 'gpt-image-1.5' : 'gpt-image-1-mini'))) throw new Error('INVALID_RESULT');
   return { cast: value.cast, panels, ...(value.format ? { format: value.format } : {}), ...(generation ? { generation } : {}) };
 }
 function validateBalloons(value, opening) {

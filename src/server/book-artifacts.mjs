@@ -46,6 +46,8 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
     const interrupted = record.status === 'running' && !jobs.has(key);
     return { key, status: jobs.has(key) && record.status !== 'ready' ? 'running' : interrupted ? 'error' : record.status, script: record.script, completed: record.completed,
       canResumeRemaining: !!record.script && record.completed < 4 && record.imageAttempts >= (record.imageLimit ?? 8),
+      canResumeScript: !record.script && record.scriptAttempts >= (record.scriptLimit ?? 3),
+      hasScriptDraft: !!record.scriptDraft,
       ...(record.error ? { failure: record.error } : interrupted ? { failure: { code: 'INTERRUPTED', error: '作成を中断しました。保存済みのコマから再開できます。' } } : {}) };
   }
   async function generate(key) {
@@ -55,9 +57,11 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
       if (!record.script) {
         if (record.scriptAttempts >= (record.scriptLimit ?? 3)) throw new Error('LIMIT');
         record = await storage.update(key, value => ({ ...value, scriptAttempts: value.scriptAttempts + 1 }));
-        const script = validateScript(await provider.script(record.source), record.source.opening);
+        const script = validateScript(await provider.script({ ...record.source, ...(record.scriptDraft ? { draft: record.scriptDraft } : {}) }, {
+          saveDraft: async draft => { await storage.update(key, value => ({ ...value, scriptDraft: draft })); },
+        }), record.source.opening);
         if (record.source.format === 'manga-v2' && script.format !== 'manga-v2') throw new Error('INVALID_RESULT');
-        if (record.source.revision === 3 && script.generation?.revision !== 3) throw new Error('INVALID_RESULT');
+        if ([3, 4].includes(record.source.revision) && script.generation?.revision !== record.source.revision) throw new Error('INVALID_RESULT');
         record = await storage.update(key, value => ({ ...value, script }));
       }
       for (let index = record.completed; index < 4; index++) {
@@ -74,7 +78,8 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
         record = await storage.update(key, value => ({ ...value, completed: index + 1 }));
       }
       await storage.update(key, value => ({ ...value, status: 'ready', error: null }));
-    } catch (error) { await storage.update(key, value => ({ ...value, status: 'error', error: artifactFailure(error) })).catch(() => {}); }
+    } catch (error) { await storage.update(key, value => ({ ...value, status: 'error', error: artifactFailure(error),
+      ...(error.diagnostic ? { providerDiagnostic: error.diagnostic } : {}) })).catch(() => {}); }
   }
   return async request => {
     try {
@@ -92,10 +97,10 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
       const input = await artifactInput(request, 210000);
       if (input.action === 'register') {
         const { bookId, title, opening, context, edition, revision } = input;
-        if (revision !== undefined && (revision !== 3 || edition !== 'manga')) throw new Error('INVALID_INPUT');
+        if (revision !== undefined && (![3, 4].includes(revision) || edition !== 'manga')) throw new Error('INVALID_INPUT');
         if (edition !== undefined && !['comparison', 'manga'].includes(edition)) throw new Error('INVALID_INPUT');
         if (typeof bookId !== 'string' || !bookId || bookId.length > 120 || typeof title !== 'string' || !title.trim() || title.length > 200 || typeof opening !== 'string' || !opening.trim() || opening.length > 12000 || typeof context !== 'string' || context.length > 20000 || !context.startsWith(opening)) throw new Error('INVALID_INPUT');
-        const source = { title, opening, context, ...(edition === 'manga' ? { format: 'manga-v2' } : {}), ...(revision === 3 ? { revision } : {}) }, key = artifactKey([edition === 'manga' ? 'comic-manga-v2' : edition === 'comparison' ? 'comic-comparison-v1' : 'comic-v1', bookId, source]);
+        const source = { title, opening, context, ...(edition === 'manga' ? { format: 'manga-v2' } : {}), ...([3, 4].includes(revision) ? { revision } : {}) }, key = artifactKey([edition === 'manga' ? 'comic-manga-v2' : edition === 'comparison' ? 'comic-comparison-v1' : 'comic-v1', bookId, source]);
         const record = await storage.update(key, value => value ?? { source, script: null, completed: 0, scriptAttempts: 0, imageAttempts: 0, status: 'idle', error: null });
         return send(200, state(key, record));
       }
@@ -106,6 +111,9 @@ export function createComicEndpoint({ provider = createBookArtifactProvider(), r
         if (provider.configured === false) throw new Error('NOT_CONFIGURED');
         if (jobs.size >= 1) throw new Error('BUSY');
         const job = Promise.resolve().then(async () => {
+          if (input.resumeScript === true && !record.script) {
+            await storage.update(key, value => !value.script && value.scriptAttempts >= (value.scriptLimit ?? 3) ? { ...value, scriptLimit: value.scriptAttempts + 1 } : value);
+          }
           // 旧照合条件で上限まで失敗した漫画版は、明示した開始操作で修正版を一度だけ試せる。
           if (record.source.format === 'manga-v2' && !record.script && record.error?.code === 'UNGROUNDED' && record.scriptAttempts >= 3 && !record.balloonRecoveryTried) {
             await storage.update(key, value => ({ ...value, scriptLimit: value.scriptAttempts + 1, balloonRecoveryTried: true }));
