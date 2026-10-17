@@ -1,38 +1,97 @@
-import { Link } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors } from '@/shared/theme';
+import { Cover } from '@/features/shelf/Cover';
+import { Chips } from '@/shared/Chips';
+import { colors, coverColors } from '@/shared/theme';
 
-// 本棚の画面。いまは仮の本を1冊だけ並べる。
+// いまは見た目だけ。絞り込みや並べ替えはまだ効かない。
+const books = [{ id: 'sample', title: '走れメロス', author: '太宰 治', label: '小説' }];
+
+const kinds = [
+  { id: 'all', label: 'すべて' },
+  { id: 'novel', label: '小説' },
+  { id: 'study', label: '参考書' },
+];
+const states = [
+  { id: 'all', label: 'すべて' },
+  { id: 'want', label: '読みたい' },
+  { id: 'reading', label: '読んでいる' },
+  { id: 'done', label: '読み終わった' },
+];
+
+const SLOT = 136;
+
 export default function ShelfScreen() {
+  const { width } = useWindowDimensions();
+  const [kind, setKind] = useState('all');
+  const [state, setState] = useState('all');
+
+  // 1段に並ぶ冊数を画面幅から決め、段ごとに棚板を敷く
+  const perRow = Math.max(2, Math.floor((Math.min(width, 1000) - 48) / SLOT));
+  const rows: (typeof books)[] = [];
+  for (let i = 0; i < books.length; i += perRow) rows.push(books.slice(i, i + perRow));
+
   return (
-    <View style={styles.container}>
-      <Link href="/book/sample" asChild>
-        <Pressable style={styles.cover}>
-          <Text style={styles.coverTitle}>走れメロス</Text>
-          <Text style={styles.coverAuthor}>太宰 治</Text>
-        </Pressable>
-      </Link>
-    </View>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.band}>
+        <Text style={styles.bandName}>ゲスト</Text>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.body}>
+        <View style={styles.head}>
+          <View>
+            <Text style={styles.eyebrow}>READ. IMAGINE. CONTINUE.</Text>
+            <Text style={styles.title}>本棚</Text>
+          </View>
+          <Pressable style={styles.addButton} onPress={() => router.push('/add')}>
+            <Text style={styles.addText}>＋ 本を追加</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.filters}>
+          <Chips items={kinds} value={kind} onChange={setKind} />
+          <Chips items={states} value={state} onChange={setState} variant="sub" />
+        </View>
+
+        {rows.map((row, r) => (
+          <View key={r} style={styles.row}>
+            <View style={styles.covers}>
+              {row.map((book, i) => (
+                <View key={book.id} style={styles.slot}>
+                  <Cover
+                    title={book.title}
+                    author={book.author}
+                    label={book.label}
+                    color={coverColors[(r * perRow + i) % coverColors.length]}
+                    onPress={() => router.push(`/book/${book.id}`)}
+                  />
+                </View>
+              ))}
+            </View>
+            <View style={styles.board} />
+          </View>
+        ))}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'flex-start',
-  },
-  cover: {
-    width: 120,
-    height: 180,
-    padding: 14,
-    borderRadius: 4,
-    backgroundColor: colors.accent,
-    justifyContent: 'space-between',
-  },
-  coverTitle: { color: colors.surface, fontSize: 16 },
-  coverAuthor: { color: colors.surface, fontSize: 11, opacity: 0.8 },
+  safe: { flex: 1, backgroundColor: colors.paper },
+  band: { backgroundColor: colors.accent, paddingHorizontal: 24, paddingVertical: 14 },
+  bandName: { color: colors.surface, fontSize: 18 },
+  body: { padding: 24, paddingBottom: 48, width: '100%', maxWidth: 1000, alignSelf: 'center' },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 },
+  eyebrow: { fontSize: 10, letterSpacing: 1.8, color: colors.accent, fontWeight: '700' },
+  title: { fontSize: 32, color: colors.ink, marginTop: 8 },
+  addButton: { backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 11 },
+  addText: { color: colors.surface, fontSize: 14 },
+  filters: { gap: 8, marginBottom: 12 },
+  row: { marginTop: 18 },
+  covers: { flexDirection: 'row', paddingHorizontal: 14 },
+  slot: { width: SLOT, alignItems: 'center' },
+  board: { height: 10, backgroundColor: colors.wood, marginTop: -2 },
 });
