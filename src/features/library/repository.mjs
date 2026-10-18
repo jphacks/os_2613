@@ -6,14 +6,19 @@ export function isSavedBook(value) {
     && ['title', 'author', 'subtitle', 'text', 'characters', 'cardUrl', 'htmlUrl', 'importedAt'].every(key => typeof value[key] === 'string');
 }
 
-export function createLibraryRepository(storage) {
+export function createLibraryRepository(storage, initialBooks = []) {
   let books = [], loading;
   let writes = Promise.resolve();
   function load() {
     loading ??= (async () => {
       const saved = JSON.parse(await storage.getItem(storageKey) ?? '[]');
       if (!Array.isArray(saved) || !saved.every(isSavedBook)) throw new Error('本棚を読み込めません。端末の保存設定を確認してください。既存データは上書きしていません。');
-      books = saved; return [...books];
+      if (!initialBooks.every(isSavedBook)) throw new Error('初期の作品データを確認してください。');
+      const missing = initialBooks.filter(book => !saved.some(item => item.id === book.id));
+      const next = [...saved, ...missing];
+      // 審査用の収録本だけ補い、既存の本文・追加日時は変更しない。
+      if (missing.length) await storage.setItem(storageKey, JSON.stringify(next));
+      books = next; return [...books];
     })();
     return loading;
   }

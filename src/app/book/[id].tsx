@@ -2,7 +2,7 @@ import { NavigationButton } from '@/shared/NavigationButton';
 import { useAccount } from '@/features/account/AccountProvider';
 import { Asset } from 'expo-asset';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { findBook } from '@/content/books';
@@ -39,9 +39,9 @@ export default function BookScreen() {
   const router = useRouter();
   return <>
     <Stack.Screen options={{
-      headerLeft: () => <NavigationButton filled label="本棚へ" onPress={() => router.dismissTo('/shelf')} />,
+      headerLeft: () => <NavigationButton filled flushLeft label="本棚へ" onPress={() => router.dismissTo('/shelf')} />,
       // iOSの共有背景が独自ボタンの外側に重なると、白い枠のように見えるため隠す。
-      ...(Platform.OS === 'ios' ? { unstable_headerLeftItems: () => [{ type: 'custom' as const, hidesSharedBackground: true, element: <NavigationButton filled label="本棚へ" onPress={() => router.dismissTo('/shelf')} /> }] } : {}),
+      ...(Platform.OS === 'ios' ? { unstable_headerLeftItems: () => [{ type: 'custom' as const, hidesSharedBackground: true, element: <NavigationButton filled flushLeft label="本棚へ" onPress={() => router.dismissTo('/shelf')} /> }] } : {}),
     }} />
     {pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook key={id} id={id} />}
   </>;
@@ -54,10 +54,11 @@ function NovelBook({ id }: { id: string }) {
   const { mark } = useLocalSearchParams<{ mark?: string }>();
   const markOffset = book ? widgetPosition(book.text, mark) : undefined;
   const [entry, setEntry] = useState<'intro' | 'loading' | 'read'>('intro');
+  const prepared = useRef(false);
   const [readingError, setReadingError] = useState('');
   const [readerAttempt, setReaderAttempt] = useState(0);
   const showIntro = markOffset === undefined && prefs.comic && entry !== 'read';
-  const readerReady = useCallback(() => setEntry(value => value === 'loading' ? 'read' : value), []);
+  const readerReady = useCallback(() => { prepared.current = true; setEntry(value => value === 'loading' ? 'read' : value); }, []);
   const readerFailed = useCallback((message: string) => setReadingError(message), []);
   useEffect(() => {
     if (entry !== 'loading') return;
@@ -68,16 +69,17 @@ function NovelBook({ id }: { id: string }) {
   useFocusEffect(useCallback(() => { setEntry(markOffset === undefined ? 'intro' : 'read'); }, [id, markOffset]));
 
   if (ready && book) return <View key={`${book.id}:${book.importedAt}:${mark ?? ''}`} style={{ flex: 1 }}>
-    <Stack.Screen options={{ title: book.title }} />
-    {(!showIntro || entry === 'loading') && <View pointerEvents={showIntro ? 'none' : 'auto'} accessibilityElementsHidden={showIntro} importantForAccessibility={showIntro ? 'no-hide-descendants' : 'auto'} style={StyleSheet.absoluteFill}>
-      <BookReading key={readerAttempt} book={book} initialOffset={markOffset ?? 0} onReady={readerReady} onLoadError={readerFailed} />
+    <Stack.Screen options={{ title: book.title, ...(showIntro ? { headerRight: () => null } : {}) }} />
+    {/* 漫画の表示中にも本文を組版し、「原文を読む」を押した後の初期化待ちを減らす。 */}
+    {<View pointerEvents={showIntro ? 'none' : 'auto'} accessibilityElementsHidden={showIntro} importantForAccessibility={showIntro ? 'no-hide-descendants' : 'auto'} style={StyleSheet.absoluteFill}>
+      <BookReading key={readerAttempt} book={book} hideBookmark={showIntro} initialOffset={markOffset ?? 0} onReady={readerReady} onLoadError={readerFailed} />
     </View>}
-    {showIntro && <View style={StyleSheet.absoluteFill}><IntroComic book={book} read={() => { setReadingError(''); setEntry('loading'); }} /></View>}
+    {showIntro && <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.paper }]}><IntroComic book={book} read={() => { setReadingError(''); setEntry(prepared.current ? 'read' : 'loading'); }} /></View>}
     {showIntro && entry === 'loading' && <View style={styles.readingOverlay}>
       <View style={styles.readingLoading} accessibilityLiveRegion="polite" accessibilityState={{ busy: !readingError }}>
         {!readingError && <ActivityIndicator size="large" color={colors.accent} />}
         <Text style={styles.loadingText}>{readingError || '原文を読み込んでいます…'}</Text>
-        {!!readingError && <Pressable accessibilityRole="button" onPress={() => { setReadingError(''); setReaderAttempt(value => value + 1); }} style={styles.loadingCancel}><Text style={styles.link}>もう一度読み込む</Text></Pressable>}
+        {!!readingError && <Pressable accessibilityRole="button" onPress={() => { setReadingError(''); prepared.current = false; setReaderAttempt(value => value + 1); }} style={styles.loadingCancel}><Text style={styles.link}>もう一度読み込む</Text></Pressable>}
         <Pressable accessibilityRole="button" onPress={() => { setEntry('intro'); setReadingError(''); }} style={styles.loadingCancel}><Text style={styles.link}>漫画に戻る</Text></Pressable>
       </View>
     </View>}

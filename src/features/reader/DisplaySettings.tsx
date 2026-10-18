@@ -1,3 +1,7 @@
+import { AppIcon } from '@/shared/AppIcon';
+import { readerPanelTitle, readerPanelHeader } from './toolStyles';
+import { VerticalCarousel } from '@/shared/VerticalCarousel';
+import { ReaderPanel, usePhoneReaderPanel } from '@/shared/ReaderPanel';
 import { StudyToolPanel } from '@/features/study/StudyToolPanel';
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -5,7 +9,7 @@ import { colors } from '@/shared/theme';
 import { defaultPreferences, fontFamilies, fontOptions, fontSizeRange, lineHeightRange, type DisplayPreferences } from './preferences.mjs';
 
 // 表示の設定：文字サイズ・行間は調節バー、書体は折りたたみの一覧、紙の色・文字の色は色の表で選ぶ。
-// 変えた内容はその場で紙面に映し（プレビュー）、「保存」で確定する。左上の戻るボタンは保存せずに閉じる。
+// 変更はその場で紙面へ反映し、シートを閉じる時にまとめて保存する。
 
 // 紙面の色。色の表で選んだ色があればそれを使い、無ければ以前の4種類（明るい紙・生成り・グレー・暗い紙）から決める
 export function paperColors(display: DisplayPreferences | DisplayPreferences['paper']) {
@@ -49,7 +53,7 @@ function ColorGrid({ value, onChange }: { value?: string; onChange: (hex: string
 }
 
 // 調節バー（つまみを左右に動かして値を変える）
-export function Slider({ value, min, max, step, onChange, format }: { value: number; min: number; max: number; step: number; onChange: (n: number) => void; format: (n: number) => string }) {
+export function Slider({ value, min, max, step, onChange, format, showValue = true }: { value: number; min: number; max: number; step: number; onChange: (n: number) => void; format: (n: number) => string; showValue?: boolean }) {
   const width = useRef(0);
   const set = (x: number) => {
     const raw = min + Math.max(0, Math.min(1, x / Math.max(1, width.current))) * (max - min);
@@ -67,75 +71,63 @@ export function Slider({ value, min, max, step, onChange, format }: { value: num
       <View pointerEvents="none" style={styles.sliderTrack}><View style={[styles.sliderFill, { width: `${ratio * 100}%` }]} /></View>
       <View pointerEvents="none" style={[styles.sliderThumb, { left: `${ratio * 100}%` }]} />
     </View>
-    <Text style={styles.sliderValue}>{format(value)}</Text>
+    {showValue && <Text style={styles.sliderValue}>{format(value)}</Text>}
   </View>;
 }
 
 export function DisplaySettings({ value, close, apply, onPreview }: { onPreview?: (value: DisplayPreferences) => void; value: DisplayPreferences; close: () => void; apply: (value: DisplayPreferences) => Promise<boolean> }) {
+  const phoneSheet = usePhoneReaderPanel();
   const [draft, setDraft] = useState(value);
-  const original = useRef(value);
-  const [fontsOpen, setFontsOpen] = useState(false);
+  const [colorTarget, setColorTarget] = useState<'paper' | 'ink'>('paper');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => { onPreview?.(draft); }, [draft, onPreview]);
-  // 戻る：保存せずに、開く前の表示へ戻して閉じる
-  function back() { if (saving) return; onPreview?.(original.current); close(); }
-  function save() {
+  function back() {
+    if (saving) return;
     setSaving(true); setError('');
-    void apply(draft).then(ok => { if (ok) close(); else setError('設定を保存できません。端末の空き容量や保存設定を確認して、もう一度お試しください。'); }).finally(() => setSaving(false));
+    void apply(draft).then(ok => { if (ok) close(); else setError('設定を保存できません。端末の空き容量や保存設定を確認して、もう一度閉じてください。'); }).finally(() => setSaving(false));
   }
-  const fontLabel = fontOptions.find(([font]) => font === draft.font)?.[1] ?? '明朝';
+  const paint = paperColors(draft);
+  const selectedColor = colorTarget === 'paper' ? paint.background : paint.ink;
+  const setColor = (hex: string) => setDraft(before => ({ ...before, [colorTarget === 'paper' ? 'paperColor' : 'inkColor']: hex }));
 
-  return <StudyToolPanel visible transparent animationType="slide" onRequestClose={back}><View style={styles.overlay}><View style={styles.sheet}>
-    <View style={styles.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel="戻る" onPress={back} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
-      <Text style={styles.title}>表示の設定</Text>
+  const panelContent = <>
+    <View style={readerPanelHeader}>
+      {!phoneSheet && <Pressable accessibilityRole="button" accessibilityLabel="戻る" onPress={back} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>}
+      <Text style={readerPanelTitle}>表示</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="表示設定をリセット" disabled={saving} onPress={() => setDraft({ ...defaultPreferences })} style={styles.resetIcon}><AppIcon name="refresh" size={22} /></Pressable>
+
     </View>
-    <ScrollView contentContainerStyle={styles.content}>
-      <Text style={styles.label}>文字サイズ</Text>
-      <Slider value={draft.fontSize} {...fontSizeRange} format={n => `${n}`} onChange={fontSize => setDraft({ ...draft, fontSize })} />
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+      <View style={styles.settingRow}><Text style={styles.settingLabel}>書体</Text><View style={{ flex: 1 }}><VerticalCarousel compact label="書体" value={draft.font} onChange={font => { const option = fontOptions.find(([id]) => id === font); if (option) setDraft(before => ({ ...before, font: option[0] })); }} items={fontOptions.map(([id, label]) => ({ id, label, fontFamily: fontFamilies[id] }))} /></View></View>
+      <View style={styles.settingRow}><Text style={styles.settingLabel}>文字</Text><View style={{ flex: 1 }}><Slider value={draft.fontSize} {...fontSizeRange} format={n => `${n}`} onChange={fontSize => setDraft({ ...draft, fontSize })} /></View></View>
+      <View style={styles.settingRow}><Text style={styles.settingLabel}>行間</Text><View style={{ flex: 1 }}><Slider value={draft.lineHeight} {...lineHeightRange} format={n => n.toFixed(1)} onChange={lineHeight => setDraft({ ...draft, lineHeight })} /></View></View>
 
-      <Text style={styles.label}>行間</Text>
-      <Slider value={draft.lineHeight} {...lineHeightRange} format={n => n.toFixed(1)} onChange={lineHeight => setDraft({ ...draft, lineHeight })} />
 
-      {/* 書体：押すと縦に一覧が開く。それぞれの書体で名前を表示する */}
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: fontsOpen }} onPress={() => setFontsOpen(!fontsOpen)} style={styles.fold}>
-        <Text style={styles.label}>書体</Text>
-        <Text style={[styles.foldValue, { fontFamily: fontFamilies[draft.font] }]}>{fontLabel}</Text>
-        <Text style={styles.chevron}>{fontsOpen ? '▴' : '▾'}</Text>
-      </Pressable>
-      {fontsOpen && <View style={styles.fontList}>
-        {fontOptions.map(([font, label]) => <Pressable key={font} accessibilityRole="button" accessibilityState={{ selected: draft.font === font }} onPress={() => setDraft({ ...draft, font })} style={styles.fontRow}>
-          <Text style={[styles.fontName, { fontFamily: fontFamilies[font] }]}>{label}</Text>
-          {draft.font === font && <Text style={styles.check}>✓</Text>}
-        </Pressable>)}
-        <Text style={styles.note}>端末にない書体は近いフォントで表示します。</Text>
-      </View>}
 
-      <Text style={styles.label}>紙の色</Text>
-      <ColorGrid value={draft.paperColor} onChange={paperColor => setDraft({ ...draft, paperColor })} />
-      <Text style={styles.label}>文字の色</Text>
-      <ColorGrid value={draft.inkColor} onChange={inkColor => setDraft({ ...draft, inkColor })} />
+      <View style={styles.colorHeader}>
+        <View accessibilityRole="tablist" style={styles.colorTabs}>{([{ id: 'paper', label: '紙の色', value: paint.background }, { id: 'ink', label: '文字の色', value: paint.ink }] as const).map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: colorTarget === item.id }} onPress={() => setColorTarget(item.id)} style={[styles.colorTab, colorTarget === item.id && styles.colorTabSelected]}><View style={[styles.swatch, { backgroundColor: item.value }]} /><Text style={styles.label}>{item.label}</Text></Pressable>)}</View>
+      </View>
+      <ColorGrid value={selectedColor} onChange={setColor} />
 
       {!!error && <Text accessibilityRole="alert" style={{ color: colors.ink }}>{error}</Text>}
     </ScrollView>
-    <View style={styles.footer}>
-      <Pressable accessibilityRole="button" disabled={saving} onPress={() => setDraft({ ...defaultPreferences })} style={[styles.button, styles.reset]}><Text style={styles.resetText}>リセット</Text></Pressable>
-      <Pressable accessibilityRole="button" disabled={saving} onPress={save} style={[styles.button, styles.save]}><Text style={styles.saveText}>{saving ? '保存しています…' : '保存'}</Text></Pressable>
-    </View>
-  </View></View></StudyToolPanel>;
+
+</>;
+  return <ReaderPanel visible label="表示設定" onClose={back} desktop={<StudyToolPanel visible transparent animationType="slide" onRequestClose={back}><View style={styles.overlay}><View style={styles.sheet}>{panelContent}</View></View></StudyToolPanel>}>{panelContent}</ReaderPanel>;
+
 }
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, alignItems: 'flex-end', justifyContent: 'flex-start', paddingTop: 64, paddingRight: 10, backgroundColor: 'transparent' },
-  sheet: { width: '86%', maxWidth: 330, maxHeight: '86%', alignSelf: 'flex-end', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingTop: 8 },
+  sheet: { width: '86%', maxWidth: 300, maxHeight: '70%', alignSelf: 'flex-end', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingTop: 2 },
   back: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   backText: { color: colors.accent, fontSize: 28, lineHeight: 30 },
-  title: { color: colors.ink, fontSize: 19 },
-  content: { padding: 14, gap: 10 },
+  title: { color: colors.ink, fontSize: 16 },
+  content: { flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: 10, paddingTop: 12, paddingBottom: 3, gap: 12 },
   sample: { borderRadius: 10, borderWidth: 1, borderColor: colors.line, padding: 12 },
-  label: { fontSize: 15, color: colors.ink },
+  label: { fontSize: 13, color: colors.ink },
   note: { color: colors.muted, fontSize: 11, paddingTop: 4 },
   sliderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   sliderTouch: { flex: 1, height: 32, justifyContent: 'center' },
@@ -143,19 +135,26 @@ const styles = StyleSheet.create({
   sliderFill: { height: 5, backgroundColor: colors.accent },
   sliderThumb: { position: 'absolute', top: 7, width: 18, height: 18, borderRadius: 9, marginLeft: -9, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.accent },
   sliderValue: { width: 36, textAlign: 'right', color: colors.ink, fontVariant: ['tabular-nums'] },
-  fold: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.button, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  foldValue: { flex: 1, textAlign: 'right', color: colors.accent, fontSize: 15 },
+  fold: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.button, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+  foldValue: { flex: 1, textAlign: 'right', color: colors.accent, fontSize: 13 },
   chevron: { color: colors.muted, fontSize: 14 },
-  fontList: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, overflow: 'hidden', marginTop: -4 },
-  fontRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 11, borderBottomWidth: 1, borderColor: colors.line },
-  fontName: { flex: 1, color: colors.ink, fontSize: 16 },
+  settingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 }, settingLabel: { width: 66, color: colors.ink, fontSize: 13 },
+  colorHeader: { flexDirection: 'row', gap: 8, alignItems: 'center' }, colorTabs: { flex: 1, flexDirection: 'row', borderRadius: 999, padding: 3, backgroundColor: colors.button },
+  colorTab: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 7, justifyContent: 'center', alignItems: 'center', borderRadius: 999 }, colorTabSelected: { backgroundColor: colors.surface },
+  swatch: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: colors.line }, paletteButton: { padding: 8, borderRadius: 8, backgroundColor: colors.button },
+  quickColors: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, padding: 4 }, quickCell: { flex: 1, height: 30, borderRadius: 8, borderWidth: 1, borderColor: colors.line }, quickSelected: { borderWidth: 3, borderColor: colors.accent },
+  fontList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingVertical: 3 },
+  fontRow: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.button }, fontSelected: { backgroundColor: colors.accent },
+  fontName: { color: colors.ink, fontSize: 13 },
   check: { color: colors.accent, fontSize: 15, fontWeight: '700' },
   grid: { borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: colors.line },
   gridRow: { flexDirection: 'row' },
   cell: { flex: 1, aspectRatio: 1 },
   cellSelected: { borderWidth: 2.5, borderColor: colors.surface, transform: [{ scale: 1.15 }], zIndex: 2, borderRadius: 3 },
-  footer: { flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: 1, borderColor: colors.line },
-  button: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+  resetIcon: { marginLeft: 'auto', width: 40, height: 40, borderRadius: 20, backgroundColor: colors.button, alignItems: 'center', justifyContent: 'center' },
+  headerAction: { flex: 0, minWidth: 64, paddingHorizontal: 12, paddingVertical: 8 },
+  footer: { flexDirection: 'row', gap: 8, paddingHorizontal: 10, paddingTop: 3, paddingBottom: 8, borderTopWidth: 1, borderColor: colors.line },
+  button: { flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center' },
   reset: { backgroundColor: colors.button },
   resetText: { color: colors.accent },
   save: { backgroundColor: colors.accent },

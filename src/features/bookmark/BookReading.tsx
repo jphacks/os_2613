@@ -1,3 +1,6 @@
+import { FeatureToggle } from '@/shared/FeatureToggle';
+import { ReaderPanel, usePhoneReaderPanel } from '@/shared/ReaderPanel';
+import { ReviewLayer } from '@/features/reviews/ReviewLayer';
 import { StudyToolsContext } from '@/features/study/StudyToolPanel';
 import { useContext } from 'react';
 import { AppIcon } from '@/shared/AppIcon';
@@ -12,7 +15,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import type { SavedBook } from '@/features/library/types';
 import { colors } from '@/shared/theme';
-import { readerToolButton, readerToolSymbol } from '@/features/reader/toolStyles';
+import { readerToolButton, readerToolSymbol, readerPanelTitle, readerPanelHeader } from '@/features/reader/toolStyles';
 import { bindGuideKeyboard } from '@/features/reader/guide-keyboard.mjs';
 import { createReadingStore, emptyReading, placeMark, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
 import { Summary } from './Summary';
@@ -35,8 +38,8 @@ import { defaultPreferences, normalizePreferences, preferenceKey, type DisplayPr
 // 読みガイドの速さ（1分あたりの文字数）の選択肢
 
 
-function Action({ children, onPress, disabled = false, filled = false }: { children: string; onPress: () => void; disabled?: boolean; filled?: boolean }) {
-  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, filled && styles.filled, disabled && styles.disabled]}><Text style={[styles.buttonText, filled && styles.light]}>{children}</Text></Pressable>;
+function Action({ children, onPress, disabled = false, filled = false, compact = false }: { children: string; compact?: boolean; onPress: () => void; disabled?: boolean; filled?: boolean }) {
+  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, compact && styles.compactAction, filled && styles.filled, disabled && styles.disabled]}><Text style={[styles.buttonText, compact && styles.compactActionText, filled && styles.light]} numberOfLines={compact ? 1 : undefined}>{children}</Text></Pressable>;
 }
 
 function BookmarkIcon({ color = colors.accent }: { color?: string }) {
@@ -44,7 +47,8 @@ function BookmarkIcon({ color = colors.accent }: { color?: string }) {
   return <Image source={{ uri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}` }} style={{ width: 20, height: 28 }} contentFit="contain" />;
 }
 
-export function BookReading({ book, initialOffset, study = false, sourceLabel = '青空文庫', trackingId = book.id, studyVisuals, studyScrollTarget, onStudyPosition, onStudyDisplayControl, onReady, onLoadError }: { book: SavedBook; initialOffset?: number; study?: boolean; sourceLabel?: string; trackingId?: string; studyVisuals?: import('../study/visuals.mjs').StudyVisual[]; studyScrollTarget?: { offset: number; token: number } | null; onStudyPosition?: (offset: number) => void; onStudyDisplayControl?: (control: ReactNode | null) => void; onReady?: () => void; onLoadError?: (message: string) => void }) {
+export function BookReading({ book, initialOffset, study = false, sourceLabel = '青空文庫', trackingId = book.id, studyVisuals, studyScrollTarget, onStudyPosition, onStudyDisplayControl, onReady, onLoadError, hideBookmark = false }: { book: SavedBook; initialOffset?: number; study?: boolean; sourceLabel?: string; trackingId?: string; studyVisuals?: import('../study/visuals.mjs').StudyVisual[]; studyScrollTarget?: { offset: number; token: number } | null; onStudyPosition?: (offset: number) => void; onStudyDisplayControl?: (control: ReactNode | null) => void; onReady?: () => void; onLoadError?: (message: string) => void; hideBookmark?: boolean }) {
+  const phoneSheet = usePhoneReaderPanel();
   const ReadingPage = study ? HorizontalStudyPage : VerticalPage;
   const { identity, prefs, complete } = useAccount();
   const store = useMemo(() => createReadingStore(AsyncStorage, `dopabooks:reading:v1:${book.id}`, book.text), [book.id, book.text]);
@@ -66,7 +70,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   useEffect(() => { complete('read'); }, []);
   const [speed, setSpeed] = useState(1200);
   const [guideLift, setGuideLift] = useState(1);
-  useEffect(() => { let active = true; void AsyncStorage.getItem(`dopabooks:guide-lift:v1:${identity?.did || 'guest'}`).then(raw => { if (active) setGuideLift(raw !== null && Number.isFinite(Number(raw)) ? Math.max(0, Math.min(2, Number(raw))) : 1); }).catch(() => {}); return () => { active = false; }; }, [identity?.did]);
+  useEffect(() => { let active = true; void AsyncStorage.getItem(`dopabooks:guide-lift:v1:${identity?.did || 'guest'}`).then(raw => { if (active) setGuideLift(raw !== null && Number.isFinite(Number(raw)) ? Math.max(0, Math.min(1, Number(raw))) : 1); }).catch(() => {}); return () => { active = false; }; }, [identity?.did]);
   function changeLift(value: number) { setGuideLift(value); void AsyncStorage.setItem(`dopabooks:guide-lift:v1:${identity?.did || 'guest'}`, String(value)).catch(() => {}); }
   const [speedReady, setSpeedReady] = useState(false);
   const speedKey = `dopabooks:guide-speed:v1:${identity?.did || 'guest'}`;
@@ -74,6 +78,8 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   useEffect(() => { if (!speedReady) return; const timer = setTimeout(() => { void AsyncStorage.setItem(speedKey, String(speed)).catch(() => {}); }, 300); return () => clearTimeout(timer); }, [speed, speedReady, speedKey]);
   const [sub, setSub] = useState(0);
   const [subCount, setSubCount] = useState(1);
+  const [ending, setEnding] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [display, setDisplay] = useState<DisplayPreferences>({ ...defaultPreferences });
   const [displayReady, setDisplayReady] = useState(false);
   useEffect(() => { if (!ready && error) onLoadError?.(error); }, [ready, error, onLoadError]);
@@ -82,7 +88,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
   const settingsOpen = study && studyTools ? studyTools.active === 'display' : localSettingsOpen;
   const setSettingsOpen = (open: boolean) => study && studyTools ? studyTools.select(open ? 'display' : null) : setLocalSettingsOpen(open);
-  const studyDisplayControl = useMemo(() => <Pressable accessibilityRole="button" accessibilityLabel="表示設定" disabled={!displayReady} onPress={() => { setMenu(false); setMusicOpen(false); setSettingsOpen(true); }} style={[styles.toolIcon, !displayReady && styles.disabled]}><Text style={styles.buttonText}>AA</Text></Pressable>, [displayReady, selectStudyTool, study]);
+  const studyDisplayControl = useMemo(() => <Pressable accessibilityRole="button" accessibilityLabel="表示設定" disabled={!displayReady} onPress={() => { setMenu(false); setMusicOpen(false); setSettingsOpen(true); }} style={[styles.toolIcon, !displayReady && styles.disabled]}><Text style={{ fontSize: 24, lineHeight: 28, fontWeight: '600', color: colors.accent }}>Aa</Text></Pressable>, [displayReady, selectStudyTool, study]);
   const [musicOpen, setMusicOpen] = useState(false);
   const [toolsHeight, setToolsHeight] = useState(48);
   function toggleGuide() { if (!guide) setGuide(true); setRunning(!guide || !running); }
@@ -190,15 +196,21 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     catch { setError('表示設定を保存できません。端末の空き容量や保存設定を確認して、もう一度お試しください。'); return false; }
   }
   const shown = Math.min(Math.max(0, sub), subCount - 1);
-  // 最後のページまで来たら「読み終わった」と記録する（分析画面用）
-  useEffect(() => { if (!study && ready && subCount > 1 && shown === subCount - 1) void recordFinished(book.id); }, [ready, shown, subCount, book.id, study]);
+  // 本文の最終ページではまだ読了にせず、その次の終了画面へ進んだ時に記録する。
+  useEffect(() => {
+    if (!ending || study || !ready) return;
+    void recordFinished(book.id);
+    if (viewTimer.current) clearTimeout(viewTimer.current);
+    void store.save(state => ({ ...state, cursor: book.text.length })).then(value => { if (alive.current) setReading(value); }).catch(() => setError('読書位置を保存できません。端末の保存設定を確認してください。'));
+  }, [ending, study, ready, book.id, store]);
   function next() {
-    if (busy) return;
+    if (busy || ending) return;
     if (shown < subCount - 1) setSub(shown + 1);
-    else setRunning(false);
+    else { setRunning(false); if (!study && !moving) { setMenu(false); setMusicOpen(false); setEnding(true); } }
   }
   function prev() {
     if (busy) return;
+    if (ending) { setEnding(false); setSub(subCount - 1); setFocus({ offset: Math.max(0, book.text.length - 1), token: Date.now() }); return; }
     if (shown > 0) setSub(shown - 1);
   }
   function begin(id?: string) {
@@ -230,7 +242,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     dragToken.current = null; dragPoint.current = null; setHeaderDrag(null); setDragIcon(null);
     if (offset === null) return;
     const id = `mark-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    if (await save(state => placeMark(state, book.text, offset, id))) { setUndo(null); setNotice('しおりを挟みました。'); }
+    if (await save(state => placeMark(state, book.text, offset, id))) { setUndo(null); setNotice(''); }
   }
   async function dropMark(from: number, to: number | null) {
     const before = reading.marks.find(mark => mark.offset === from);
@@ -251,7 +263,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     let after: Mark | undefined;
     if (await save(state => { const next = placeMark(state, book.text, offset, moving); after = next.marks.find(mark => mark.id === moving); return next; })) {
       if (before && after) setUndo({ before, after }); else setUndo(null);
-      setMoving(null); setDraft(null); setNotice(before ? 'しおりを移動しました。' : 'しおりを挟みました。');
+      setMoving(null); setDraft(null); setNotice(before ? 'しおりを移動しました。' : '');
     }
   }
   async function undoMove() {
@@ -271,15 +283,15 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     if (mark && !moving) { setRunning(false); setSelected(mark.id); setScope('previous'); setPanel(true); }
   }
   const paint = paperColors(display);
-  return <View ref={screenRef} collapsable={false} style={[styles.screen, { backgroundColor: paint.background }]}>
+  return <View ref={screenRef} collapsable={false} style={styles.screen}>
     {/* ヘッダー：中央にタイトルと作者、右にメニュー */}
     <Stack.Screen options={{
       headerTitleAlign: 'center',
-      headerStyle: { backgroundColor: study ? colors.accent : paint.background },
+      headerStyle: { backgroundColor: study ? colors.accent : colors.paper },
       headerTintColor: study ? colors.surface : colors.accent,
       headerTitle: () => <View style={styles.headTitle}><Text style={[styles.title, study && styles.studyHeaderTitle]}>{book.title}</Text><Text style={[styles.small, study && styles.studyHeaderSmall]}>{book.author}</Text></View>,
       // iPhone ではヘッダーのボタンに標準の枠が付くので、こちらでは枠を付けない（枠が二重になるため）
-      headerRight: () => <View style={styles.headRight}>
+      headerRight: () => hideBookmark || feature === 'comic' ? null : <View style={styles.headRight}>
         {study ? <Pressable accessibilityRole="button" accessibilityLabel="しおり" accessibilityHint="タップで一覧、長押しでしおりを挟みます" disabled={!ready || busy || !!moving}
           onPress={() => { setRunning(false); setSelected(null); setPanel(true); }} onLongPress={() => begin()}
           style={[styles.headButton, (!ready || busy || !!moving) && styles.disabled]}><BookmarkIcon color={study ? colors.surface : colors.accent} /></Pressable> : <BookmarkHandle disabled={!ready || busy || !!moving}
@@ -292,34 +304,39 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
       <View style={styles.studyToolRow}>
         <View style={styles.directTools}>
           {studyDisplayControl}
-          {!study && <Pressable accessibilityRole="button" accessibilityLabel="読みガイドと読む速さ" accessibilityState={{ selected: guide, expanded: menu }} onPress={() => { setMusicOpen(false); setMenu(!menu); }} style={[styles.toolIcon, guide && styles.filled]}><Text style={[styles.waveIcon, guide && styles.light]}>≋</Text></Pressable>}
+
         </View>
-        <MusicPanel detailsOpen={musicOpen} onGuidePress={() => { setMusicOpen(false); setMenu(true); }} onDetailsChange={open => { if (open) setMenu(false); setMusicOpen(open); }} visible={!study && prefs.music} book={book} position={readPosition} guideActive={guide && running && !moving && !panel && !settingsOpen && !feature} />
-        {!study && <View style={{ marginLeft: 8 }}><Action filled={guide && running} disabled={!ready || !!moving || busy} onPress={toggleGuide}>{guide && running ? '一時停止' : '▶ ガイド開始'}</Action></View>}
+        <MusicPanel detailsOpen={musicOpen} onGuidePress={() => { setMusicOpen(false); setMenu(true); }} onDetailsChange={open => { if (open) setMenu(false); setMusicOpen(open); }} visible={!study && prefs.music} book={book} position={readPosition} guideEnabled={guide} guideActive={!ending && guide && running && !moving && !panel && !settingsOpen && !feature} />
+        {!study && <Pressable accessibilityRole="button" accessibilityLabel="読みガイドの設定を開く" accessibilityState={{ expanded: menu }} onPress={() => { setMusicOpen(false); setMenu(!menu); }} style={styles.toolIcon}><AppIcon name="waves" size={24} /></Pressable>}
+        {!study && <Pressable accessibilityRole="button" accessibilityLabel={guide && running ? 'ガイドを停止' : 'ガイド開始'} disabled={!ready || !!moving || busy || ending} onPress={toggleGuide} style={styles.guideStart}><Text style={styles.buttonText}>{guide && running ? '■ 停止' : '▶ 開始'}</Text></Pressable>}
       {moving && <View style={styles.placement}><Action disabled={busy || draft === null} filled onPress={() => void confirm()}>この位置に挟む</Action><Action disabled={busy} onPress={() => { setMoving(null); setDraft(null); }}>キャンセル</Action></View>}
       </View>
     </View>}
       {study && moving && <View style={styles.placement}><Action disabled={busy || draft === null} filled onPress={() => void confirm()}>この位置に挟む</Action><Action disabled={busy} onPress={() => { setMoving(null); setDraft(null); }}>キャンセル</Action></View>}
-    {/* 読みガイドがONのときだけ、開始・一時停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
+    {/* 読みガイドがONのときだけ、開始・停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
     {/* 漫画・表示設定・読みガイドはメニューから開く。しおりは上部から直接操作する。 */}
-    {menu && !study && <View pointerEvents="box-none" style={[styles.menuBack, { top: toolsHeight + 8, bottom: Math.max(insets.bottom, 12) }]}>
+    {!study && <ReaderPanel visible={menu} label="読みガイド" onClose={() => setMenu(false)} desktop={menu && !study && <View pointerEvents="box-none" style={[styles.menuBack, { top: toolsHeight + 8, bottom: Math.max(insets.bottom, 12) }]}>
         <Pressable style={styles.menu} onPress={() => {}}><ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
-          <View style={styles.toolbar}><Text style={styles.heading}>読みガイド</Text><View style={{ flex: 1 }} /><Action onPress={() => setMenu(false)}>閉じる</Action></View>
-          <Action filled={guide} onPress={() => { setGuide(!guide); setRunning(!guide); }}>{guide ? 'ガイド ON' : 'ガイド OFF'}</Action>
-          <GuideSpeed value={speed} onChange={setSpeed} />
-          <Text style={styles.note}>浮き上がり</Text><Slider value={guideLift} min={0} max={2} step={0.1} format={value => `${Math.round(value * 100)}%`} onChange={changeLift} />
+          <View style={[readerPanelHeader, { marginHorizontal: -12 }]}><Text style={readerPanelTitle}>読みガイド</Text></View>
+          <View accessibilityRole="tablist" style={styles.guideToggle}>{[true, false].map(on => <Pressable key={String(on)} accessibilityRole="tab" accessibilityLabel={`読みガイド ${on ? 'ON' : 'OFF'}`} accessibilityState={{ selected: guide === on }} onPress={() => { setGuide(on); if (!on) setRunning(false); }} style={[styles.guideOption, guide === on && { backgroundColor: colors.accent }]}><Text style={[styles.guideLabel, guide === on && { color: colors.surface }]}>{on ? 'ON' : 'OFF'}</Text></Pressable>)}</View>
+          {guide ? <><GuideSpeed value={speed} onChange={setSpeed} /><Text style={styles.guideLabel}>浮き上がり</Text><Slider value={guideLift} min={0} max={1} step={0.1} showValue={false} format={value => `${Math.round(value * 100)}%`} onChange={changeLift} /><View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={styles.guideEndpoint}>0%</Text><Text style={styles.guideEndpoint}>100%</Text></View></> : <Text style={styles.note}>読みガイドがOFFの間は、連動する世界観BGMもOFFになります。</Text>}
           </ScrollView>
         </Pressable>
-      </View>}
+      </View>}><ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
+          <View style={[readerPanelHeader, { marginHorizontal: -12 }]}><Text style={readerPanelTitle}>読みガイド</Text></View>
+          <View accessibilityRole="tablist" style={styles.guideToggle}>{[true, false].map(on => <Pressable key={String(on)} accessibilityRole="tab" accessibilityLabel={`読みガイド ${on ? 'ON' : 'OFF'}`} accessibilityState={{ selected: guide === on }} onPress={() => { setGuide(on); if (!on) setRunning(false); }} style={[styles.guideOption, guide === on && { backgroundColor: colors.accent }]}><Text style={[styles.guideLabel, guide === on && { color: colors.surface }]}>{on ? 'ON' : 'OFF'}</Text></Pressable>)}</View>
+          {guide ? <><GuideSpeed value={speed} onChange={setSpeed} /><Text style={styles.guideLabel}>浮き上がり</Text><Slider value={guideLift} min={0} max={1} step={0.1} showValue={false} format={value => `${Math.round(value * 100)}%`} onChange={changeLift} /><View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={styles.guideEndpoint}>0%</Text><Text style={styles.guideEndpoint}>100%</Text></View></> : <Text style={styles.note}>読みガイドがOFFの間は、連動する世界観BGMもOFFになります。</Text>}
+          </ScrollView></ReaderPanel>}
     {/* 紙面は画面いっぱい。左側を押すと次、右側を押すと前のページ */}
-    <View ref={paperRef} collapsable={false} style={[styles.paper, { backgroundColor: paint.background }]}>
+    <View ref={paperRef} collapsable={false} style={[styles.paper, { backgroundColor: paint.background }]} >
+      <View style={StyleSheet.absoluteFill}>
       <ReadingPage
         onReady={onReady}
         onLoadError={onLoadError}
         visuals={studyVisuals}
         text={book.text}
         start={0}
-        sub={sub}
+        sub={ending && !study ? subCount : sub}
         marks={reading.marks.map(mark => mark.offset)}
         faded={reading.marks.find(mark => mark.id === moving)?.offset ?? null}
         picking={!!moving}
@@ -330,16 +347,19 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
         guideLift={guideLift}
         display={display}
         paint={paint}
-        disabled={!ready || !displayReady || busy || panel || settingsOpen || !!feature}
+        disabled={!ready || !displayReady || busy || panel || settingsOpen || reviewOpen || !!feature}
         focus={focus}
         onPick={offset => { setDraft(offset); void confirm(offset); }}
         onMarkPress={openMark}
+        bookTitle={book.title}
+        onOpenReview={study ? undefined : () => setReviewOpen(true)}
+        onFinish={study ? undefined : () => { if (!moving && !busy) { setRunning(false); setMusicOpen(false); setMenu(false); setEnding(true); } }}
         onPages={setSubCount}
-        onReflow={setSub}
+        onReflow={page => { setSub(page); setEnding(false); }}
         onVisible={recordVisible}
         onPosition={setReadPosition}
-        onNext={() => { if (!busy && shown < subCount - 1) { next(); if (guide && !moving) setRunning(true); } }}
-        onPrev={() => { if (!busy && shown > 0) { prev(); if (guide && !moving) setRunning(true); } }}
+        onNext={() => { if (!busy) { next(); if (guide && running && !moving && shown < subCount - 1) setRunning(true); } }}
+        onPrev={() => { if (!busy && (ending || shown > 0)) { prev(); if (guide && running && !moving) setRunning(true); } }}
         onAdvance={next}
         onPause={() => setRunning(false)}
         onToggleGuide={!study && !menu && !musicOpen ? toggleGuide : undefined}
@@ -347,8 +367,9 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
         onDrop={(from, to) => { void dropMark(from, to); }}
         headerDrag={headerDrag}
         onHeaderDrop={(token, offset) => { void dropFromHeader(token, offset); }}
-        dom={{ style: { flex: 1 }, onError: () => onLoadError?.('本文画面を読み込めませんでした。接続を確認して、もう一度お試しください。'), onContentProcessDidTerminate: () => onLoadError?.('本文画面の処理が停止しました。もう一度お試しください。') }}
+        dom={{ style: { flex: 1 }, bounces: false, overScrollMode: 'never', directionalLockEnabled: true, onError: () => onLoadError?.('本文画面を読み込めませんでした。接続を確認して、もう一度お試しください。'), onContentProcessDidTerminate: () => onLoadError?.('本文画面の処理が停止しました。もう一度お試しください。') }}
       />
+      </View>
       {(!!error || !!notice) && <View style={styles.feedback}>
         {!!error && <Text accessibilityRole="alert" style={styles.message}>{error}</Text>}
         {!!notice && <View style={styles.toolbar}><Text accessibilityLiveRegion="polite" style={styles.note}>{notice}</Text>{undo && <Action disabled={busy} onPress={() => void undoMove()}>元に戻す</Action>}<Action onPress={() => setNotice('')}>閉じる</Action></View>}
@@ -357,18 +378,19 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     {dragIcon && <View pointerEvents="none" style={{ position: 'absolute', left: dragIcon.x - 9, top: dragIcon.y - 5, zIndex: 100 }}><BookmarkIcon /></View>}
     {/* ページバーを上、出典を下にする。iPhone の画面下の線（ホームバー）と重ならないよう、その分の余白を空ける */}
     <View style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
-      {!study && <PageBar page={shown} count={subCount} disabled={!ready || busy || !!moving} ink={paint.ink} accent={paint.accent} line={paint.chosen}
-        onChange={value => { setSub(value); if (guide && !moving) setRunning(true); }} />}
+      {!study && <PageBar page={ending ? subCount : shown} count={subCount + 1} disabled={!ready || busy || !!moving} ink={colors.ink} accent={colors.accent} line={colors.line}
+        onChange={value => { setEnding(value === subCount); setSub(Math.min(value, subCount - 1)); if (guide && running && !moving && value < subCount) setRunning(true); else setRunning(false); }} />}
       <Pressable accessibilityRole="link" style={styles.source} onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：{sourceLabel}</Text></Pressable>
     </View>
-    <Modal visible={panel} transparent animationType="fade" onRequestClose={() => setPanel(false)}>
-      <View style={styles.markOverlay}><View style={styles.markSheet}><View style={{ alignSelf: 'flex-start', paddingHorizontal: 16 }}><Pressable accessibilityRole="button" accessibilityLabel="しおりを閉じる" onPress={() => setPanel(false)} style={styles.toolIcon}><Text style={styles.waveIcon}>‹</Text></Pressable></View><View style={styles.toolbar}><Text style={styles.heading}>{target ? 'ふりかえり' : 'しおり'}</Text></View>
+    {reviewOpen && <ReviewLayer bookId={book.id} close={() => setReviewOpen(false)} />}
+    <ReaderPanel visible={panel} label="しおり" onClose={() => setPanel(false)} desktop={<Modal visible={panel} transparent animationType="fade" onRequestClose={() => setPanel(false)}>
+      <View style={styles.markOverlay}><View style={styles.markSheet}>{!phoneSheet && <View style={{ alignSelf: 'flex-start', paddingHorizontal: 16 }}><Pressable accessibilityRole="button" accessibilityLabel="しおりを閉じる" onPress={() => setPanel(false)} style={styles.toolIcon}><Text style={styles.waveIcon}>‹</Text></Pressable></View>}<View style={styles.toolbar}><Text style={styles.heading}>{target ? 'ふりかえり' : 'しおり'}</Text></View>
         <ScrollView contentContainerStyle={styles.sheetContent}>
-          <View style={styles.toolbarTight}>
-            {!study && prefs.comic && <Action onPress={() => { setPanel(false); setFeature('comic'); }}>紹介4コマ</Action>}
-            {!study && prefs.characters && <Action onPress={() => { setPanel(false); setFeature('characters'); }}>人物相関図</Action>}
+          <View style={styles.bookmarkActions}>
+            {!study && prefs.comic && <Action compact onPress={() => { setPanel(false); setFeature('comic'); }}>紹介4コマ</Action>}
+            {!study && prefs.characters && <Action compact onPress={() => { setPanel(false); setFeature('characters'); }}>人物相関図</Action>}
+            {!target && <Action compact disabled={!ready || busy} onPress={() => begin()}>しおりを挟む</Action>}
           </View>
-          {!target && <Action disabled={!ready || busy} onPress={() => begin()}>しおりを挟む</Action>}
           {target && range ? <>
             <Action onPress={() => setSelected(null)}>‹ しおり一覧へ</Action>
             <View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View>
@@ -381,14 +403,32 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
           </>}
         </ScrollView>
       </View></View>
-    </Modal>
+    </Modal>}>{!phoneSheet && <View style={{ alignSelf: 'flex-start', paddingHorizontal: 16 }}><Pressable accessibilityRole="button" accessibilityLabel="しおりを閉じる" onPress={() => setPanel(false)} style={styles.toolIcon}><Text style={styles.waveIcon}>‹</Text></Pressable></View>}<View style={styles.toolbar}><Text style={styles.heading}>{target ? 'ふりかえり' : 'しおり'}</Text></View>
+        <ScrollView contentContainerStyle={styles.sheetContent}>
+          <View style={styles.bookmarkActions}>
+            {!study && prefs.comic && <Action compact onPress={() => { setPanel(false); setFeature('comic'); }}>紹介4コマ</Action>}
+            {!study && prefs.characters && <Action compact onPress={() => { setPanel(false); setFeature('characters'); }}>人物相関図</Action>}
+            {!target && <Action compact disabled={!ready || busy} onPress={() => begin()}>しおりを挟む</Action>}
+          </View>
+          {target && range ? <>
+            <Action onPress={() => setSelected(null)}>‹ しおり一覧へ</Action>
+            <View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View>
+            <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`}
+ />
+            <View style={styles.toolbar}><Action disabled={busy} filled onPress={() => { resume(target); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(target.id)}>しおりを移動</Action><Action disabled={busy} onPress={() => { void save(state => removeMark(state, target.id)).then(ok => { if (ok) { setSelected(null); setUndo(null); } }); }}>外す</Action></View>
+          </> : <>
+            {!sorted.length && <Text style={styles.note}>しおりはまだありません。本文の文字を選んで挟めます。</Text>}
+            {sorted.map((mark, index) => <View key={mark.id} style={styles.markCard}><Text style={styles.heading}>しおり {sorted.length - index}</Text><Text style={styles.note}>{book.text.slice(Math.max(0, mark.offset - 65), mark.offset) || '本文のはじまり'}</Text><View style={styles.toolbar}><Action onPress={() => { setSelected(mark.id); setScope('previous'); }}>ふりかえり</Action><Action disabled={busy} onPress={() => { resume(mark); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(mark.id)}>移動</Action><Action disabled={busy} onPress={() => { void save(state => removeMark(state, mark.id)).then(ok => { if (ok) setUndo(null); }); }}>外す</Action></View></View>)}
+          </>}
+        </ScrollView>
+      </ReaderPanel>
     {settingsOpen && <DisplaySettings value={display} onPreview={setDisplay} close={() => setSettingsOpen(false)} apply={applyDisplay} />}
     <Modal visible={feature !== null} animationType="slide" onRequestClose={() => setFeature(null)}>
       {/* 全画面モーダルは読書画面とは別の座標系で安全領域を計測する。 */}
       <SafeAreaProvider style={styles.screen}>
       {feature !== null && <StatusBar style="dark" />}
       <SafeAreaView style={styles.screen} edges={['top', 'bottom', 'left', 'right']}><View style={styles.featureHeader}><Text style={styles.heading}>{feature === 'comic' ? '紹介4コマ' : '人物相関図'}</Text><Action onPress={() => setFeature(null)}>閉じる</Action></View>
-        {feature === 'comic' && <IntroComic book={book} read={() => { setFocus({ offset: 0, token: Date.now() }); setFeature(null); }} />}
+        {feature === 'comic' && <IntroComic book={book} />}
         {feature === 'characters' && <Characters text={book.text} marks={reading.marks} jump={offset => { setFocus({ offset, token: Date.now() }); setFeature(null); }} />}
       </SafeAreaView>
       </SafeAreaProvider>
@@ -407,6 +447,11 @@ const styles = StyleSheet.create({
   headTitle: { alignItems: 'center' }, small: { color: colors.muted, fontSize: 11, marginTop: 2 }, headRight: { flexDirection: 'row', alignItems: 'center' }, headButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   menuIcon: { color: colors.accent, fontSize: 22 }, bookmarkIcon: { width: 18, height: 26 }, bookmarkBody: { width: 18, height: 18, backgroundColor: colors.accent, borderTopLeftRadius: 2, borderTopRightRadius: 2 },
   bookmarkTail: { flexDirection: 'row' }, bookmarkLeft: { width: 0, height: 0, borderLeftWidth: 9, borderLeftColor: colors.accent, borderBottomWidth: 8, borderBottomColor: 'transparent' }, bookmarkRight: { width: 0, height: 0, borderRightWidth: 9, borderRightColor: colors.accent, borderBottomWidth: 8, borderBottomColor: 'transparent' },
+  guideLabel: { color: colors.ink, fontSize: 13, fontWeight: '400' }, guideEndpoint: { color: colors.muted, fontSize: 11 }, guideToggle: { flexDirection: 'row', padding: 3, borderRadius: 999, backgroundColor: colors.button }, guideOption: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
+  guideGroup: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.button, borderRadius: 999, overflow: 'hidden' }, guideStart: { width: 84, marginLeft: 'auto', marginRight: 12, alignItems: 'center', backgroundColor: colors.button, borderRadius: 999, paddingHorizontal: 8, minHeight: 40, justifyContent: 'center' }, guideSettings: { width: 36, minHeight: 40, justifyContent: 'center', alignItems: 'center' },
+  bookmarkActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  compactAction: { flex: 1, minWidth: 0, minHeight: 40, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
+  compactActionText: { fontSize: 12 },
   toolbarTight: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   directTools: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 2 }, toolIcon: readerToolButton,
   topTools: { paddingLeft: 12, zIndex: 40 }, studyToolRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', minHeight: 46 }, studyInfo: { flex: 1, minWidth: 0, marginLeft: 8, color: colors.muted, fontSize: 12 }, toolsButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },

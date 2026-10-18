@@ -1,8 +1,8 @@
 import { AppIcon } from './AppIcon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from './theme';
-export function NavigationButton({ onPress, label = '戻る', close = false, disabled = false, filled = false }: { onPress: () => void; label?: string; close?: boolean; disabled?: boolean; filled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({ pressed }) => [s.button, filled && { backgroundColor: colors.accent, borderWidth: 0 }, pressed && (filled ? { opacity: 0.75 } : { backgroundColor: colors.line }), disabled && { opacity: 0.4 }]}>
+export function NavigationButton({ onPress, label = '戻る', close = false, disabled = false, filled = false, flushLeft = false }: { onPress: () => void; label?: string; close?: boolean; disabled?: boolean; filled?: boolean; flushLeft?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({ pressed }) => [s.button, flushLeft && { marginLeft: -6, gap: 3, paddingLeft: 8, paddingRight: 10 }, filled && { backgroundColor: colors.accent, borderWidth: 0 }, pressed && (filled ? { opacity: 0.75 } : { backgroundColor: colors.line }), disabled && { opacity: 0.4 }]}>
     <AppIcon name={close ? 'close' : 'arrow_back'} size={22} color={filled ? colors.surface : colors.accent} />
     <Text numberOfLines={1} style={[s.label, filled && { color: colors.surface }]}>{label}</Text>
   </Pressable>;
