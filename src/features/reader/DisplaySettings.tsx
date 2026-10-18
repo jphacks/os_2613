@@ -48,7 +48,7 @@ function ColorGrid({ value, onChange }: { value?: string; onChange: (hex: string
 }
 
 // 調節バー（つまみを左右に動かして値を変える）
-function Slider({ value, min, max, step, onChange, format }: { value: number; min: number; max: number; step: number; onChange: (n: number) => void; format: (n: number) => string }) {
+export function Slider({ value, min, max, step, onChange, format }: { value: number; min: number; max: number; step: number; onChange: (n: number) => void; format: (n: number) => string }) {
   const width = useRef(0);
   const set = (x: number) => {
     const raw = min + Math.max(0, Math.min(1, x / Math.max(1, width.current))) * (max - min);
@@ -84,7 +84,6 @@ export function DisplaySettings({ value, close, apply, onPreview }: { onPreview?
     void apply(draft).then(ok => { if (ok) close(); else setError('設定を保存できません。端末の空き容量や保存設定を確認して、もう一度お試しください。'); }).finally(() => setSaving(false));
   }
   const fontLabel = fontOptions.find(([font]) => font === draft.font)?.[1] ?? '明朝';
-  const paint = paperColors(draft);
 
   return <Modal visible transparent animationType="slide" onRequestClose={back}><View style={styles.overlay}><View style={styles.sheet}>
     <View style={styles.header}>
@@ -92,11 +91,6 @@ export function DisplaySettings({ value, close, apply, onPreview }: { onPreview?
       <Text style={styles.title}>表示の設定</Text>
     </View>
     <ScrollView contentContainerStyle={styles.content}>
-      {/* 見本：今の設定で文章がどう見えるか */}
-      <View style={[styles.sample, { backgroundColor: paint.background }]}>
-        <Text style={{ color: paint.ink, fontFamily: fontFamilies[draft.font], fontSize: Math.min(draft.fontSize, 26), lineHeight: Math.min(draft.fontSize, 26) * draft.lineHeight }}>メロスは激怒した。必ず、かの邪智暴虐の王を除かなければならぬと決意した。</Text>
-      </View>
-
       <Text style={styles.label}>文字サイズ</Text>
       <Slider value={draft.fontSize} {...fontSizeRange} format={n => `${n}`} onChange={fontSize => setDraft({ ...draft, fontSize })} />
 
@@ -148,7 +142,7 @@ const styles = StyleSheet.create({
   sliderFill: { height: 5, backgroundColor: colors.accent },
   sliderThumb: { position: 'absolute', top: 7, width: 18, height: 18, borderRadius: 9, marginLeft: -9, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.accent },
   sliderValue: { width: 36, textAlign: 'right', color: colors.ink, fontVariant: ['tabular-nums'] },
-  fold: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  fold: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.button, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   foldValue: { flex: 1, textAlign: 'right', color: colors.accent, fontSize: 15 },
   chevron: { color: colors.muted, fontSize: 14 },
   fontList: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, overflow: 'hidden', marginTop: -4 },
@@ -161,7 +155,7 @@ const styles = StyleSheet.create({
   cellSelected: { borderWidth: 2.5, borderColor: colors.surface, transform: [{ scale: 1.15 }], zIndex: 2, borderRadius: 3 },
   footer: { flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: 1, borderColor: colors.line },
   button: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
-  reset: { borderWidth: 1, borderColor: colors.line },
+  reset: { backgroundColor: colors.button },
   resetText: { color: colors.accent },
   save: { backgroundColor: colors.accent },
   saveText: { color: colors.surface, fontWeight: '700' },

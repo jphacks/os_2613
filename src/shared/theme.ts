@@ -2,6 +2,7 @@
 export const colors = {
   paper: '#F6F2E9',
   surface: '#FFFDF8',
+  button: '#E8EBE2',
   ink: '#292E29',
   muted: '#73776E',
   accent: '#386149',
