@@ -1,3 +1,4 @@
+import { PullToRefresh } from './PullToRefresh';
 import { NavigationButton } from '@/shared/NavigationButton';
 import { Stack, router, useLocalSearchParams, type Href } from 'expo-router';
 import { useState } from 'react';
@@ -10,7 +11,7 @@ import { colors } from '@/shared/theme';
 import { validBookId } from './model.mjs';
 import { reviewBooks } from './books';
 import { useReviewFeed } from './useReviewFeed';
-import { RefreshButton, Button, ReviewCard, s } from './ui';
+import { Button, ReviewCard, s } from './ui';
 export default function BookReviews({ bookId, close }: { bookId?: string; close?: () => void } = {}) {
   const params = useLocalSearchParams<{ id: string }>();
   const id = bookId || params.id;
@@ -33,7 +34,7 @@ export default function BookReviews({ bookId, close }: { bookId?: string; close?
   }
   return <View style={s.screen}>
     {close && <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 22, paddingTop: 16, paddingBottom: 8 }}><Text style={s.heading}>本の紹介</Text><NavigationButton close label="閉じる" onPress={close} /></View>}
-    <ScrollView style={s.screen} contentContainerStyle={[s.body, close ? { padding: 20, paddingTop: 8 } : { maxWidth: '100%' }]}>
+    <PullToRefresh refreshing={loading} onRefresh={refresh} style={s.screen} contentContainerStyle={[s.body, close ? { padding: 20, paddingTop: 8 } : { maxWidth: '100%' }]}>
 
     {!close && <Stack.Screen options={{ title: '本の紹介・レビュー', headerLeft: () => <NavigationButton onPress={() => router.canGoBack() ? router.back() : router.replace('/timeline')} /> }} />}
     {book ? <>
@@ -46,11 +47,11 @@ export default function BookReviews({ bookId, close }: { bookId?: string; close?
       </View>
       <View style={s.card}><View style={s.between}><Text style={s.heading}>みんなの評価</Text><Text style={s.note}>{data?.stats.count || 0}件</Text></View>{[5, 4, 3, 2, 1].map(star => { const count = data?.stats.histogram[star - 1] || 0; return <View key={star} style={s.row}><Text style={[s.meta, { width: 30 }]}>{star} ★</Text><View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.line, overflow: 'hidden' }}><View style={{ height: 6, width: `${count / Math.max(1, data?.stats.count || 0) * 100}%`, backgroundColor: colors.rating }} /></View><Text style={[s.meta, { width: 26, textAlign: 'right' }]}>{count}</Text></View>; })}<Text style={s.meta}>ドパBOOKsに投稿された評価を、1人1件で集計しています。</Text></View>
     </> : !loading && !error ? <Text style={s.note}>本が見つかりません。本棚やタイムラインから選んでください。</Text> : null}
-    <View style={s.between}><Text style={s.heading}>読者の感想</Text><RefreshButton loading={loading} onPress={() => void refresh()} /></View>
+    <View style={s.between}><Text style={s.heading}>読者の感想</Text></View>
     {loading && !data && <Text style={s.note}>レビューを読み込んでいます…</Text>}
     {!!error && <View style={s.section}><Text accessibilityRole="alert" style={s.error}>{error}</Text><Button subtle onPress={() => void refresh()}>再試行</Button></View>}
     {data?.reviews.length === 0 && <View style={[s.card, s.empty]}><Text style={s.heading}>まだレビューはありません</Text><Text style={s.note}>この本の最初の感想を書いてみませんか。</Text></View>}
     {data?.reviews.map(review => <ReviewCard key={review.uri} review={review} own={identity?.did === review.did} hideBook beforeNavigate={close} />)}
     {data?.next != null && <Button subtle disabled={loading} onPress={() => void more()}>もっと読む</Button>}
-  </ScrollView></View>;
+  </PullToRefresh></View>;
 }

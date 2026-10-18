@@ -1,3 +1,4 @@
+import { PullToRefresh } from './PullToRefresh';
 import { ReviewText } from './ReviewText';
 import { ReviewOverlays, type ReviewPerson } from './ReviewOverlays';
 import { router, type Href } from 'expo-router';
@@ -81,8 +82,7 @@ export function ProfilePanel({ actor, refreshVersion = 0, onLoadingChange, showR
 
   const name = profile?.displayName?.trim() || person.name;
   const avatar = profile?.avatar || person.avatar;
-  return <ScrollView style={p.card}>
-    {showRefresh && <View style={p.refresh}><RefreshButton loading={loading} onPress={() => void refresh()} /></View>}
+  return <PullToRefresh refreshing={loading || profileLoading} onRefresh={async () => { await Promise.all([refresh(), publicProfile(person.did).then(setProfile)]); }} style={p.card}>
     {/* 背景の画像（無ければ淡い色） */}
     {profile?.banner ? <Image source={{ uri: profile.banner }} style={p.banner} resizeMode="cover" accessibilityLabel="プロフィールの背景" /> : <View style={[p.banner, { backgroundColor: colors.line }]} />}
     <View style={p.body}>
@@ -107,7 +107,7 @@ export function ProfilePanel({ actor, refreshVersion = 0, onLoadingChange, showR
       : <View style={[p.pad, { gap: 12, alignItems: 'center' }]}><Text style={s.note}>まだ感想がありません。</Text><Button onPress={() => router.push('/compose-review' as Href)}>本を選んで書く</Button></View>)}
     {data?.reviews.map(review => <ReviewRow key={review.uri} review={review} avatar={avatar} own={review.did === identity?.did} />)}
     {data?.next != null && <Pressable accessibilityRole="button" disabled={loading} onPress={() => void more()} style={[p.pad, { alignItems: 'center' }]}><Text style={s.link}>{loading ? '読み込み中…' : 'もっと読む'}</Text></Pressable>}
-  </ScrollView>;
+  </PullToRefresh>;
 }
 
 const p = StyleSheet.create({

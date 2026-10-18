@@ -1,3 +1,5 @@
+import { books as catalog } from '@/content/books';
+import { libraryStorage } from '@/features/library/storage';
 import { NavigationButton } from '@/shared/NavigationButton';
 import { useAccount } from '@/features/account/AccountProvider';
 import { router } from 'expo-router';
@@ -30,7 +32,7 @@ const sources = {
   },
   study: {
     name: 'OE Japan',
-    text: '大学などが公開しているオープン教材を紹介するサイトです。教材の検索は準備中です。選んだ教材は本棚に並んでいます。',
+    text: '大学などが公開しているオープン教材を紹介するサイトです。収録している公開教材をタイトルや著者名で検索できます。',
     link: 'OE Japanについて',
     url: 'https://oejapan.org/',
   },
@@ -41,6 +43,8 @@ export default function AddScreen() {
   const [tab, setTab] = useState<'novel' | 'study'>('novel');
   const [field, setField] = useState('keyword');
   const [query, setQuery] = useState('');
+  const [studyQuery, setStudyQuery] = useState<string | null>(null);
+  const studyResults = catalog.filter(book => book.kind === 'study').filter(book => { const normalize = (value: string) => value.normalize('NFKC').replace(/\s/g, '').toLowerCase(); const q = normalize(studyQuery ?? ''); return normalize(field === 'title' ? book.title : field === 'author' ? book.author : `${book.title}${book.author}`).includes(q); });
   const source = sources[tab];
   const [result, setResult] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -51,7 +55,7 @@ export default function AddScreen() {
   const searchRequest = useRef<AbortController | null>(null);
   const importRequest = useRef<AbortController | null>(null);
   useEffect(() => {
-    searchRequest.current?.abort(); setResult(null); setError(''); setLoading(false);
+    searchRequest.current?.abort(); setStudyQuery(null); setResult(null); setError(''); setLoading(false);
   }, [query, field, tab]);
   useEffect(() => () => { searchRequest.current?.abort(); importRequest.current?.abort(); }, []);
 
@@ -61,7 +65,8 @@ export default function AddScreen() {
   }
 
   async function search(page = 1) {
-    if (tab !== 'novel' || adding) return;
+    if (adding) return;
+    if (tab === 'study') { setStudyQuery(query.trim()); setError(''); return; }
     if (!query.trim()) { setError('タイトルや著者名などを入力してください。'); return; }
     searchRequest.current?.abort();
     const controller = new AbortController(); searchRequest.current = controller;
@@ -127,13 +132,13 @@ export default function AddScreen() {
               onSubmitEditing={() => void search()}
               returnKeyType="search"
               maxLength={80}
-              editable={tab === 'novel' && !adding}
-              accessibilityLabel="青空文庫の検索語"
-              placeholder="タイトルか著者名（例：こころ）"
+              editable={!adding}
+              accessibilityLabel={tab === 'study' ? '教材の検索語' : '青空文庫の検索語'}
+              placeholder={tab === 'study' ? 'タイトルか著者名（例：熱力学）' : 'タイトルか著者名（例：こころ）'}
               placeholderTextColor={colors.muted}
               style={styles.input}
             />
-            <Pressable accessibilityRole="button" disabled={loading || !!adding || tab !== 'novel'} style={[styles.searchButton, (loading || !!adding || tab !== 'novel') && styles.disabled]} onPress={() => void search()}>
+            <Pressable accessibilityRole="button" disabled={loading || !!adding} style={[styles.searchButton, (loading || !!adding) && styles.disabled]} onPress={() => void search()}>
               <Text style={styles.searchText}>{loading ? '検索中' : '検索'}</Text>
             </Pressable>
           </View>
@@ -142,6 +147,17 @@ export default function AddScreen() {
           {message ? <Text accessibilityLiveRegion="polite" style={styles.feedback}>{message}</Text> : null}
           {loading && <ActivityIndicator color={colors.accent} accessibilityLabel="青空文庫を検索しています" />}
           {!result && !loading && tab === 'novel' && <Text style={styles.empty}>例：走れメロス、夏目漱石、銀河鉄道の夜</Text>}
+          {tab === 'study' && <>
+            <Text style={styles.note}>{studyQuery === null ? '収録教材' : '検索結果'}：{studyResults.length}件</Text>
+            {!studyResults.length && <Text style={styles.empty}>見つかりませんでした。別のタイトルや著者名で検索してください。</Text>}
+            {studyResults.map(book => <View key={book.id} style={styles.result}><View style={styles.resultInfo}><Text style={styles.bookTitle}>{book.title}</Text><Text style={styles.note}>{book.author}</Text></View>
+              <Pressable accessibilityRole="button" disabled={!!adding} style={styles.add} onPress={() => { setAdding(book.id); void (async () => {
+                try { const raw = await libraryStorage.getItem('dopabooks:shelf-removed:v1'); const ids = JSON.parse(raw ?? '[]'); if (!Array.isArray(ids) || !ids.every(id => typeof id === 'string')) throw new Error(); await libraryStorage.setItem('dopabooks:shelf-removed:v1', JSON.stringify(ids.filter(id => id !== book.id))); complete('add'); router.dismissTo('/shelf'); }
+                catch { setError('教材を本棚に表示できません。端末の保存設定を確認して再試行してください。'); }
+                finally { setAdding(null); }
+              })(); }}><Text style={styles.searchText}>本棚に表示</Text></Pressable>
+            </View>)}
+          </>}
           {result && !loading && <>
             <Text style={styles.note}>{result.total.toLocaleString()}件見つかりました（{result.page}ページ）</Text>
             {!result.results.length && <Text style={styles.empty}>見つかりませんでした。別の語句や検索条件でお試しください。</Text>}

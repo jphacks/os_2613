@@ -2,7 +2,7 @@ import { NavigationButton } from '@/shared/NavigationButton';
 import { useAccount } from '@/features/account/AccountProvider';
 import { Asset } from 'expo-asset';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { findBook } from '@/content/books';
@@ -28,6 +28,8 @@ function usePdfUri(id: string) {
     const file = pdfFiles[id];
     if (!file) return;
     const asset = Asset.fromModule(file);
+    // 開発時のHTTP配信はWebViewから直接読む。端末保存後にBase64で転送する二重読み込みを避ける。
+    if (/^https?:/.test(asset.uri)) { setUri(asset.uri); return; }
     asset.downloadAsync().then(a => setUri(a.localUri ?? a.uri)).catch(() => setUri(asset.uri));
   }, [id]);
   return uri;
@@ -53,36 +55,26 @@ function NovelBook({ id }: { id: string }) {
   const book = books.find(item => item.id === id);
   const { mark } = useLocalSearchParams<{ mark?: string }>();
   const markOffset = book ? widgetPosition(book.text, mark) : undefined;
-  const [entry, setEntry] = useState<'intro' | 'loading' | 'read'>('intro');
-  const prepared = useRef(false);
+  const [entry, setEntry] = useState<'intro' | 'read'>('intro');
   const [readingError, setReadingError] = useState('');
   const [readerAttempt, setReaderAttempt] = useState(0);
   const showIntro = markOffset === undefined && prefs.comic && entry !== 'read';
-  const readerReady = useCallback(() => { prepared.current = true; setEntry(value => value === 'loading' ? 'read' : value); }, []);
   const readerFailed = useCallback((message: string) => setReadingError(message), []);
-  useEffect(() => {
-    if (entry !== 'loading') return;
-    const timer = setTimeout(() => setReadingError(message => message || '本文の準備に時間がかかっています。接続を確認して、もう一度お試しください。'), 30000);
-    return () => clearTimeout(timer);
-  }, [entry, readerAttempt]);
   // 本棚からは漫画、しおりのウィジェットからは指定位置の本文を開く。
   useFocusEffect(useCallback(() => { setEntry(markOffset === undefined ? 'intro' : 'read'); }, [id, markOffset]));
 
   if (ready && book) return <View key={`${book.id}:${book.importedAt}:${mark ?? ''}`} style={{ flex: 1 }}>
     <Stack.Screen options={{ title: book.title, ...(showIntro ? { headerRight: () => null } : {}) }} />
-    {/* 漫画の表示中にも本文を組版し、「原文を読む」を押した後の初期化待ちを減らす。 */}
-    {<View pointerEvents={showIntro ? 'none' : 'auto'} accessibilityElementsHidden={showIntro} importantForAccessibility={showIntro ? 'no-hide-descendants' : 'auto'} style={StyleSheet.absoluteFill}>
-      <BookReading key={readerAttempt} book={book} hideBookmark={showIntro} initialOffset={markOffset ?? 0} onReady={readerReady} onLoadError={readerFailed} />
+    {/* iOSの非表示WebViewは描画されない場合があるため、漫画を閉じてから本文を作る。 */}
+    {!showIntro && <View style={StyleSheet.absoluteFill}>
+      <BookReading key={readerAttempt} book={book} hideBookmark={showIntro} initialOffset={markOffset ?? 0} onLoadError={readerFailed} />
     </View>}
-    {showIntro && <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.paper }]}><IntroComic book={book} read={() => { setReadingError(''); setEntry(prepared.current ? 'read' : 'loading'); }} /></View>}
-    {showIntro && entry === 'loading' && <View style={styles.readingOverlay}>
-      <View style={styles.readingLoading} accessibilityLiveRegion="polite" accessibilityState={{ busy: !readingError }}>
-        {!readingError && <ActivityIndicator size="large" color={colors.accent} />}
-        <Text style={styles.loadingText}>{readingError || '原文を読み込んでいます…'}</Text>
-        {!!readingError && <Pressable accessibilityRole="button" onPress={() => { setReadingError(''); prepared.current = false; setReaderAttempt(value => value + 1); }} style={styles.loadingCancel}><Text style={styles.link}>もう一度読み込む</Text></Pressable>}
-        <Pressable accessibilityRole="button" onPress={() => { setEntry('intro'); setReadingError(''); }} style={styles.loadingCancel}><Text style={styles.link}>漫画に戻る</Text></Pressable>
-      </View>
+    {showIntro && <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.paper }]}><IntroComic book={book} read={() => { setReadingError(''); setEntry('read'); }} /></View>}
+    {!showIntro && !!readingError && <View style={styles.readerError} accessibilityRole="alert">
+      <Text style={styles.loadingText}>{readingError}</Text>
+      <Pressable accessibilityRole="button" onPress={() => { setReadingError(''); setReaderAttempt(value => value + 1); }} style={styles.loadingCancel}><Text style={styles.link}>もう一度読み込む</Text></Pressable>
     </View>}
+
   </View>;
 
   return (
@@ -105,8 +97,8 @@ function StudyBook({ id }: { id: string }) {
   }
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: book.title }} />
+    <View style={[styles.container, styles.studyContainer]}>
+      <Stack.Screen options={{ title: book.title, headerTitleAlign: 'center', headerStyle: { backgroundColor: colors.paper }, headerTintColor: colors.ink, headerTitle: () => <View style={{ alignItems: 'center' }}><Text style={{ color: colors.ink, fontSize: 20 }}>{book.title}</Text><Text style={{ color: colors.muted, fontSize: 13 }}>{book.author}</Text></View> }} />
 
       <View style={styles.page}>
         <StudyReader key={book.id} book={book} pdfUri={pdfUri} />
@@ -127,6 +119,7 @@ function StudyBook({ id }: { id: string }) {
 }
 
 const styles = StyleSheet.create({
+  readerError: { position: 'absolute', bottom: 12, left: 20, right: 20, backgroundColor: colors.surface, padding: 16, borderRadius: 12, alignItems: 'center', gap: 8 },
   readingOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: `${colors.paper}DD` },
   readingLoading: { maxWidth: 320, margin: 24, padding: 24, gap: 16, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 16 },
   loadingText: { color: colors.ink, fontSize: 15, lineHeight: 24, textAlign: 'center' },
@@ -134,11 +127,12 @@ const styles = StyleSheet.create({
   shelfButton: { paddingHorizontal: 8, paddingVertical: 12 },
   shelfButtonText: { color: colors.accent, fontSize: 14 },
   container: { flex: 1, padding: 12, gap: 8 },
+  studyContainer: { padding: 0, backgroundColor: colors.surface },
   page: {
     flex: 1,
     overflow: 'hidden',
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: 0,
+    borderWidth: 0,
     borderColor: colors.line,
     backgroundColor: colors.surface,
   },

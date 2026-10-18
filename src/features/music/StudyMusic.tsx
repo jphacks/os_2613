@@ -1,5 +1,5 @@
 import { VerticalCarousel } from '@/shared/VerticalCarousel';
-import { ReaderPanel } from '@/shared/ReaderPanel';
+import { ReaderPanel, usePhoneReaderPanel } from '@/shared/ReaderPanel';
 import type { ReactNode } from 'react';
 import { SpeakerButton } from './SpeakerButton';
 import { useAccount } from '@/features/account/AccountProvider';
@@ -15,6 +15,7 @@ import { VolumeBar } from './VolumeBar';
 import { studyTracks } from './study-tracks';
 
 export function StudyMusic({ open: externalOpen, onOpenChange, hideTrigger = false, embedded = false, controlsOnly = false, onControls, interrupted = false, onPlay }: { open?: boolean; onOpenChange?: (open: boolean) => void; hideTrigger?: boolean; embedded?: boolean; controlsOnly?: boolean; onControls?: (controls: ReactNode) => void; interrupted?: boolean; onPlay?: () => void } = {}) {
+  const phoneSheet = usePhoneReaderPanel();
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
   const { complete, prefs } = useAccount();
@@ -61,7 +62,7 @@ export function StudyMusic({ open: externalOpen, onOpenChange, hideTrigger = fal
   const track = studyTracks.find(item => item.id === selected);
   const button = (label: string, action: () => void, disabled = false) => <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={action} style={[styles.button, disabled && styles.disabled]}><Text style={styles.text}>{label}</Text></Pressable>;
   const content = <ScrollView contentContainerStyle={styles.content}>
-            {!embedded && <View style={[readerPanelHeader, { marginHorizontal: -20 }]}><Text accessibilityRole="header" style={readerPanelTitle}>集中BGM</Text>{button('閉じる', () => setOpen(false))}</View>}
+            {!embedded && <View style={[readerPanelHeader, { marginHorizontal: -20 }]}><Text accessibilityRole="header" style={readerPanelTitle}>BGM</Text>{!phoneSheet && button('閉じる', () => setOpen(false))}</View>}
             <VerticalCarousel label="集中BGM" value={selected} onChange={id => void play(id)} items={studyTracks.filter(item => item.source !== null).map(item => ({ id: item.id, label: item.title }))} />
             <View style={styles.row}><SpeakerButton enabled={status.playing} onToggle={() => { if (status.playing) { request.current++; player.pause(); } else { const id = selected ?? studyTracks.find(item => item.source !== null)?.id; if (id) void play(id); } }} /><View style={{ flex: 1 }}><VolumeBar value={volume} onChange={setVolume} /></View><Pressable accessibilityRole="switch" accessibilityLabel={loop ? '繰り返し再生・タップで一回再生' : '一回再生・タップで繰り返し再生'} accessibilityState={{ checked: loop }} onPress={() => setLoop(value => !value)} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.button, alignItems: 'center', justifyContent: 'center' }}><AppIcon name={loop ? 'repeat' : 'looks_one'} /></Pressable></View>
             {!!(error || status.error) && <Text accessibilityRole="alert" style={styles.note}>{error || '音源を読み込めません。別の曲を選ぶか、音源を確認して再生し直してください。'}</Text>}

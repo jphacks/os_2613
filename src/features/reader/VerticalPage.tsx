@@ -10,6 +10,7 @@ import { bindGuideKeyboard } from './guide-keyboard.mjs';
 
 type Paint = { background: string; ink: string; muted: string; accent: string; chosen: string };
 export type Props = {
+  viewportSize?: { width: number; height: number };
   onReady?: () => void;
   onLoadError?: (message: string) => void;
   visuals?: import('../study/visuals.mjs').StudyVisual[];
@@ -49,7 +50,7 @@ export default function VerticalPage(props: Props) {
   useEffect(() => () => { if (wheelTimer.current) clearTimeout(wheelTimer.current); }, []);
   const latest = useRef(props); latest.current = props;
   useEffect(() => bindGuideKeyboard(document, () => latest.current.disabled || latest.current.picking ? undefined : latest.current.onToggleGuide), []);
-  const [layout, setLayout] = useState({ count: 1, width: 0, viewport: 0, starts: [0, 0] });
+  const [layout, setLayout] = useState({ count: 1, width: 0, viewport: 0, starts: [0, text.length] });
   const [guideCursor, setGuideCursor] = useState({ page: 0, index: 0 });
   const gesture = useRef<Gesture | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
@@ -109,19 +110,24 @@ export default function VerticalPage(props: Props) {
   useLayoutEffect(() => {
     // iPhone では内部のWebViewの中で描かれ、そのページの高さが0のままだと紙面が潰れる。
     // WebViewの中にいるときだけ、ページ全体の高さを画面いっぱいにする（Webでは親の高さに従う）。
-    if ((window as any).ReactNativeWebView) {
+    const nativeHost = (window as any).$$EXPO_DOM_HOST_OS;
+    const native = nativeHost === 'ios' || nativeHost === 'android' || !!(window as any).ReactNativeWebView;
+    if (native) {
       for (const el of [document.documentElement, document.body, document.getElementById('root')]) {
         if (el) { el.style.height = '100%'; el.style.margin = '0'; el.style.overflow = 'hidden'; el.style.overscrollBehavior = 'none'; }
       }
     }
+    const fitNative = () => { if (rootRef.current && (props.viewportSize || native)) { rootRef.current.style.height = `${props.viewportSize?.height ?? window.innerHeight}px`; if (props.viewportSize) rootRef.current.style.width = `${props.viewportSize.width}px`; } };
+    fitNative();
+    if (native) window.addEventListener('resize', fitNative);
     let active = true;
     measure();
     if (document.fonts?.status === 'loading') void document.fonts.ready.then(() => { if (active) { fontRevision.current++; measure(); } });
     const view = viewRef.current;
     if (!view) return;
     const observer = new ResizeObserver(measure); observer.observe(view);
-    return () => { active = false; observer.disconnect(); measurement.current++; measuring.current = ''; };
-  }, [measure]);
+    return () => { active = false; observer.disconnect(); window.removeEventListener('resize', fitNative); measurement.current++; measuring.current = ''; };
+  }, [measure, props.viewportSize?.width, props.viewportSize?.height]);
   useEffect(() => {
     if (!layout.width) return;
     const offset = start + (layout.starts[page] ?? 0);
@@ -359,7 +365,7 @@ export default function VerticalPage(props: Props) {
       onKeyDown={event => { if (guide && running) return; if (event.key === 'Enter' && marked && !picking) latest.current.onMarkPress(offset); }}
       style={{ ...styles.ribbon, ...(first ? { top: 0, right: 0, left: 'auto' } : {}), color: paint.accent, opacity: marked && (faded === offset || (ghost && gesture.current?.from === offset)) ? 0.25 : 1 }}><span style={{ pointerEvents: 'none', display: 'block' }}><Ribbon /></span></span>;
   }
-  return <div ref={rootRef} style={{ ...styles.root, background: paint.background, touchAction: 'none', cursor: ghost ? 'grabbing' : undefined }} onDragStart={event => event.preventDefault()} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)}>
+  return <div ref={rootRef} style={{ ...styles.root, ...(props.viewportSize ? { width: props.viewportSize.width, height: props.viewportSize.height } : {}), background: paint.background, touchAction: 'none', cursor: ghost ? 'grabbing' : undefined }} onDragStart={event => event.preventDefault()} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)}>
     {calculating && <div role="status" style={{ position: 'absolute', top: 4, left: 24, color: paint.muted, fontSize: 12, pointerEvents: 'none' }}>ページを整えています…</div>}
     <div ref={viewRef} style={styles.view}>
       <div ref={measureRef} aria-hidden="true" style={{ ...styles.text, visibility: 'hidden', pointerEvents: 'none', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>{text}</div>
@@ -412,9 +418,9 @@ export default function VerticalPage(props: Props) {
   </div>;
 }
 const styles: Record<string, React.CSSProperties> = {
-  root: { height: '100%', width: '100%', padding: '24px 24px', boxSizing: 'border-box', userSelect: 'none', touchAction: 'pan-x', position: 'relative', overflow: 'hidden', overscrollBehavior: 'none' },
+  root: { inset: 0, height: '100%', width: '100%', padding: '24px 24px', boxSizing: 'border-box', userSelect: 'none', touchAction: 'pan-x', position: 'absolute', overflow: 'hidden', overscrollBehavior: 'none' },
   turnHint: { position: 'absolute', top: '50%', transform: 'translateY(-50%)', fontSize: 22, opacity: 0.16, pointerEvents: 'none', lineHeight: 1 },
-  view: { height: '100%', display: 'flex', justifyContent: 'flex-end', position: 'relative', minHeight: 0, overflow: 'hidden' },
+  view: { width: '100%', height: '100%', display: 'flex', justifyContent: 'flex-end', position: 'relative', minHeight: 0, overflow: 'hidden' },
   scroll: { position: 'absolute', inset: 0, direction: 'rtl', overflowY: 'hidden', overscrollBehaviorX: 'contain', scrollbarWidth: 'none', touchAction: 'pan-x' },
   track: { display: 'flex', width: 'max-content', height: '100%', direction: 'rtl' },
   sheet: { flexShrink: 0, height: '100%', boxSizing: 'border-box', display: 'flex', justifyContent: 'center', position: 'relative', direction: 'ltr' },

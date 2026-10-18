@@ -10,14 +10,14 @@ import { useAccount } from '@/features/account/AccountProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { router, Stack } from 'expo-router';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import type { SavedBook } from '@/features/library/types';
 import { colors } from '@/shared/theme';
 import { readerToolButton, readerToolSymbol, readerPanelTitle, readerPanelHeader } from '@/features/reader/toolStyles';
 import { bindGuideKeyboard } from '@/features/reader/guide-keyboard.mjs';
-import { createReadingStore, emptyReading, placeMark, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
+import { createReadingStore, documentVersion, emptyReading, placeMark, removeMark, summaryRange, type Mark, type Reading, type Scope } from './model.mjs';
 import { Summary } from './Summary';
 import { BookmarkHandle, type BookmarkDragPoint } from './BookmarkHandle';
 import VerticalPage from '@/features/reader/VerticalPage';
@@ -31,7 +31,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { rememberWidgetBook } from '@/features/widget/bookmarks';
 import { summarizeForWidget } from '@/features/widget/summary';
 import { recordFinished, recordReading } from '@/features/stats/stats';
-import { Alert, AppState, Platform } from 'react-native';
 import { openFocusSettings } from '@/features/focus/openFocusSettings';
 import { defaultPreferences, normalizePreferences, preferenceKey, type DisplayPreferences } from '@/features/reader/preferences.mjs';
 
@@ -51,7 +50,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   const phoneSheet = usePhoneReaderPanel();
   const ReadingPage = study ? HorizontalStudyPage : VerticalPage;
   const { identity, prefs, complete } = useAccount();
-  const store = useMemo(() => createReadingStore(AsyncStorage, `dopabooks:reading:v1:${book.id}`, book.text), [book.id, book.text]);
+  const store = useMemo(() => createReadingStore(AsyncStorage, `dopabooks:reading:v1:${book.id}${study ? `:${documentVersion(book.text)}` : ''}`, book.text), [book.id, book.text, study]);
   const [reading, setReading] = useState<Reading>(() => emptyReading(book.text));
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -102,6 +101,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   const [headerDrag, setHeaderDrag] = useState<{ token: number; x: number; y: number; phase: 'move' | 'end' | 'cancel' } | null>(null);
   const [dragIcon, setDragIcon] = useState<{ x: number; y: number } | null>(null);
   const screenRef = useRef<ComponentRef<typeof View>>(null), paperRef = useRef<ComponentRef<typeof View>>(null);
+  const [paperSize, setPaperSize] = useState({ width: 0, height: 0 });
   const dragToken = useRef<number | null>(null), dragSequence = useRef(0);
   const dragPoint = useRef<BookmarkDragPoint | null>(null);
   const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -287,9 +287,9 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     {/* ヘッダー：中央にタイトルと作者、右にメニュー */}
     <Stack.Screen options={{
       headerTitleAlign: 'center',
-      headerStyle: { backgroundColor: study ? colors.accent : colors.paper },
+      headerStyle: { backgroundColor: colors.paper },
       headerTintColor: study ? colors.surface : colors.accent,
-      headerTitle: () => <View style={styles.headTitle}><Text style={[styles.title, study && styles.studyHeaderTitle]}>{book.title}</Text><Text style={[styles.small, study && styles.studyHeaderSmall]}>{book.author}</Text></View>,
+      headerTitle: () => <View style={styles.headTitle}><Text style={styles.title}>{book.title}</Text><Text style={styles.small}>{book.author}</Text></View>,
       // iPhone ではヘッダーのボタンに標準の枠が付くので、こちらでは枠を付けない（枠が二重になるため）
       headerRight: () => hideBookmark || feature === 'comic' ? null : <View style={styles.headRight}>
         {study ? <Pressable accessibilityRole="button" accessibilityLabel="しおり" accessibilityHint="タップで一覧、長押しでしおりを挟みます" disabled={!ready || busy || !!moving}
@@ -328,9 +328,10 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
           {guide ? <><GuideSpeed value={speed} onChange={setSpeed} /><Text style={styles.guideLabel}>浮き上がり</Text><Slider value={guideLift} min={0} max={1} step={0.1} showValue={false} format={value => `${Math.round(value * 100)}%`} onChange={changeLift} /><View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={styles.guideEndpoint}>0%</Text><Text style={styles.guideEndpoint}>100%</Text></View></> : <Text style={styles.note}>読みガイドがOFFの間は、連動する世界観BGMもOFFになります。</Text>}
           </ScrollView></ReaderPanel>}
     {/* 紙面は画面いっぱい。左側を押すと次、右側を押すと前のページ */}
-    <View ref={paperRef} collapsable={false} style={[styles.paper, { backgroundColor: paint.background }]} >
+    <View ref={paperRef} collapsable={false} onLayout={event => { const { width, height } = event.nativeEvent.layout; setPaperSize(before => before.width === width && before.height === height ? before : { width, height }); }} style={[styles.paper, { backgroundColor: paint.background }]} >
       <View style={StyleSheet.absoluteFill}>
-      <ReadingPage
+      {(Platform.OS === 'web' || paperSize.height > 0) && <ReadingPage
+        viewportSize={Platform.OS === 'web' ? undefined : paperSize}
         onReady={onReady}
         onLoadError={onLoadError}
         visuals={studyVisuals}
@@ -367,8 +368,8 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
         onDrop={(from, to) => { void dropMark(from, to); }}
         headerDrag={headerDrag}
         onHeaderDrop={(token, offset) => { void dropFromHeader(token, offset); }}
-        dom={{ style: { flex: 1 }, bounces: false, overScrollMode: 'never', directionalLockEnabled: true, onError: () => onLoadError?.('本文画面を読み込めませんでした。接続を確認して、もう一度お試しください。'), onContentProcessDidTerminate: () => onLoadError?.('本文画面の処理が停止しました。もう一度お試しください。') }}
-      />
+        dom={{ useExpoDOMWebView: study, style: Platform.OS === 'web' ? { flex: 1 } : { width: paperSize.width, height: paperSize.height }, containerStyle: { flex: 1 }, bounces: false, overScrollMode: 'never', directionalLockEnabled: true, onError: () => onLoadError?.('本文画面を読み込めませんでした。接続を確認して、もう一度お試しください。'), onContentProcessDidTerminate: () => onLoadError?.('本文画面の処理が停止しました。もう一度お試しください。') }}
+      />}
       </View>
       {(!!error || !!notice) && <View style={styles.feedback}>
         {!!error && <Text accessibilityRole="alert" style={styles.message}>{error}</Text>}
@@ -380,7 +381,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     <View style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
       {!study && <PageBar page={ending ? subCount : shown} count={subCount + 1} disabled={!ready || busy || !!moving} ink={colors.ink} accent={colors.accent} line={colors.line}
         onChange={value => { setEnding(value === subCount); setSub(Math.min(value, subCount - 1)); if (guide && running && !moving && value < subCount) setRunning(true); else setRunning(false); }} />}
-      <Pressable accessibilityRole="link" style={styles.source} onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：{sourceLabel}</Text></Pressable>
+      {!study && <Pressable accessibilityRole="link" style={styles.source} onPress={() => void Linking.openURL(book.cardUrl)}><Text style={styles.note}>出典：{sourceLabel}</Text></Pressable>}
     </View>
     {reviewOpen && <ReviewLayer bookId={book.id} close={() => setReviewOpen(false)} />}
     <ReaderPanel visible={panel} label="しおり" onClose={() => setPanel(false)} desktop={<Modal visible={panel} transparent animationType="fade" onRequestClose={() => setPanel(false)}>

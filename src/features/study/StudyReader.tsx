@@ -1,4 +1,5 @@
-import { ReaderPanel } from '@/shared/ReaderPanel';
+import { PageBar } from '@/features/reader/PageBar';
+import { ReaderPanel, usePhoneReaderPanel } from '@/shared/ReaderPanel';
 import { AppIcon } from '@/shared/AppIcon';
 import { StudyToolsContext, StudyToolPanel, type StudyTool } from './StudyToolPanel';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,15 +23,21 @@ const levels: { id: Level; label: string; description: string }[] = [
   { id: 'original', label: '原文', description: '元の教材をそのまま読み、証明や図表を含めて確認します。' },
 ];
 export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | null }) {
+  const phone = usePhoneReaderPanel();
+  const [pdfSize, setPdfSize] = useState({ width: 0, height: 0 });
   const [level, setLevel] = useState<Level>('original');
+  const [pdfPosition, setPdfPosition] = useState({ page: 1, total: 0 });
+  const [pdfRequest, setPdfRequest] = useState<{ page: number; token: number } | null>(null);
+  const updatePdfPosition = useCallback((page: number, total: number) => setPdfPosition(before => before.page === page && before.total === total ? before : { page, total }), []);
+  const requestPdfPage = (page: number) => setPdfRequest({ page, token: Date.now() });
   const [pdfZoom, setPdfZoom] = useState(1);
-  const [pdfSpread, setPdfSpread] = useState(true);
+  const [pdfSpread, setPdfSpread] = useState(() => !phone);
   const [state, setState] = useState<StudyState | null>(null);
   const [displayControl, setDisplayControl] = useState<ReactNode>(null);
   const [index, setIndex] = useState(0);
   const [chapterIndex, setChapterIndex] = useState(0);
   const [scrollRequest, setScrollRequest] = useState<{ offset: number; token: number } | null>(null);
-  const [expandedChapterIndex, setExpandedChapterIndex] = useState<number | null>(0);
+  const [chapterDropdownOpen, setChapterDropdownOpen] = useState(false);
   const [activeTool, setActiveTool] = useState<StudyTool>(null);
   const changeMusicOpen = useCallback((open: boolean) => setActiveTool(open ? 'music' : null), []);
   const sidebarOpen = activeTool === 'chapters';
@@ -50,7 +57,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
       if (!active || !raw) return;
       const saved = JSON.parse(raw);
       if (Number.isInteger(saved.index) && saved.index >= 0) setIndex(saved.index);
-      if (Number.isInteger(saved.chapterIndex) && saved.chapterIndex >= 0) { setChapterIndex(saved.chapterIndex); setExpandedChapterIndex(saved.chapterIndex); }
+      if (Number.isInteger(saved.chapterIndex) && saved.chapterIndex >= 0) { setChapterIndex(saved.chapterIndex); setChapterDropdownOpen(false); }
     }).catch(() => {}).finally(() => { if (active) setReady(true); });
     return () => { active = false; };
   }, [preference]);
@@ -111,7 +118,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   const chapterVisuals = chapterSections.flatMap(section => section.unit.lesson
     ? (level === 'beginner' ? section.unit.lesson.beginnerVisuals : section.unit.lesson.standardVisuals) ?? []
     : []);
-  const contentKey = `${book.id}:${level}:${level === 'original' ? `${pdfUri}:${chapter?.firstPage ?? 1}` : `${state?.hash}:${chapterIndex}`}:${readerAttempt}`;
+  const contentKey = `${book.id}:${level}:${level === 'original' ? `${pdfUri}` : `${state?.hash}:${chapterIndex}`}:${readerAttempt}`;
   const contentReady = useCallback(() => setReadyContent(contentKey), [contentKey]);
   const contentFailed = useCallback((message: string) => setContentError({ key: contentKey, message }), [contentKey]);
   const readLocalPdf = useCallback(async (offset: number, length: number) => {
@@ -140,20 +147,33 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   }
   const action = (label: string, onPress: () => void, disabled = false, chosen = false) => <Pressable accessibilityRole="button" accessibilityState={{ selected: chosen, disabled }} disabled={disabled} onPress={onPress} style={[styles.button, chosen && styles.chosen, disabled && { opacity: 0.4 }]}><Text style={[styles.text, chosen && { color: colors.surface }]}>{label}</Text></Pressable>;
   const studyToolbar = <View style={styles.topRow}>
-    <View accessibilityRole="tablist" style={[styles.levelBar, level === 'original' && !pdfSpread && { flexDirection: 'column' }]}>{levels.map(item => <Pressable key={item.id} accessibilityRole="tab"
+    <View accessibilityRole="tablist" style={styles.levelBar}>{levels.map(item => <Pressable key={item.id} accessibilityRole="tab"
       accessibilityState={{ selected: item.id === level, disabled: !ready || busy }} disabled={!ready || busy}
-      onPress={() => { setLevel(item.id); setSidebarOpen(true); }}
+      onPress={() => { setLevel(item.id); setChapterDropdownOpen(false); setSidebarOpen(true); }}
       style={[styles.levelTab, item.id === level && styles.levelTabActive]}>
       <Text style={[styles.levelText, item.id === level && styles.levelTextActive]}>{item.label}</Text>
     </Pressable>)}</View>
   </View>;
-  const lessonCreateAction = level !== 'original' && chapter && (!chapter.complete || chapter.needsIllustrations)
-    ? busy ? action('作成中…　停止', () => { running.current = false; })
-      : action(chapter.baseComplete ? '不足分の図・挿絵を作成（有料）' : chapter.units.some(i => !!state?.units[i].lesson) ? '未作成分を作成（有料）' : '教材・図・挿絵を作成（有料）', () => void generate(), loading)
+  const lessonCreateAction = level !== 'original' && chapter
+    ? action(busy ? '生成を停止' : chapter.complete && !chapter.needsIllustrations ? '生成済み' : chapter.baseComplete ? '不足分を生成（有料）' : 'この章を生成（有料）',
+      () => { if (busy) running.current = false; else void generate(); }, loading || (!busy && chapter.complete && !chapter.needsIllustrations), !busy && !(chapter.complete && !chapter.needsIllustrations))
     : null;
-  const supplementAction = level !== 'original' && chapter && !chapter.baseComplete && chapter.units.some(i => !!state?.units[i].lesson) && !chapter.enhanced
-    ? action('図解を追加（有料）', () => void generate('enhance'), loading || busy)
-    : null;
+  const chapterSelector = <>
+    <View style={styles.sidebarHeader}><Text accessibilityRole="header" style={styles.sidebarTitle}>{selected.label}</Text></View>
+    <Pressable accessibilityRole="button" accessibilityLabel="章を選択" accessibilityState={{ expanded: chapterDropdownOpen, disabled: busy }} disabled={busy}
+      onPress={() => setChapterDropdownOpen(value => !value)} style={[styles.button, { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }]}>
+      <Text style={[styles.text, { flex: 1 }]}>{chapter?.title ?? '章を選ぶ'}</Text><Text style={styles.text}>{chapterDropdownOpen ? '⌃' : '⌄'}</Text>
+    </Pressable>
+    {chapterDropdownOpen && <ScrollView style={{ flexGrow: 0, flexShrink: 1, marginBottom: 12 }} contentContainerStyle={styles.chapterList}>
+      {state?.chapters.map(item => <Pressable key={item.index} accessibilityRole="button" accessibilityState={{ selected: item.index === chapterIndex }} onPress={() => {
+        setChapterIndex(item.index); setIndex(item.units.find(unit => !!state?.units[unit]?.lesson) ?? item.units[0] ?? 0);
+        setScrollRequest(null); setContentError({ key: '', message: '' }); setError(''); setChapterDropdownOpen(false);
+      }} style={[styles.chapter, item.index === chapterIndex && styles.activeChapter]}>
+        <Text style={[styles.chapterTitle, item.index === chapterIndex && styles.activeText]}>{item.title}</Text>
+      </Pressable>)}
+    </ScrollView>}
+    <View style={styles.panelActions}>{lessonCreateAction}</View>
+  </>;
   const panelToolbar = <View style={{ gap: 8, alignItems: 'center' }}>
     <View style={{ gap: 4 }}>{levels.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.label}の章を選択`} disabled={!ready || busy} onPress={() => { setLevel(item.id); setActiveTool('chapters'); }} style={[styles.levelTab, { borderRadius: 9, backgroundColor: colors.button }, level === item.id && styles.levelTabActive]}><Text style={[styles.levelText, level === item.id && styles.levelTextActive]}>{item.label}</Text></Pressable>)}</View>
     <Pressable accessibilityRole="button" accessibilityLabel="表示設定" onPress={() => setActiveTool('display')} style={styles.featureButton}><Text style={styles.aa}>Aa</Text></Pressable>
@@ -165,97 +185,28 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
       {!!(error || current?.error) && <Text accessibilityLiveRegion="polite" style={styles.error}>{error || current?.error}</Text>}
     </View>}
     <View style={styles.readerRow}>
-      <ReaderPanel visible={sidebarOpen} label="章・区分" onClose={() => setSidebarOpen(false)} desktop={<StudyToolPanel visible={sidebarOpen} transparent animationType="fade" onRequestClose={() => setSidebarOpen(false)}>
+      <ReaderPanel visible={sidebarOpen} label={selected.label} onClose={() => setSidebarOpen(false)} desktop={<StudyToolPanel visible={sidebarOpen} transparent animationType="fade" onRequestClose={() => setSidebarOpen(false)}>
         <View style={styles.panelHost}>
           <Pressable accessibilityRole="button" accessibilityLabel="章の選択を閉じる" onPress={() => setSidebarOpen(false)} style={StyleSheet.absoluteFill} />
-          <View accessibilityViewIsModal style={styles.sidebar}>
-            <View style={styles.sidebarHeader}><Text accessibilityRole="header" style={styles.sidebarTitle}>{selected.label} · 章を選択</Text><NavigationButton close label="閉じる" onPress={() => setSidebarOpen(false)} /></View>
-            <View style={styles.panelActions}>{lessonCreateAction}{supplementAction}</View>
-        {sidebarOpen && <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.chapterList}>
-          {state?.chapters.map(item => {
-            const selectedChapter = item.index === chapterIndex;
-            const expanded = item.index === expandedChapterIndex;
-            return <View key={item.index}>
-              <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedChapter, expanded, disabled: busy }} disabled={busy}
-                onPress={() => {
-                  if (expanded) { setExpandedChapterIndex(null); return; }
-                  setExpandedChapterIndex(item.index);
-                  if (!selectedChapter) { setChapterIndex(item.index); setIndex(item.units[0]); setError(''); }
-                }} style={[styles.chapter, selectedChapter && styles.activeChapter, busy && { opacity: 0.6 }]}>
-                <Text style={[styles.chapterTitle, selectedChapter && styles.activeText]}>{item.title}</Text>
-                <Text style={[styles.chapterNote, selectedChapter && styles.activeText]}>{item.complete && !item.needsIllustrations ? '✓ 教材・図・挿絵を保存済み' : item.baseComplete && item.complete ? '教材・図解済み、挿絵未完了' : item.needsVisuals ? '本文あり・図解未完了' : `${item.firstPage}〜${item.lastPage}p`}</Text>
-              </Pressable>
-              {expanded && level !== 'original' && item.units.length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unitScroll} contentContainerStyle={styles.unitList}>
-                {item.units.map((unitIndex, part) => {
-                  const unit = state?.units[unitIndex];
-                  const selectedUnit = index === unitIndex;
-                  return <Pressable key={unitIndex} accessibilityRole="button" accessibilityState={{ selected: selectedUnit, disabled: busy }} disabled={busy}
-                    accessibilityLabel={`区分 ${part + 1}: ${unit?.title ?? `区分 ${part + 1}`}、${unit?.lesson ? '生成済み' : '未生成'}`}
-                    onPress={() => {
-                      setIndex(unitIndex); setError(''); setSidebarOpen(false);
-                      const section = chapterSections.find(item => item.unit.index === unitIndex);
-                      if (section) setScrollRequest({ offset: section.startOffset + 5, token: Date.now() });
-                    }} style={[styles.unit, unit?.lesson && styles.generatedUnit, selectedUnit && styles.activeUnit]}>
-                    <Text style={[styles.unitNumber, (unit?.lesson || selectedUnit) && styles.activeUnitText]}>{part + 1}</Text>
-                  </Pressable>;
-                })}
-              </ScrollView>}
-            </View>;
-          })}
-        </ScrollView>}
-          </View>
+          <View accessibilityViewIsModal style={styles.sidebar}>{chapterSelector}</View>
         </View>
-      </StudyToolPanel>}><View style={styles.sidebarHeader}><Text accessibilityRole="header" style={styles.sidebarTitle}>{selected.label} · 章を選択</Text><NavigationButton close label="閉じる" onPress={() => setSidebarOpen(false)} /></View>
-            <View style={styles.panelActions}>{lessonCreateAction}{supplementAction}</View>
-        {sidebarOpen && <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.chapterList}>
-          {state?.chapters.map(item => {
-            const selectedChapter = item.index === chapterIndex;
-            const expanded = item.index === expandedChapterIndex;
-            return <View key={item.index}>
-              <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedChapter, expanded, disabled: busy }} disabled={busy}
-                onPress={() => {
-                  if (expanded) { setExpandedChapterIndex(null); return; }
-                  setExpandedChapterIndex(item.index);
-                  if (!selectedChapter) { setChapterIndex(item.index); setIndex(item.units[0]); setError(''); }
-                }} style={[styles.chapter, selectedChapter && styles.activeChapter, busy && { opacity: 0.6 }]}>
-                <Text style={[styles.chapterTitle, selectedChapter && styles.activeText]}>{item.title}</Text>
-                <Text style={[styles.chapterNote, selectedChapter && styles.activeText]}>{item.complete && !item.needsIllustrations ? '✓ 教材・図・挿絵を保存済み' : item.baseComplete && item.complete ? '教材・図解済み、挿絵未完了' : item.needsVisuals ? '本文あり・図解未完了' : `${item.firstPage}〜${item.lastPage}p`}</Text>
-              </Pressable>
-              {expanded && level !== 'original' && item.units.length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unitScroll} contentContainerStyle={styles.unitList}>
-                {item.units.map((unitIndex, part) => {
-                  const unit = state?.units[unitIndex];
-                  const selectedUnit = index === unitIndex;
-                  return <Pressable key={unitIndex} accessibilityRole="button" accessibilityState={{ selected: selectedUnit, disabled: busy }} disabled={busy}
-                    accessibilityLabel={`区分 ${part + 1}: ${unit?.title ?? `区分 ${part + 1}`}、${unit?.lesson ? '生成済み' : '未生成'}`}
-                    onPress={() => {
-                      setIndex(unitIndex); setError(''); setSidebarOpen(false);
-                      const section = chapterSections.find(item => item.unit.index === unitIndex);
-                      if (section) setScrollRequest({ offset: section.startOffset + 5, token: Date.now() });
-                    }} style={[styles.unit, unit?.lesson && styles.generatedUnit, selectedUnit && styles.activeUnit]}>
-                    <Text style={[styles.unitNumber, (unit?.lesson || selectedUnit) && styles.activeUnitText]}>{part + 1}</Text>
-                  </Pressable>;
-                })}
-              </ScrollView>}
-            </View>;
-          })}
-        </ScrollView>}
-</ReaderPanel>
-      <View style={[styles.reading, level === 'original' && !pdfSpread && styles.singleReading]}>
-    <View style={[styles.modeToolsRow, level === 'original' && !pdfSpread && styles.verticalTools]}>
+      </StudyToolPanel>}>{chapterSelector}</ReaderPanel>
+      <View style={styles.reading}>
+    <View style={styles.modeToolsRow}>
       {studyToolbar}
       {level === 'original' ? <PdfDisplayControls zoom={pdfZoom} spread={pdfSpread} onZoom={setPdfZoom} onSpread={setPdfSpread} /> : displayControl}
       <StudyMusic open={activeTool === 'music'} onOpenChange={changeMusicOpen} />
     </View>
-    <View style={styles.pageContent}>
+    <View style={styles.pageContent} onLayout={event => { const { width, height } = event.nativeEvent.layout; setPdfSize(before => before.width === width && before.height === height ? before : { width, height }); }}>
     {level === 'original' ? <>
-      {pdfUri ? <PdfBook key={contentKey} uri={pdfUri} readLocalPdf={Platform.OS === 'web' ? undefined : readLocalPdf} initialPage={chapter?.firstPage ?? 1} zoom={pdfZoom} spread={pdfSpread} onReady={contentReady} onLoadError={contentFailed} dom={{ style: { flex: 1 }, onError: () => contentFailed('PDF画面を読み込めませんでした。もう一度お試しください。'), onContentProcessDidTerminate: () => contentFailed('PDF画面の処理が停止しました。もう一度お試しください。') }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
+      {pdfUri && (Platform.OS === 'web' || pdfSize.height > 0) ? <PdfBook key={contentKey} onPosition={updatePdfPosition} pageRequest={pdfRequest} uri={pdfUri} readLocalPdf={Platform.OS === 'web' ? undefined : readLocalPdf} initialPage={chapter?.firstPage ?? 1} zoom={pdfZoom} spread={pdfSpread} onReady={contentReady} onLoadError={contentFailed} dom={{ style: Platform.OS === 'web' ? { flex: 1 } : { width: pdfSize.width, height: pdfSize.height }, containerStyle: { flex: 1 }, bounces: false, allowsBackForwardNavigationGestures: false, onError: () => contentFailed('PDF画面を読み込めませんでした。もう一度お試しください。'), onContentProcessDidTerminate: () => { setContentError({ key: '', message: '' }); setReaderAttempt(value => value + 1); } }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
     </>
       : chapterHasLesson && current && state && chapter ? <BookReading key={contentKey} study onStudyDisplayControl={setDisplayControl} onReady={contentReady} onLoadError={contentFailed}
         studyScrollTarget={scrollRequest} onStudyPosition={updateSelectedSection} trackingId={book.id} studyVisuals={chapterVisuals} sourceLabel={`${book.author}「${book.title}」・${book.license}／AIによる翻案`}
         book={{ id: `study:${book.id}:${state.hash}:${level}:${chapterIndex}`, aozoraId: 0, title: `${book.title}・${selected.label}`, subtitle: chapter.title, author: book.author,
           cardUrl: book.source ?? '', htmlUrl: book.source ?? '', characters: '', importedAt: state.hash,
           text: `${chapterContent}\n\nAIによる学習補助教材です。図・式・厳密な条件は原文でも確認してください。` }} />
-        : <View style={styles.empty}><Text style={styles.text}>{chapter?.title ?? '学びたい章を選んでください。'}</Text><Text style={styles.note}>上の難易度ボタンから章を選び、教材作成ボタンを押すと、選択中の章の初級・中級教材、図・グラフ・挿絵をまとめて作成・保存します。他の章は作成せず、保存済みの教材を開くだけではAPIを使いません。</Text></View>}
+        : <View style={styles.empty}><Text style={styles.text}>{chapter?.title ?? '学びたい章を選んでください。'}</Text>{chapter && <Text style={styles.text}>この章の{selected.label}教材はまだ作成されていません。</Text>}<Text style={styles.note}>上の難易度ボタンから章を選び、教材作成ボタンを押すと、選択中の章の初級・中級教材、図・グラフ・挿絵をまとめて作成・保存します。他の章は作成せず、保存済みの教材を開くだけではAPIを使いません。</Text></View>}
       {waiting && <View style={styles.loadingOverlay}>
         <View accessibilityLiveRegion="polite" accessibilityState={{ busy: !waitingError }} style={styles.loadingCard}>
           {!waitingError && <ActivityIndicator size="large" color={colors.accent} />}
@@ -264,23 +215,30 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
         </View>
       </View>}
     </View>
+    {level === 'original' && <View style={{ paddingTop: 6, paddingBottom: 8 }}>
+      <PageBar page={pdfPosition.page - 1} count={Math.max(1, pdfPosition.total)} disabled={!pdfPosition.total} ink={colors.ink} accent={colors.accent} line={colors.line} onChange={page => requestPdfPage(page + 1)} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="前のページ" disabled={pdfPosition.page <= 1} onPress={() => requestPdfPage(Math.max(1, pdfPosition.page - (pdfSpread ? 2 : 1)))} style={[styles.button, pdfPosition.page <= 1 && { opacity: 0.35 }]}><Text style={styles.text}>‹ 前へ</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="次のページ" disabled={!pdfPosition.total || pdfPosition.page + (pdfSpread ? 2 : 1) > pdfPosition.total} onPress={() => requestPdfPage(Math.min(pdfPosition.total, pdfPosition.page + (pdfSpread ? 2 : 1)))} style={[styles.button, pdfPosition.page + (pdfSpread ? 2 : 1) > pdfPosition.total && { opacity: 0.35 }]}><Text style={styles.text}>次へ ›</Text></Pressable>
+      </View>
+    </View>}
       </View>
     </View>
   </View></StudyToolsContext.Provider>;
 }
 const styles = StyleSheet.create({
-  pageContent: { flex: 1, minWidth: 0, minHeight: 0 },
+  pageContent: { flex: 1, minWidth: 0, minHeight: 0, marginHorizontal: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 4, overflow: 'hidden' },
   loadingOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: `${colors.paper}DD` },
   loadingCard: { maxWidth: 320, margin: 24, padding: 24, gap: 16, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 16 },
   loadingText: { color: colors.ink, fontSize: 15, lineHeight: 24, textAlign: 'center' },
   featureButton: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.button, alignItems: 'center', justifyContent: 'center' }, aa: { color: colors.accent, fontSize: 20, fontWeight: '700' },
-  container: { flex: 1 }, controls: { padding: 8, gap: 5, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.line },
+  container: { flex: 1, backgroundColor: colors.paper }, controls: { padding: 8, gap: 5, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.line },
   topRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  levelBar: { flexDirection: 'row', alignItems: 'stretch', borderRadius: 9, overflow: 'hidden', backgroundColor: colors.button },
-  levelTab: { minWidth: 48, paddingHorizontal: 10, paddingVertical: 7, alignItems: 'center', justifyContent: 'center',  },
+  levelBar: { flexDirection: 'row', alignItems: 'stretch', borderRadius: 999, padding: 3, overflow: 'hidden', backgroundColor: colors.button },
+  levelTab: { minWidth: 48, minHeight: 38, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, alignItems: 'center', justifyContent: 'center' },
   levelTabActive: { backgroundColor: colors.accent }, levelText: { color: colors.ink, fontSize: 13, fontWeight: '600' }, levelTextActive: { color: colors.surface },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'nowrap' },
-  button: { paddingHorizontal: 10, paddingVertical: 9, backgroundColor: colors.button, borderRadius: 8 }, chosen: { backgroundColor: colors.accent },
+  button: { minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.button, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }, chosen: { backgroundColor: colors.accent },
   text: { color: colors.ink, fontSize: 14 }, note: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   error: { color: '#a32323', fontSize: 13 }, empty: { flex: 1, padding: 24, gap: 16, justifyContent: 'center' },
   readerRow: { flex: 1, flexDirection: 'row', minHeight: 0 }, reading: { flex: 1, minWidth: 0 },
@@ -290,10 +248,11 @@ const styles = StyleSheet.create({
   panelActions: { gap: 8, paddingBottom: 10 },
   sidebar: { width: 340, maxWidth: '94%', flex: 1, maxHeight: 640, borderWidth: 1, borderColor: colors.line, borderRadius: 16, backgroundColor: colors.surface, padding: 12 },
   sidebarHeader: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 },
-  sidebarTitle: { color: colors.muted, fontSize: 12, paddingHorizontal: 5 },
+  sidebarTitle: { color: colors.ink, fontSize: 18, fontWeight: '600', paddingHorizontal: 5 },
   sidebarToggle: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 7, backgroundColor: colors.surface },
   sidebarToggleText: { color: colors.accent, fontSize: 22, lineHeight: 24 },
   chapterList: { gap: 6, paddingBottom: 12 },
+  sectionToggle: { alignSelf: 'flex-end', paddingHorizontal: 10, paddingVertical: 8 },
   chapter: { paddingHorizontal: 8, paddingVertical: 10, borderWidth: 1, borderColor: colors.line, borderRadius: 7, backgroundColor: colors.surface, gap: 5 },
   unitScroll: { marginLeft: 6, marginTop: 4, marginBottom: 5, flexGrow: 0 },
   unitList: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 6 },

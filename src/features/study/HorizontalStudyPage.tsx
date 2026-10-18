@@ -26,7 +26,8 @@ export default function HorizontalStudyPage(props: Props) {
     });
   }, [props.visuals, text, lines]);
   useEffect(() => {
-    if (!(window as any).ReactNativeWebView) return;
+    const host = (window as any).$$EXPO_DOM_HOST_OS;
+    if (host !== 'ios' && host !== 'android' && !(window as any).ReactNativeWebView) return;
     for (const node of [document.documentElement, document.body, document.getElementById('root')]) {
       if (node) { node.style.height = '100%'; node.style.margin = '0'; }
     }
@@ -74,9 +75,9 @@ export default function HorizontalStudyPage(props: Props) {
   return <div ref={root} onScroll={visible} onDragOver={event => event.preventDefault()} onDrop={event => {
     event.preventDefault(); const hit = (event.target as Element).closest<HTMLElement>('[data-end]');
     if (dragging.current !== null) latest.current.onDrop(dragging.current, hit ? Number(hit.dataset.end) : null); dragging.current = null;
-  }} style={{ height: '100%', overflowY: 'auto', boxSizing: 'border-box', background: paint.background, color: paint.ink, writingMode: 'horizontal-tb', padding: 'clamp(16px, 3vw, 40px)', scrollPadding: 24 }}>
+  }} style={{ height: '100%', width: '100%', minWidth: 0, overflowX: 'hidden', overscrollBehaviorX: 'none', touchAction: 'pan-y', overflowY: 'auto', boxSizing: 'border-box', background: paint.background, color: paint.ink, writingMode: 'horizontal-tb', padding: '16px', scrollPadding: 24 }}>
     <style>{`.study-math-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }`}</style>
-    <article style={{ maxWidth: 820, margin: '0 auto', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: display.lineHeight, overflowWrap: 'anywhere' }}>
+    <article style={{ width: '100%', minWidth: 0, margin: 0, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: display.lineHeight, overflowWrap: 'anywhere' }}>
       {mark(start)}
       {lines.map((line, i) => {
         const displayText = line.displayText ?? line.text;

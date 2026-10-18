@@ -1,3 +1,4 @@
+import { libraryStorage } from '@/features/library/storage';
 import { loadStats, type Stats } from '@/features/stats/stats';
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
@@ -45,19 +46,39 @@ export default function ShelfScreen() {
     update(); media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const [removalReady, setRemovalReady] = useState(false);
+  const [removeConfirm, setRemoveConfirm] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removalError, setRemovalError] = useState('');
+  const [undoBook, setUndoBook] = useState<{ id: string; title: string } | null>(null);
+  useEffect(() => { let active = true; void libraryStorage.getItem('dopabooks:shelf-removed:v1').then(raw => {
+    const ids = JSON.parse(raw ?? '[]'); if (!Array.isArray(ids) || !ids.every(id => typeof id === 'string')) throw new Error();
+    if (active) { setRemovedIds(ids); setRemovalReady(true); }
+  }).catch(() => { if (active) setRemovalError('本棚の削除設定を読み込めません。画面を開き直してください。'); }); return () => { active = false; }; }, []);
+  useFocusEffect(useCallback(() => { let active = true; void libraryStorage.getItem('dopabooks:shelf-removed:v1').then(raw => { const ids = JSON.parse(raw ?? '[]'); if (active && Array.isArray(ids) && ids.every(id => typeof id === 'string')) setRemovedIds(ids); }).catch(() => {}); return () => { active = false; }; }, []));
+  async function changeRemoved(id: string, remove: boolean) {
+    if (removing || !removalReady) return;
+    setRemoving(true); setRemovalError('');
+    const next = remove ? [...new Set([...removedIds, id])] : removedIds.filter(item => item !== id);
+    try { await libraryStorage.setItem('dopabooks:shelf-removed:v1', JSON.stringify(next)); setRemovedIds(next); if (remove) { const book = [...savedBooks, ...studyBooks].find(item => item.id === id); setUndoBook({ id, title: book?.title ?? '本' }); setDetailId(null); setRemoveConfirm(false); } else setUndoBook(null); }
+    catch { setRemovalError('本棚を変更できません。端末の保存設定を確認し、もう一度お試しください。'); }
+    finally { setRemoving(false); }
+  }
   const [detailId, setDetailId] = useState<string | null>(null);
   const [measured, setMeasured] = useState(0); // 棚の実際の幅
   const [kind, setKind] = useState('all');
   const [state, setState] = useState('all');
   const { books: savedBooks, ready, warning } = useLibrary();
   // 本棚を開いたら、ウィジェットの「今日のおすすめ」を選び直す（同じ日は同じ本。星はレビューの実際の集計）
-  useEffect(() => { if (ready) void refreshRecommendation(savedBooks); }, [ready, savedBooks]);
+  useEffect(() => { if (ready) void refreshRecommendation(savedBooks.filter(book => !removedIds.includes(book.id))); }, [ready, savedBooks, removedIds]);
   const [readingStats, setReadingStats] = useState<Stats | null>(null);
   useFocusEffect(useCallback(() => { let active = true; void loadStats().then(value => { if (active) setReadingStats(value); }); return () => { active = false; }; }, []));
   const shown = [
     ...(kind === 'study' ? [] : savedBooks.map(b => ({ id: b.id, title: b.title, author: b.author, label: '小説' }))),
     ...(kind === 'novel' ? [] : studyBooks.map(b => ({ id: b.id, title: b.title, author: b.author, label: '教材' }))),
   ].filter(book => {
+    if (removedIds.includes(book.id)) return false;
     const status = readingStats?.books[book.id]?.finishedAt ? 'done' : readingStats?.sessions.some(item => item.bookId === book.id) ? 'reading' : 'want';
     return state === 'all' || state === status;
   });
@@ -92,6 +113,7 @@ export default function ShelfScreen() {
           <Chips items={kinds} value={kind} onChange={setKind} />
           <Chips items={states} value={state} onChange={setState} variant="sub" />
         </View>
+        {!!removalError && <Text accessibilityRole="alert" style={styles.message}>{removalError}</Text>}
         {warning ? <Text accessibilityRole="alert" style={styles.message}>{warning}</Text> : null}
         {!ready && <Text style={styles.message}>本棚を読み込んでいます…</Text>}
         {ready && shown.length === 0 && <Text style={styles.message}>この条件の本はありません。</Text>}
@@ -110,7 +132,7 @@ export default function ShelfScreen() {
                     color={coverColors[(r * perRow + i) % coverColors.length]}
                     width={Math.min(112, slot - 12)}
                     onPress={() => router.push(`/book/${book.id}`)}
-                    onDetails={() => setDetailId(book.id)}
+                    onDetails={() => { setRemoveConfirm(false); setDetailId(book.id); }}
                     hoverDetails={hoverDetails}
                   />
                 </View>
@@ -124,7 +146,11 @@ export default function ShelfScreen() {
       <Modal visible={detailId !== null} transparent animationType="fade" onRequestClose={() => setDetailId(null)}>
         <View style={styles.detailOverlay}>
           <Pressable accessibilityRole="button" accessibilityLabel="本の紹介を閉じる" onPress={() => setDetailId(null)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
-          <View style={styles.detailPanel}>{detailId && <BookReviews key={detailId} bookId={detailId} close={() => setDetailId(null)} />}</View>
+          <View style={styles.detailPanel}>{detailId && <BookReviews key={detailId} bookId={detailId} close={() => setDetailId(null)} />}
+            {removeConfirm ? <View style={styles.removeArea}><Text style={{ color: colors.ink, fontSize: 16 }}>この本を本棚から削除しますか？</Text><Text style={{ color: colors.muted, fontSize: 13 }}>感想や読書記録は残ります。</Text><View style={{ flexDirection: 'row', gap: 12 }}><Pressable accessibilityRole="button" disabled={removing} onPress={() => setRemoveConfirm(false)} style={styles.removeButton}><Text style={{ color: colors.ink }}>キャンセル</Text></Pressable><Pressable accessibilityRole="button" disabled={removing} onPress={() => detailId && void changeRemoved(detailId, true)} style={styles.removeButton}><Text style={{ color: '#B33A32' }}>{removing ? '削除中…' : '削除する'}</Text></Pressable></View>{!!removalError && <Text accessibilityRole="alert">{removalError}</Text>}</View>
+              : detailId && removedIds.includes(detailId) ? <View style={styles.removeArea}><Pressable accessibilityRole="button" disabled={removing} onPress={() => void changeRemoved(detailId, false)} style={styles.removeButton}><Text style={{ color: colors.accent }}>本棚に戻す</Text></Pressable></View>
+              : <View style={styles.removeArea}><Pressable accessibilityRole="button" disabled={!removalReady} onPress={() => setRemoveConfirm(true)} style={styles.removeButton}><Text style={{ color: '#B33A32' }}>本棚から削除</Text></Pressable></View>}
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -132,6 +158,8 @@ export default function ShelfScreen() {
 }
 
 const styles = StyleSheet.create({
+  removeArea: { padding: 16, gap: 10, backgroundColor: colors.surface },
+  removeButton: { paddingHorizontal: 18, paddingVertical: 12, backgroundColor: colors.button, borderRadius: 999, alignItems: 'center' },
   detailOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16, backgroundColor: 'rgba(30,38,31,0.24)' },
   detailPanel: { width: '100%', maxWidth: 680, height: '86%', maxHeight: 780, backgroundColor: colors.paper, borderRadius: 22, overflow: 'hidden', boxShadow: '0 12px 48px rgba(25,36,27,0.18)' },
   safe: { flex: 1, backgroundColor: colors.paper },

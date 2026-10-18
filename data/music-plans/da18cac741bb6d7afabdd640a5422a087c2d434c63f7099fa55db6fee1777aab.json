@@ -1,12 +1,169 @@
 {
   "version": 3,
+  "timingVersion": 1,
   "hash": "da18cac741bb6d7afabdd640a5422a087c2d434c63f7099fa55db6fee1777aab",
   "title": "走れメロス",
-  "revision": "b061d19c-4a36-41d3-974b-8b8dc5ff2825",
+  "revision": "5216320d-770c-4a36-8461-27d164d298c9",
   "scenes": [
     {
       "start": 0,
-      "end": 500,
+      "end": 250,
+      "kind": "music",
+      "label": "本文の導入",
+      "reason": "本文に場面の根拠が現れるまでは控えめな導入音を使う。",
+      "mood": "calm",
+      "query": "gentle ambient music",
+      "candidates": [
+        {
+          "id": 744214,
+          "name": "Relaxing Ambient Melodies",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/744214/",
+          "audioUrl": "https://cdn.freesound.org/previews/744/744214_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 743731,
+          "name": "Peaceful Soundscape",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/743731/",
+          "audioUrl": "https://cdn.freesound.org/previews/743/743731_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 789325,
+          "name": "Soft Futuristic Soundscape",
+          "creator": "Matio888",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Matio888/sounds/789325/",
+          "audioUrl": "https://cdn.freesound.org/previews/789/789325_16936704-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 743731
+    },
+    {
+      "start": 250,
+      "end": 722,
+      "kind": "music",
+      "label": "本文の導入",
+      "reason": "本文に場面の根拠が現れるまでは控えめな導入音を使う。",
+      "mood": "calm",
+      "query": "gentle ambient music",
+      "candidates": [
+        {
+          "id": 744214,
+          "name": "Relaxing Ambient Melodies",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/744214/",
+          "audioUrl": "https://cdn.freesound.org/previews/744/744214_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 743731,
+          "name": "Peaceful Soundscape",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/743731/",
+          "audioUrl": "https://cdn.freesound.org/previews/743/743731_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 789325,
+          "name": "Soft Futuristic Soundscape",
+          "creator": "Matio888",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Matio888/sounds/789325/",
+          "audioUrl": "https://cdn.freesound.org/previews/789/789325_16936704-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 743731
+    },
+    {
+      "start": 722,
+      "end": 1053,
+      "kind": "music",
+      "label": "本文の導入",
+      "reason": "本文に場面の根拠が現れるまでは控えめな導入音を使う。",
+      "mood": "calm",
+      "query": "gentle ambient music",
+      "candidates": [
+        {
+          "id": 744214,
+          "name": "Relaxing Ambient Melodies",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/744214/",
+          "audioUrl": "https://cdn.freesound.org/previews/744/744214_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 743731,
+          "name": "Peaceful Soundscape",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/743731/",
+          "audioUrl": "https://cdn.freesound.org/previews/743/743731_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 789325,
+          "name": "Soft Futuristic Soundscape",
+          "creator": "Matio888",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Matio888/sounds/789325/",
+          "audioUrl": "https://cdn.freesound.org/previews/789/789325_16936704-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 743731
+    },
+    {
+      "start": 1053,
+      "end": 1520,
+      "kind": "music",
+      "label": "本文の導入",
+      "reason": "本文に場面の根拠が現れるまでは控えめな導入音を使う。",
+      "mood": "calm",
+      "query": "gentle ambient music",
+      "candidates": [
+        {
+          "id": 744214,
+          "name": "Relaxing Ambient Melodies",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/744214/",
+          "audioUrl": "https://cdn.freesound.org/previews/744/744214_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 743731,
+          "name": "Peaceful Soundscape",
+          "creator": "ViraMiller",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/ViraMiller/sounds/743731/",
+          "audioUrl": "https://cdn.freesound.org/previews/743/743731_16085323-lq.mp3",
+          "kind": "music"
+        },
+        {
+          "id": 789325,
+          "name": "Soft Futuristic Soundscape",
+          "creator": "Matio888",
+          "license": "https://creativecommons.org/licenses/by/4.0/",
+          "url": "https://freesound.org/people/Matio888/sounds/789325/",
+          "audioUrl": "https://cdn.freesound.org/previews/789/789325_16936704-lq.mp3",
+          "kind": "music"
+        }
+      ],
+      "selectedId": 743731
+    },
+    {
+      "start": 1520,
+      "end": 1918,
       "kind": "ambience",
       "label": "夕暮れの寂しい市",
       "reason": "日没後の市はひっそりと寂しく、以前の賑わいも消えている。遠い町のざわめきで不穏さを控えめに支える。",
@@ -44,8 +201,8 @@
       "selectedId": 332785
     },
     {
-      "start": 500,
-      "end": 1053,
+      "start": 1918,
+      "end": 2493,
       "kind": "music",
       "label": "王の恐怖を知る",
       "reason": "老爺から王の虐殺と人質制度を聞き、メロスの不安が激怒へ変わる。低く張りつめた弦で危機を示す。",
@@ -83,8 +240,8 @@
       "selectedId": 400367
     },
     {
-      "start": 1053,
-      "end": 2493,
+      "start": 2493,
+      "end": 3292,
       "kind": "music",
       "label": "王城での対決",
       "reason": "短剣を持って捕らえられ、王と正面から対峙する。互いの信念が衝突する場面に威厳ある緊張を置く。",
@@ -122,47 +279,8 @@
       "selectedId": 434069
     },
     {
-      "start": 2493,
-      "end": 3284,
-      "kind": "ambience",
-      "label": "友との別れと村への帰還",
-      "reason": "深夜の王城で友と再会し、縄打たれた友を残して出発する。初夏の満天の星と村の羊の気配を薄く重ねる。",
-      "mood": "sad",
-      "query": "quiet night village ambience",
-      "candidates": [
-        {
-          "id": 573769,
-          "name": "calm night city 9.28PM 210317_0272.wav",
-          "creator": "klankbeeld",
-          "license": "https://creativecommons.org/licenses/by/4.0/",
-          "url": "https://freesound.org/people/klankbeeld/sounds/573769/",
-          "audioUrl": "https://cdn.freesound.org/previews/573/573769_1648170-lq.mp3",
-          "kind": "ambience"
-        },
-        {
-          "id": 733807,
-          "name": "Fountain stream - spinning",
-          "creator": "Salomé_Lubczanski",
-          "license": "https://creativecommons.org/publicdomain/zero/1.0/",
-          "url": "https://freesound.org/people/Salom%C3%A9_Lubczanski/sounds/733807/",
-          "audioUrl": "https://cdn.freesound.org/previews/733/733807_7796757-lq.mp3",
-          "kind": "ambience"
-        },
-        {
-          "id": 567491,
-          "name": "calm night city 9.24PM 210317_0272.wav",
-          "creator": "klankbeeld",
-          "license": "https://creativecommons.org/licenses/by/4.0/",
-          "url": "https://freesound.org/people/klankbeeld/sounds/567491/",
-          "audioUrl": "https://cdn.freesound.org/previews/567/567491_1648170-lq.mp3",
-          "kind": "ambience"
-        }
-      ],
-      "selectedId": null
-    },
-    {
-      "start": 3284,
-      "end": 4142,
+      "start": 3292,
+      "end": 4340,
       "kind": "ambience",
       "label": "雨の祝宴",
       "reason": "結婚式の最中に雨が激しくなり、狭い家で村人が歌い拍手する。豪雨を主役に、束の間の幸福を包む。",
@@ -200,8 +318,8 @@
       "selectedId": 788020
     },
     {
-      "start": 4142,
-      "end": 4605,
+      "start": 4340,
+      "end": 4805,
       "kind": "ambience",
       "label": "雨中の出発",
       "reason": "眠りから起きたメロスが小降りの雨の中を走り出す。継続する雨で、祝宴から使命へ戻る切迫感を支える。",
@@ -239,8 +357,8 @@
       "selectedId": 502880
     },
     {
-      "start": 4605,
-      "end": 5325,
+      "start": 4805,
+      "end": 6992,
       "kind": "ambience",
       "label": "氾濫した川",
       "reason": "豪雨で橋が破壊され、濁流が道を阻む。激流の轟音を前面に置き、渡河の決意まで危機を持続させる。",
@@ -278,8 +396,8 @@
       "selectedId": 425877
     },
     {
-      "start": 5325,
-      "end": 5992,
+      "start": 6992,
+      "end": 7656,
       "kind": "music",
       "label": "山賊と灼熱の峠",
       "reason": "濁流を越えた直後に山賊に襲われ、撃退後は暑さと疲労で倒れる。激しい弦から重い悲哀へ落とす。",
@@ -317,8 +435,8 @@
       "selectedId": 435743
     },
     {
-      "start": 5992,
-      "end": 7242,
+      "start": 7656,
+      "end": 8678,
       "kind": "music",
       "label": "信実を失いかける",
       "reason": "疲れ果てたメロスが約束を諦め、友を裏切る自分を責める。深い喪失感をチェロの低音で描く。",
@@ -356,8 +474,8 @@
       "selectedId": null
     },
     {
-      "start": 7242,
-      "end": 7874,
+      "start": 8678,
+      "end": 9172,
       "kind": "ambience",
       "label": "泉と再起",
       "reason": "泉の水を飲んで疲労が回復し、信頼に報いる希望を取り戻す。湧き水と斜陽の静けさを背景にする。",
@@ -395,47 +513,8 @@
       "selectedId": 137069
     },
     {
-      "start": 7874,
-      "end": 8989,
-      "kind": "music",
-      "label": "日没への最後の疾走",
-      "reason": "信じられているから走ると決意し、血を吐きながら刑場へ急ぐ。残された時間を押し切る強い弦楽で高揚させる。",
-      "mood": "tense",
-      "query": "urgent heroic orchestral strings",
-      "candidates": [
-        {
-          "id": 541062,
-          "name": "Winterstorm I: A Cinematic and ambient soundscape",
-          "creator": "kjartan_abel",
-          "license": "https://creativecommons.org/licenses/by/4.0/",
-          "url": "https://freesound.org/people/kjartan_abel/sounds/541062/",
-          "audioUrl": "https://cdn.freesound.org/previews/541/541062_6738752-lq.mp3",
-          "kind": "music"
-        },
-        {
-          "id": 757891,
-          "name": "Mysterious/Suspenseful Background Drama Music with Acoustic Guitar",
-          "creator": "EvanBoyerman",
-          "license": "https://creativecommons.org/licenses/by/4.0/",
-          "url": "https://freesound.org/people/EvanBoyerman/sounds/757891/",
-          "audioUrl": "https://cdn.freesound.org/previews/757/757891_6823432-lq.mp3",
-          "kind": "music"
-        },
-        {
-          "id": 532935,
-          "name": "Escape to a Peaceful World with Sunny Dream: A warm, Relaxation Song",
-          "creator": "kjartan_abel",
-          "license": "https://creativecommons.org/licenses/by/4.0/",
-          "url": "https://freesound.org/people/kjartan_abel/sounds/532935/",
-          "audioUrl": "https://cdn.freesound.org/previews/532/532935_6738752-lq.mp3",
-          "kind": "music"
-        }
-      ],
-      "selectedId": null
-    },
-    {
-      "start": 8989,
-      "end": 9431,
+      "start": 9172,
+      "end": 10060,
       "kind": "ambience",
       "label": "刑場の群衆",
       "reason": "刑場で友が吊り上げられ、メロスの到着に群衆がどよめく。集団のざわめきを重ね、救出の瞬間を際立たせる。",
@@ -473,7 +552,7 @@
       "selectedId": null
     },
     {
-      "start": 9431,
+      "start": 10060,
       "end": 10061,
       "kind": "music",
       "label": "友情の勝利",

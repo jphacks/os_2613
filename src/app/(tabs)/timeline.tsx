@@ -1,3 +1,4 @@
+import { PullToRefresh } from '@/features/reviews/PullToRefresh';
 import { colors } from '@/shared/theme';
 import { takeReviewNotice, type ReviewNotice } from '@/features/reviews/notice';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -5,13 +6,12 @@ import { router, useFocusEffect, type Href } from 'expo-router';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAccount } from '@/features/account/AccountProvider';
-import { ReviewCard, Button, RefreshButton, s } from '@/features/reviews/ui';
+import { ReviewCard, Button, s } from '@/features/reviews/ui';
 import { useReviewFeed } from '@/features/reviews/useReviewFeed';
-import { ProfilePanel } from '@/features/reviews/ProfilePanel';
+import { Avatar } from '@/shared/Avatar';
+import { ReviewOverlays } from '@/features/reviews/ReviewOverlays';
 
-// タイムライン。
-// ・PC など広い画面：左（6）に「おすすめ／フォロー中」の感想、右（4）に自分のプロフィールと感想を並べる
-// ・スマホなど狭い画面：1列にして、「おすすめ／フォロー中／自分」を切り替える
+// おすすめ／フォロー中を切り替え、自分の感想はアイコンからプロフィールを開く。
 
 // Bluesky で自分がフォローしている人の一覧（公開の情報。最大500人）
 async function followingDids(did: string): Promise<Set<string>> {
@@ -29,26 +29,19 @@ async function followingDids(did: string): Promise<Set<string>> {
   return dids;
 }
 
-type Tab = 'recommend' | 'following' | 'mine';
+type Tab = 'recommend' | 'following';
 
 // 切り替え：グレーの大きな背景の上で、選んでいる方が白く浮く
 function Segmented({ items, value, onChange }: { items: { id: Tab; label: string }[]; value: Tab; onChange: (id: Tab) => void }) {
-  return <View style={seg.track}>
+  return <View accessibilityRole="tablist" style={seg.track}>
     {items.map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: value === item.id }} onPress={() => onChange(item.id)} style={[seg.item, value === item.id && seg.active]}>
       <Text style={[seg.label, value === item.id && seg.activeLabel]}>{item.label}</Text>
     </Pressable>)}
   </View>;
 }
-const wideStyles = StyleSheet.create({
-  wrap: { flex: 1, width: '100%', maxWidth: 1240, alignSelf: 'center' },
-  header: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 12, gap: 20 },
-  columns: { flex: 1, flexDirection: 'row' },
-  column: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 64 },
-  divider: { width: 1, backgroundColor: '#DED9CB', marginVertical: 8 },
-});
 const seg = StyleSheet.create({
   // 角は半円（端が丸くなるよう、十分大きな角丸にする）
-  track: { flexDirection: 'row', backgroundColor: '#E6E3DA', borderRadius: 999, padding: 4, flex: 1, minWidth: 0, maxWidth: 520 },
+  track: { flexDirection: 'row', backgroundColor: '#E6E3DA', borderRadius: 999, padding: 4, width: '100%', minWidth: 0 },
   item: { flex: 1, minWidth: 0, justifyContent: 'center', alignItems: 'center', minHeight: 44, paddingVertical: 11, borderRadius: 999 },
   active: { backgroundColor: '#FFFDF8', boxShadow: '0 1px 4px rgba(41,46,41,0.15)' },
   label: { color: '#6E7468', fontSize: 14, fontWeight: '600', textAlign: 'center' },
@@ -56,17 +49,15 @@ const seg = StyleSheet.create({
 });
 
 export default function TimelineScreen() {
-  const { identity } = useAccount();
+  const { identity, prefs } = useAccount();
   const { width } = useWindowDimensions();
   const wide = width >= 1000;
   const [toast, setToast] = useState<ReviewNotice | null>(null);
   useFocusEffect(useCallback(() => { const message = takeReviewNotice(); if (message) setToast(message); }, []));
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(null), 4500); return () => clearTimeout(timer); }, [toast]);
   const [tab, setTab] = useState<Tab>('recommend');
-  const [profileRefresh, setProfileRefresh] = useState(0);
-  const [profileLoading, setProfileLoading] = useState(false);
-  // 広い画面では「自分」は右の欄に常に出すので、左は「おすすめ／フォロー中」だけにする
-  const current: Tab = wide && tab === 'mine' ? 'recommend' : tab;
+  const [profileOpen, setProfileOpen] = useState(false);
+  const current = tab;
   const { data, loading, error, refresh, more } = useReviewFeed();
   const [follows, setFollows] = useState<Set<string> | null>(null);
   useEffect(() => {
@@ -84,15 +75,18 @@ export default function TimelineScreen() {
 
   const feed = <View style={{ gap: 20 }}>
     {!!data?.discoveryWarning && <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>{data.discoveryWarning}</Text>}
-    <View style={[s.between, width < 360 && { flexDirection: 'column', alignItems: 'stretch' }]}>
+    <View style={{ gap: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="自分のプロフィールを開く" onPress={() => identity ? setProfileOpen(true) : router.push('/profile')} style={timelineStyles.identity}>
+          <Avatar uri={identity?.avatar} size={42} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={s.name}>{prefs.name}</Text>{identity && <Text numberOfLines={1} style={s.meta}>@{identity.handle}</Text>}</View>
+        </Pressable>
+      </View>
       <Segmented value={current} onChange={setTab} items={[
         { id: 'recommend', label: 'おすすめ' },
         { id: 'following', label: 'フォロー中' },
-        ...(!wide ? [{ id: 'mine' as Tab, label: '自分' }] : []),
       ]} />
-      <View style={width < 360 ? { alignSelf: 'flex-end' } : undefined}><RefreshButton compact={!wide} loading={current === 'mine' ? profileLoading : loading} onPress={() => { if (current === 'mine') setProfileRefresh(value => value + 1); else void refresh(); }} /></View>
     </View>
-    {current === 'mine' ? <ProfilePanel refreshVersion={profileRefresh} onLoadingChange={setProfileLoading} showRefresh={false} /> : current === 'following' && !identity ? <View style={[s.card, { gap: 12 }]}>
+    {current === 'following' && !identity ? <View style={[s.card, { gap: 12 }]}>
       <Text style={s.heading}>フォロー中の人の感想</Text>
       <Text style={s.note}>Blueskyと接続すると、フォローしている人の感想がここに並びます。</Text>
       <Button subtle onPress={() => router.push('/settings' as Href)}>接続する ↗</Button>
@@ -114,19 +108,10 @@ export default function TimelineScreen() {
     {!!toast && <View style={{ backgroundColor: '#E8EEE5', borderRadius: 12, padding: 12, gap: 6 }}><Text accessibilityRole="status" accessibilityLiveRegion="polite" style={s.link}>{toast.message}</Text>{toast.blueskyUrl && <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(toast.blueskyUrl!)}><Text style={s.link}>Blueskyで確認 ↗</Text></Pressable>}</View>}
   </>;
 
-  // 広い画面：左右を切り離し、間に薄い縦線を引いて、それぞれ別々にスクロールできるようにする
-  if (wide) return <SafeAreaView edges={['top']} style={s.screen}>
-    <View style={wideStyles.wrap}>
-      <View style={wideStyles.header}>{header}</View>
-      <View style={wideStyles.columns}>
-        <ScrollView style={{ flex: 6 }} contentContainerStyle={wideStyles.column}>{feed}</ScrollView>
-        <View style={wideStyles.divider} />
-        <ScrollView style={{ flex: 4 }} contentContainerStyle={wideStyles.column}><ProfilePanel /></ScrollView>
-      </View>
-    </View>
-  </SafeAreaView>;
-
+  const profile = <ReviewOverlays person={profileOpen ? identity : null} close={() => setProfileOpen(false)} />;
   return <SafeAreaView edges={['top']} style={s.screen}>
-    <ScrollView contentContainerStyle={s.body}>{header}{feed}</ScrollView>
+    <PullToRefresh refreshing={loading} onRefresh={refresh} contentContainerStyle={[s.body, wide && { width: '100%', maxWidth: 1000, alignSelf: 'center' }]}>{header}{feed}</PullToRefresh>
+    {profile}
   </SafeAreaView>;
 }
+const timelineStyles = StyleSheet.create({ identity: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingVertical: 3 } });
