@@ -7,6 +7,7 @@ import { BookReading } from '@/features/bookmark/BookReading';
 import PdfBook from '@/features/pdf/PdfBook';
 import { colors } from '@/shared/theme';
 import { studySectionNumber } from './format.mjs';
+import { StudyMusic } from '@/features/music/StudyMusic';
 
 type Level = 'beginner' | 'standard' | 'original';
 const levels: { id: Level; label: string; description: string }[] = [
@@ -172,6 +173,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
       {lessonCreateAction}
       {supplementAction}
       {displayControl}
+      <StudyMusic />
       <Text numberOfLines={1} style={styles.originalInfo}>{studyInfo}</Text>
     </View>
     {level === 'original' ? <>
