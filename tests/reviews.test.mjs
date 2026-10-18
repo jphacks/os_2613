@@ -51,7 +51,7 @@ test('内部URL・リダイレクト誘導を拒否し、障害を削除扱い�
 test('投稿の追加・更新・削除と、本別の全件集計を同期する', async () => {
   let saved = null, next = view();
   const storage = { read: async () => saved, update: async (_key, change) => { saved = change(saved); } };
-  const service = createReviewService({ storage, verify: async () => next });
+  const service = createReviewService({ discover: async () => ({ reviews: [], warning: '' }), storage, verify: async () => next });
   await service.sync(uri); next = view({ rating: 1, updatedAt: '2026-02-01T00:00:00.000Z' }); await service.sync(uri);
   assert.equal((await service.list({ book: 'aozora-1567' })).stats.average, 1);
   assert.equal((await service.list()).total, 1);
@@ -69,7 +69,7 @@ test('いいねは1人1件で数え、取り消すと減り、他人の感想と
   const store = new Map();
   const storage = { read: async key => store.get(String(key)) ?? null, update: async (key, change) => { store.set(String(key), change(store.get(String(key)) ?? null)); } };
   let likeState = {};
-  const service = createReviewService({ storage, verify: async () => view(), verifyLikeRecord: async u => likeState[u] ?? { uri: u, removed: true } });
+  const service = createReviewService({ discover: async () => ({ reviews: [], warning: '' }), storage, verify: async () => view(), verifyLikeRecord: async u => likeState[u] ?? { uri: u, removed: true } });
   await service.sync(uri);
   likeState[likeUri(did)] = { uri: likeUri(did), did, subject: uri };
   likeState[likeUri(other)] = { uri: likeUri(other), did: other, subject: uri };

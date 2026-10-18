@@ -1,6 +1,6 @@
 import { artifactUrl } from '@/features/comic/api';
 import type { Review, ReviewStats } from './model.mjs';
-export type ReviewFeed = { reviews: Review[]; next: number | null; total: number; stats: ReviewStats };
+export type ReviewFeed = { discoveryWarning?: string; reviews: Review[]; next: number | null; total: number; stats: ReviewStats };
 // liked：その人がいいねした感想だけを読み込む（自分の画面の「いいね」タブ用）
 export async function loadReviews(params: { book?: string; did?: string; liked?: string; cursor?: number } = {}, signal?: AbortSignal): Promise<ReviewFeed> {
   const query = new URLSearchParams();

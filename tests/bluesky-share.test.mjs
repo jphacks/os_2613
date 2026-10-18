@@ -20,6 +20,7 @@ test('送信成功後に応答が失われても、画面を開き直した再�
     const body = JSON.parse(init.body);
     assert.match(body.rkey, /^[234567abcdefghij][234567abcdefghijklmnopqrstuvwxyz]{12}$/);
     assert.equal(body.collection, 'app.bsky.feed.post');
+    assert.equal(body.record.dopabooksReview, `at://${did}/app.dopabooks.review/${review.book.id}`);
     assert.ok(cache.size > 0, '送信より前に再送用IDを保存する');
     posts.set(body.rkey, { value: body.record }); writes++;
     throw new Error('応答だけ切断');

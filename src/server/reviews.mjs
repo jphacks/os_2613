@@ -1,3 +1,4 @@
+import { createBlueskyDiscovery } from './review-discovery.mjs';
 import { avatarUrl } from '../shared/avatar.mjs';
 import { createAozoraService } from './aozora.mjs';
 import { artifactStorage, artifactKey, artifactInput } from './artifact-storage.mjs';
@@ -37,8 +38,8 @@ async function pdsRecord(fetcher, did, collection, rkey) {
   let pds; try { pds = new URL(service?.serviceEndpoint); } catch { throw new Error('アカウントの保存先が見つかりません。'); }
   if (document.id !== did || pds.protocol !== 'https:' || pds.username || pds.password || pds.port || pds.pathname !== '/' || pds.search || pds.hash
     || !(pds.hostname === 'bsky.social' || /^[a-z0-9-]+\.[a-z0-9-]+\.host\.bsky\.network$/.test(pds.hostname))) throw new Error('現在のレビュー共有はBluesky運営PDSのアカウントに対応しています。');
-  const query = new URLSearchParams({ repo: did, collection, rkey });
-  return publicJson(fetcher, `${pds.origin}/xrpc/com.atproto.repo.getRecord?${query}`);
+  const query = new URLSearchParams({ repo: did, collection, ...(rkey ? { rkey } : { limit: '10', reverse: 'true' }) });
+  return publicJson(fetcher, `${pds.origin}/xrpc/com.atproto.repo.${rkey ? 'getRecord' : 'listRecords'}?${query}`);
 }
 // いいねの記録を確かめる。記録の名前が「いいねした感想」から決まる名前と一致するものだけを数える
 export async function verifyLike(uri, fetcher = fetch) {
@@ -62,11 +63,32 @@ export async function verifyReview(uri, fetcher = fetch, describe = canonicalBoo
   const profile = await publicJson(fetcher, `https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`).catch(() => null);
   return { ...record, book, did, uri, avatar: avatarUrl(profile?.avatar), handle: typeof profile?.handle === 'string' ? profile.handle.slice(0, 253) : did };
 }
-export function createReviewService({ storage = artifactStorage('.local/reviews'), verify = verifyReview, verifyLikeRecord = verifyLike } = {}) {
+export function createReviewService({ storage = artifactStorage('.local/reviews'), verify = verifyReview, verifyLikeRecord = verifyLike, discover } = {}) {
   const key = artifactKey(['review-index-v1']);
   const likesKey = artifactKey(['like-index-v1']);
+  const fetchWithSignal = signal => (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.any([signal, options.signal].filter(Boolean)) });
+  const discovery = discover ?? createBlueskyDiscovery({
+    search: async signal => {
+      const result = await publicJson(fetchWithSignal(signal), 'https://api.bsky.app/xrpc/app.bsky.feed.searchPosts?' + new URLSearchParams({ q: '#ドパBOOKs', tag: 'ドパBOOKs', sort: 'latest', limit: '50' }));
+      return result?.posts ?? [];
+    },
+    listReviews: async (did, signal) => (await pdsRecord(fetchWithSignal(signal), did, 'app.dopabooks.review'))?.records ?? [],
+    verify: (uri, signal) => verifyReview(uri, fetchWithSignal(signal)),
+  });
   return {
     async list({ book, did, liked, cursor = 0 } = {}) {
+      let discoveryWarning = '';
+      if (!cursor) {
+        try {
+          const discovered = await discovery();
+          discoveryWarning = discovered.warning;
+          if (discovered.reviews.length) await storage.update(key, before => {
+            const items = new Map((before?.items ?? []).map(item => [item.uri, item]));
+            for (const review of discovered.reviews) { if (review.removed) items.delete(review.uri); else items.set(review.uri, review); }
+            return { items: latestReviews([...items.values()]).slice(0, 10000) };
+          });
+        } catch { discoveryWarning = 'Blueskyの投稿を取得できませんでした。少し待って更新してください。'; }
+      }
       const all = latestReviews((await storage.read(key))?.items ?? []);
       const likes = (await storage.read(likesKey))?.items ?? [];
       const forBook = book ? all.filter(item => item.book.id === book) : all;
@@ -80,7 +102,7 @@ export function createReviewService({ storage = artifactStorage('.local/reviews'
         const likedBy = likes.filter(like => like.subject === review.uri).map(like => like.did);
         return { ...review, likes: likedBy.length, likedBy: likedBy.slice(0, 500) };
       });
-      return { reviews: withLikes, next: start + limit < filtered.length ? start + limit : null,
+      return { discoveryWarning, reviews: withLikes, next: start + limit < filtered.length ? start + limit : null,
         stats: reviewStats(forBook), total: filtered.length };
     },
     async sync(uri) {
