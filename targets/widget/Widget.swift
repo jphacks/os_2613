@@ -22,6 +22,7 @@ private enum Palette {
   static let muted = Color(red: 0.420, green: 0.435, blue: 0.404)    // #6B6F67 補足（著者名など。読みやすいよう濃いめ）
   static let green = Color(red: 0.220, green: 0.380, blue: 0.286)    // #386149 本棚の緑（表紙・進み具合）
   static let label = Color(red: 0.220, green: 0.380, blue: 0.286)    // #386149 見出し
+  static let rating = Color(red: 0.851, green: 0.631, blue: 0.173)   // #D9A12C アプリ共通の山吹色
   static let track = Color(red: 0.902, green: 0.886, blue: 0.847)    // #E6E2D8 進み具合の地
   static let edge = Color(red: 0.886, green: 0.863, blue: 0.804)     // #E2DCCD 紙の縁
   static let sheet1 = Color(red: 0.953, green: 0.937, blue: 0.902)   // #F3EFE6 重なった紙（奥）
@@ -192,9 +193,9 @@ struct PageEdges: Shape {
       let y = rect.minY + rect.height * CGFloat(i) / CGFloat(count)
       // 右端の間隔を中央へ20%寄せ、紙の束の奥行きを表す。
       let end = rect.midY + (y - rect.midY) * 0.80
-      // 紙の左端から右端近く（帯の幅14）まではまっすぐ、そこから斜めに真ん中へ寄せる（紙の形と同じ帯の幅）
+      // 紙の左端から右端近く（帯の幅28）まではまっすぐ、そこから斜めに真ん中へ寄せる（紙の形と同じ帯の幅）
       path.move(to: CGPoint(x: rect.minX, y: y))
-      path.addLine(to: CGPoint(x: rect.maxX - 14, y: y))
+      path.addLine(to: CGPoint(x: rect.maxX - 28, y: y))
       path.addLine(to: CGPoint(x: rect.maxX, y: end))
     }
     return path
@@ -208,11 +209,13 @@ struct TopViewBackground: View {
       Palette.green
       // 紙と線は同じ高さ・収束率を使う。上下の外側は背景の緑のまま残す。
       ZStack(alignment: .trailing) {
-        PaperShape(band: 14, ratio: 0.80).fill(Palette.page)
+        PaperShape(band: 28, ratio: 0.80).fill(Palette.page)
+        // 紙の束の右端もベージュで埋め、緑の縦帯を残さない。
+        Rectangle().fill(Palette.page).frame(width: 28)
         // ページの線：紙の左端から右端まで通す。文字と重なるので、ごく薄くする
         PageEdges().stroke(Palette.pageLine.opacity(0.45), lineWidth: 1)
       }
-      .clipShape(PaperShape(band: 14, ratio: 0.80))
+      .clipShape(UnevenRoundedRectangle(topLeadingRadius: 5, bottomLeadingRadius: 5, bottomTrailingRadius: 0, topTrailingRadius: 0))
       .padding(.leading, 18).padding(.vertical, 6)
 
     }
@@ -274,7 +277,7 @@ struct SmallView: View {
   }
 }
 
-// 長い文章の省略：決めた行数を超えたら「…」で切り、最後の行の終わりを右へ向かって薄くする
+// 本文は指定した行数まで折り返し、入りきらないときだけ末尾を省略する。
 struct FadingText: View {
   let text: String
   let size: CGFloat
@@ -283,15 +286,8 @@ struct FadingText: View {
     Text(text)
       .font(.system(size: size)).foregroundStyle(Palette.body).lineSpacing(2)
       .lineLimit(lines).truncationMode(.tail)
-      .mask(alignment: .bottom) {
-        // 最後の行だけ、右の4割で少しずつ透明にする（それより上の行はそのまま）
-        VStack(spacing: 0) {
-          Rectangle()
-          LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.6), .init(color: .black.opacity(0.15), location: 1)],
-                         startPoint: .leading, endPoint: .trailing)
-            .frame(height: size * 1.45)
-        }
-      }
+      .fixedSize(horizontal: false, vertical: true)
+      .layoutPriority(1)
   }
 }
 
@@ -302,8 +298,8 @@ struct MediumView: View {
     VStack(alignment: .leading, spacing: 3) {
       Eyebrow(text: "しおり")
       HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Text(book.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.ink).lineLimit(1)
-        Text(book.author).font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1)
+        Text(book.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.ink).lineLimit(1).truncationMode(.tail).layoutPriority(1)
+        Text(book.author).font(.system(size: 11)).foregroundStyle(Palette.muted).lineLimit(1).truncationMode(.tail).frame(maxWidth: 90, alignment: .leading)
       }
       FadingText(text: recap(book), size: 14, lines: 3)
       Spacer(minLength: 0)
@@ -390,7 +386,7 @@ struct Stars: View {
       ForEach(0..<5, id: \.self) { i in
         let fill = min(1, max(0, rating - Double(i)))
         Image(systemName: fill >= 1 ? "star.fill" : fill >= 0.5 ? "star.leadinghalf.filled" : "star")
-          .font(.system(size: size)).foregroundStyle(Palette.green)
+          .font(.system(size: size)).foregroundStyle(Palette.rating)
       }
       Text(String(format: "%.1f", rating)).font(.system(size: size)).foregroundStyle(Palette.body).padding(.leading, 3)
     }
@@ -424,7 +420,7 @@ struct NoBookView: View {
       }
     }
     .padding(.top, small ? 14 : 24).padding(.bottom, small ? 14 : 22)
-    .padding(.leading, small ? 14 : family == .systemMedium ? 30 : 30).padding(.trailing, small ? 14 : 20)
+    .padding(.leading, small ? 14 : 30).padding(.trailing, small ? 14 : 20)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(
       Group {

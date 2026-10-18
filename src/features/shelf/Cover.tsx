@@ -15,7 +15,7 @@ type Props = {
 };
 
 // React Native の文字は縦書きにできないので、1文字ずつ改行して縦に並べる
-const vertical = (text: string) => Array.from(text).join('\n');
+const vertical = (text: string) => Array.from(text.replace(/…/g, '⋮')).join('\n');
 
 // 長い題名は1列に収まらないので、右から順に複数の列へ折り返す
 const TITLE_PER_COLUMN = 6;
@@ -30,7 +30,7 @@ const columns = (text: string) => {
 const AUTHOR_MAX = 9;
 const shortAuthor = (text: string) => {
   const chars = Array.from(text.split(/[（(・]/)[0].trim());
-  return chars.length > AUTHOR_MAX ? chars.slice(0, AUTHOR_MAX).join('') + '…' : chars.join('');
+  return chars.length > AUTHOR_MAX ? chars.slice(0, AUTHOR_MAX).join('') + '⋮' : chars.join('');
 };
 
 export function Cover({ title, author, label, color, onPress, onDetails, hoverDetails = false, width = 112 }: Props) {

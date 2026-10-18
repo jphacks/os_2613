@@ -90,10 +90,14 @@ function Preview({ id }: { id: Quest }) {
         <View style={p.result}><View style={{ flex: 1 }}><Text style={p.bold}>走れメロス</Text><Text style={p.muted}>太宰 治</Text></View><View style={p.btn}><Text style={p.btnText}>追加</Text></View></View>
       </>);
     case 'read':
-      return box(<View style={p.page}>
-        <Text style={p.vertical}>{'メロスは激怒した。\n必ず、かの邪智暴虐の\n王を除かなければ'}</Text>
-        <View style={p.swipe}><Text style={p.swipeText}>← スワイプでめくる →</Text></View>
-      </View>);
+      // 縦書き：1列7文字ずつに分け、右の列から左へ並べる（紙面からはみ出さない文字数にする）
+      return box(<>
+        <View style={p.page}>
+          {Array.from('メロスは激怒した。必ず、かの邪智暴虐の王を除かなければならぬ').reduce<string[]>((cols, ch, i) => { if (i % 7 === 0) cols.push(''); cols[cols.length - 1] += ch; return cols; }, [])
+            .map((col, i) => <Text key={i} style={p.column}>{Array.from(col).join('\n')}</Text>)}
+        </View>
+        <Text style={p.swipeText}>← スワイプでめくる →</Text>
+      </>);
     case 'bluesky':
       return box(<>
         <Text style={p.bold}>Bluesky でログイン</Text>
@@ -202,10 +206,9 @@ const p = StyleSheet.create({
   btnText: { color: colors.surface, fontSize: 11, fontWeight: '700' },
   bold: { color: colors.ink, fontSize: 13, fontWeight: '600' },
   muted: { flex: 1, color: colors.muted, fontSize: 11 },
-  page: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.line, height: 120, padding: 10, alignItems: 'flex-end' },
-  vertical: { color: colors.ink, fontSize: 12, lineHeight: 18, textAlign: 'right' },
-  swipe: { position: 'absolute', bottom: 8, left: 0, right: 0, alignItems: 'center' },
-  swipeText: { color: colors.accent, fontSize: 10, fontWeight: '700' },
+  page: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.line, paddingVertical: 10, paddingHorizontal: 12, flexDirection: 'row-reverse', gap: 8, overflow: 'hidden' },
+  column: { color: colors.ink, fontSize: 13, lineHeight: 16, textAlign: 'center', width: 16 },
+  swipeText: { color: colors.accent, fontSize: 10, fontWeight: '700', textAlign: 'center' },
   input: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.line, padding: 9 },
   stars: { fontSize: 22, textAlign: 'center', letterSpacing: 2 },
   shot: { width: '100%', height: 150, borderRadius: 10 },

@@ -32,7 +32,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
     try { await action(); } catch (e) { setFailed(true); setMessage(e instanceof Error ? e.message : '操作を完了できませんでした。'); }
     finally { setBusy(false); }
   }
-  const available = loginAvailable && (loopback || !!process.env.EXPO_PUBLIC_ATPROTO_CLIENT_ID);
+  const available = loginAvailable && (Platform.OS !== 'web' || loopback || !!process.env.EXPO_PUBLIC_ATPROTO_CLIENT_ID);
   if (identity && ready && !prefs.nameChosen) return <ScrollView style={s.screen} contentContainerStyle={s.onboarding} keyboardShouldPersistTaps="handled">
     <Stack.Screen options={{ headerShown: false }} />
     <View style={s.welcome}>
@@ -128,7 +128,7 @@ const s = StyleSheet.create({
   card: { backgroundColor: colors.surface, padding: 22, borderRadius: 12, gap: 14 }, section: { fontSize: 17, color: colors.ink, fontWeight: '600' }, badge: { color: colors.accent, fontSize: 11, backgroundColor: colors.paper, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
   name: { fontSize: 26, color: colors.ink }, text: { color: colors.ink, fontSize: 14, lineHeight: 23 }, label: { color: colors.ink, fontSize: 13, fontWeight: '600' }, note: { color: colors.muted, fontSize: 12, lineHeight: 21 },
   inputRow: { flexDirection: 'row', gap: 8 }, grow: { flex: 1, minWidth: 0 }, input: { borderWidth: 1, borderColor: colors.line, borderRadius: 99999, padding: 13, fontSize: 15, color: colors.ink, backgroundColor: colors.surface },
-  button: { backgroundColor: colors.accent, padding: 15, borderRadius: 99999, alignItems: 'center' }, smallButton: { backgroundColor: colors.accent, padding: 14, borderRadius: 99999, justifyContent: 'center' }, outline: { borderWidth: 1, borderColor: colors.line, padding: 13, borderRadius: 99999, alignItems: 'center' },
+  button: { backgroundColor: colors.accent, padding: 15, borderRadius: 99999, alignItems: 'center' }, smallButton: { backgroundColor: colors.accent, padding: 14, borderRadius: 99999, justifyContent: 'center' }, outline: { backgroundColor: colors.button, padding: 13, borderRadius: 99999, alignItems: 'center' },
   light: { color: colors.surface, fontSize: 14 }, link: { color: colors.accent, fontSize: 13 }, disabled: { opacity: 0.4 }, divider: { height: 1, backgroundColor: colors.line, marginVertical: 4 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingVertical: 6 }, loading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   example: { backgroundColor: colors.paper, padding: 14, borderRadius: 99999, gap: 5 }, exampleLabel: { color: colors.muted, fontSize: 10 }, exampleHandle: { color: colors.accent, fontSize: 16 }, footnote: { color: colors.muted, fontSize: 11, lineHeight: 20, paddingHorizontal: 6 }, feedback: { backgroundColor: colors.surface, borderLeftWidth: 3, borderLeftColor: colors.accent, padding: 16, gap: 8, borderRadius: 6 },

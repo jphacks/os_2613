@@ -33,6 +33,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   // 読書クエスト「Bluesky と連携」：ログインできたら完了
   useEffect(() => { if (identity && ready) complete('bluesky'); }, [identity, ready]);
   function complete(quest: Quest) { if (!loaded.current || current.current.done.includes(quest)) return; void update(before => ({ done: [...new Set([...before.done, quest])] })).catch(() => setError('クエストを保存できません。')); }
+  // Bluesky でログインできたら「Bluesky と連携」のクエストを完了にする
+  useEffect(() => { if (ready && identity) complete('bluesky'); }, [ready, identity?.did]);
   return <Context.Provider value={{ identity, prefs, ready, error, update, complete, refreshIdentity: async () => { const value = await restoreIdentity(); setIdentity(value); }, login: async handle => { setError(''); const value = await signIn(handle); if (value) setIdentity(value); }, logout: async () => { await signOut(); setIdentity(null); } }}>{children}</Context.Provider>;
 }
 export function useAccount() { const value = useContext(Context); if (!value) throw new Error('AccountProviderが必要です'); return value; }

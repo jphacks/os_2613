@@ -55,6 +55,11 @@ export default function AddScreen() {
   }, [query, field, tab]);
   useEffect(() => () => { searchRequest.current?.abort(); importRequest.current?.abort(); }, []);
 
+  function close() {
+    if (router.canGoBack()) router.back();
+    else router.replace('/shelf');
+  }
+
   async function search(page = 1) {
     if (tab !== 'novel' || adding) return;
     if (!query.trim()) { setError('タイトルや著者名などを入力してください。'); return; }
@@ -93,13 +98,13 @@ export default function AddScreen() {
   return (
     <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* 背景を押すと閉じる */}
-      <Pressable style={StyleSheet.absoluteFill} onPress={() => router.back()} />
+      <Pressable style={StyleSheet.absoluteFill} onPress={close} />
 
       <View style={styles.card}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <View style={styles.headRow}>
             <Text style={styles.eyebrow}>ADD A BOOK</Text>
-            <NavigationButton close label="閉じる" onPress={() => router.back()} />
+            <NavigationButton close label="閉じる" onPress={close} />
           </View>
           <Text style={styles.title}>本を追加</Text>
 

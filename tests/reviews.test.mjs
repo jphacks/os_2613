@@ -79,6 +79,9 @@ test('いいねは1人1件で数え、取り消すと減り、他人の感想と
   delete likeState[likeUri(other)]; await service.sync(likeUri(other));
   review = (await service.list()).reviews[0];
   assert.equal(review.likes, 1); assert.deepEqual(review.likedBy, [did]);
+  // 自分の画面の「いいね」タブ：いいねした人で絞ると、その人がいいねした感想だけが出る
+  assert.equal((await service.list({ liked: did })).total, 1);
+  assert.equal((await service.list({ liked: other })).total, 0);
 });
 test('共有APIは別オリジンの書込み・不正なIDを拒否する', async () => {
   let called = false;

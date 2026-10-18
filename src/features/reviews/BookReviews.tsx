@@ -10,7 +10,7 @@ import { colors } from '@/shared/theme';
 import { validBookId } from './model.mjs';
 import { reviewBooks } from './books';
 import { useReviewFeed } from './useReviewFeed';
-import { Button, ReviewCard, s } from './ui';
+import { RefreshButton, Button, ReviewCard, s } from './ui';
 export default function BookReviews({ bookId, close }: { bookId?: string; close?: () => void } = {}) {
   const params = useLocalSearchParams<{ id: string }>();
   const id = bookId || params.id;
@@ -46,7 +46,7 @@ export default function BookReviews({ bookId, close }: { bookId?: string; close?
       </View>
       <View style={s.card}><View style={s.between}><Text style={s.heading}>みんなの評価</Text><Text style={s.note}>{data?.stats.count || 0}件</Text></View>{[5, 4, 3, 2, 1].map(star => { const count = data?.stats.histogram[star - 1] || 0; return <View key={star} style={s.row}><Text style={[s.meta, { width: 30 }]}>{star} ★</Text><View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.line, overflow: 'hidden' }}><View style={{ height: 6, width: `${count / Math.max(1, data?.stats.count || 0) * 100}%`, backgroundColor: colors.rating }} /></View><Text style={[s.meta, { width: 26, textAlign: 'right' }]}>{count}</Text></View>; })}<Text style={s.meta}>ドパBOOKsに投稿された評価を、1人1件で集計しています。</Text></View>
     </> : !loading && !error ? <Text style={s.note}>本が見つかりません。本棚やタイムラインから選んでください。</Text> : null}
-    <View style={s.between}><Text style={s.heading}>読者の感想</Text><Pressable disabled={loading} onPress={() => void refresh()}><Text style={s.link}>更新 ↻</Text></Pressable></View>
+    <View style={s.between}><Text style={s.heading}>読者の感想</Text><RefreshButton loading={loading} onPress={() => void refresh()} /></View>
     {loading && !data && <Text style={s.note}>レビューを読み込んでいます…</Text>}
     {!!error && <View style={s.section}><Text accessibilityRole="alert" style={s.error}>{error}</Text><Button subtle onPress={() => void refresh()}>再試行</Button></View>}
     {data?.reviews.length === 0 && <View style={[s.card, s.empty]}><Text style={s.heading}>まだレビューはありません</Text><Text style={s.note}>この本の最初の感想を書いてみませんか。</Text></View>}

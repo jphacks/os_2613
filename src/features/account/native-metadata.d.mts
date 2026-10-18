@@ -1,0 +1,1 @@
+export function nativeMetadata(clientId: string | undefined): { client_id: `https://${string}`; client_name: string; client_uri: string; redirect_uris: [`${string}:/${string}`]; application_type: 'native'; scope: string; token_endpoint_auth_method: 'none'; grant_types: ['authorization_code', 'refresh_token']; response_types: ['code']; dpop_bound_access_tokens: true };
