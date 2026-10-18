@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { ActivityIndicator, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { colors } from '@/shared/theme';
@@ -26,7 +27,8 @@ export function MusicPanel({ book, position, guideActive, visible = true, detail
   const [studyMusicOpen, setStudyMusicOpen] = useState(false);
   const details = detailsOpen ?? localDetails;
   const setDetails = (open: boolean) => { setLocalDetails(open); onDetailsChange?.(open); };
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -124,8 +126,8 @@ export function MusicPanel({ book, position, guideActive, visible = true, detail
     <StudyMusic hideTrigger open={studyMusicOpen} onOpenChange={setStudyMusicOpen} interrupted={enabled} onPlay={stop} />
     {icon('♫', 'BGMの設定を開く', () => setDetails(!details), false, enabled)}
     {details && <OptionsHost transparent visible animationType="none" pointerEvents="box-none" style={Platform.OS === 'web' ? StyleSheet.absoluteFill : undefined} onRequestClose={() => setDetails(false)}>
-      {Platform.OS !== 'web' && <View style={{ flexDirection: 'row', marginTop: 64, marginLeft: 12 }}>{icon('♫', 'BGM設定を閉じる', () => setDetails(false))}{onGuidePress && icon('≋', '読みガイドへ切り替え', onGuidePress)}</View>}
-      <View style={[styles.backdrop, { width: Math.min(300, width - 24) }, Platform.OS !== 'web' && { top: 108, left: 12 }]}><View style={styles.card}><ScrollView contentContainerStyle={styles.details}>
+      {Platform.OS !== 'web' && <View style={{ flexDirection: 'row', marginTop: insets.top + 64, marginLeft: 12 }}>{icon('♫', 'BGM設定を閉じる', () => setDetails(false))}{onGuidePress && icon('≋', '読みガイドへ切り替え', onGuidePress)}</View>}
+      <View style={[styles.backdrop, { width: Math.min(300, width - 24) }, Platform.OS !== 'web' && { top: insets.top + 108, left: 12 }]}><View style={[styles.card, Platform.OS !== 'web' && { maxHeight: Math.max(80, Math.min(340, height - insets.top - 108 - Math.max(insets.bottom, 12))) }]}><ScrollView contentContainerStyle={styles.details}>
         <View style={styles.row}><Pressable accessibilityRole="button" accessibilityLabel="BGM設定を閉じる" onPress={() => setDetails(false)} style={styles.button}><Text style={styles.symbol}>‹</Text></Pressable><Text style={styles.heading}>BGM</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="集中BGMを選ぶ" onPress={() => { setDetails(false); setStudyMusicOpen(true); }} style={styles.control}><Text style={styles.text}>♪ 集中BGMを選ぶ</Text><Text style={styles.text}>集中BGM 1・集中BGM 2</Text></Pressable>
     <View style={styles.row}>
