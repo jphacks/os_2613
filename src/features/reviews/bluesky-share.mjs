@@ -1,4 +1,4 @@
-import { blueskyText, blueskyFacets } from './model.mjs';
+import { blueskyText, blueskyFacets, reviewCollection, reviewKey } from './model.mjs';
 const alphabet = '234567abcdefghijklmnopqrstuvwxyz';
 export function blueskyTid(milliseconds, clock = 0) {
   if (!Number.isSafeInteger(milliseconds) || milliseconds < 0 || !Number.isInteger(clock) || clock < 0 || clock > 1023) throw new Error('投稿日時を確認してください。');
@@ -28,7 +28,7 @@ export async function shareBluesky({ did, review, request, storage, now = () => 
   if (existing && existing.value?.text !== text && existing.value?.text !== blueskyText(review, true)) throw new Error('同じ投稿IDの内容が異なります。共有記録を確認してください。');
   if (!existing) await request('/xrpc/com.atproto.repo.createRecord', {
     method: 'POST', signal: AbortSignal.timeout(20000), headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repo: did, collection: 'app.bsky.feed.post', rkey: publication.key, record: { $type: 'app.bsky.feed.post', text, facets: blueskyFacets(text), langs: ['ja'], tags: ['ドパBOOKs', '読書記録'], createdAt: publication.createdAt } }),
+    body: JSON.stringify({ repo: did, collection: 'app.bsky.feed.post', rkey: publication.key, record: { $type: 'app.bsky.feed.post', dopabooksReview: `at://${did}/${reviewCollection}/${reviewKey(review.book.id)}`, text, facets: blueskyFacets(text), langs: ['ja'], tags: ['ドパBOOKs', '読書記録'], createdAt: publication.createdAt } }),
   });
   return `https://bsky.app/profile/${encodeURIComponent(did)}/post/${publication.key}`;
 }

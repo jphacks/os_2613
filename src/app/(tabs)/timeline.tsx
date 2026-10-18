@@ -1,3 +1,4 @@
+import { colors } from '@/shared/theme';
 import { takeReviewNotice, type ReviewNotice } from '@/features/reviews/notice';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { router, useFocusEffect, type Href } from 'expo-router';
@@ -82,6 +83,7 @@ export default function TimelineScreen() {
   }, [data, current, follows]);
 
   const feed = <View style={{ gap: 20 }}>
+    {!!data?.discoveryWarning && <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>{data.discoveryWarning}</Text>}
     <View style={[s.between, width < 360 && { flexDirection: 'column', alignItems: 'stretch' }]}>
       <Segmented value={current} onChange={setTab} items={[
         { id: 'recommend', label: 'おすすめ' },
