@@ -1,3 +1,4 @@
+import { useAccount } from '@/features/account/AccountProvider';
 import { StudyToolPanel } from '@/features/study/StudyToolPanel';
 import { AppIcon } from '@/shared/AppIcon';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -12,11 +13,15 @@ import { studyTracks } from './study-tracks';
 export function StudyMusic({ open: externalOpen, onOpenChange, hideTrigger = false, interrupted = false, onPlay }: { open?: boolean; onOpenChange?: (open: boolean) => void; hideTrigger?: boolean; interrupted?: boolean; onPlay?: () => void } = {}) {
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
+  const { complete, prefs } = useAccount();
   const [localOpen, setLocalOpen] = useState(false);
   const open = externalOpen ?? localOpen;
   const setOpen = useCallback((value: boolean) => { setLocalOpen(value); onOpenChange?.(value); }, [onOpenChange]);
   const [selected, setSelected] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.3);
+  useEffect(() => {
+    if (status.playing && !status.isBuffering && volume > 0 && !prefs.done.includes('music')) complete('music');
+  }, [status.playing, status.isBuffering, volume, prefs.done, complete]);
   const [loop, setLoop] = useState(true);
   const [error, setError] = useState('');
   const request = useRef(0);

@@ -1,9 +1,10 @@
+import { useAccount } from '@/features/account/AccountProvider';
 import { AppIcon } from '@/shared/AppIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { ActivityIndicator, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { colors } from '@/shared/theme';
 import { readerToolButton, readerToolSymbol } from '@/features/reader/toolStyles';
@@ -42,6 +43,12 @@ export function MusicPanel({ book, position, guideActive, visible = true, detail
   const layerA = useAudioPlayer(null), layerB = useAudioPlayer(null), effectA = useAudioPlayer(null), effectB = useAudioPlayer(null);
   const cueMixer = useMemo(() => new CueMixer([layerA, layerB, effectA, effectB], setActiveCues, undefined, sourceFor), [layerA, layerB, effectA, effectB, sourceFor]);
   const mixer = useMemo(() => new ContinuousMixer([first, second, bed], fallback, setNotice), [first, second, bed]);
+  const { complete, prefs } = useAccount();
+  const firstStatus = useAudioPlayerStatus(first), secondStatus = useAudioPlayerStatus(second), bedStatus = useAudioPlayerStatus(bed);
+  const bgmPlaying = [firstStatus, secondStatus, bedStatus].some(status => status.playing && !status.isBuffering);
+  useEffect(() => {
+    if (visible && enabled && guideActive && plan && volume > 0 && bgmPlaying && !prefs.done.includes('music')) complete('music');
+  }, [visible, enabled, guideActive, !!plan, volume, bgmPlaying, prefs.done, complete]);
   const alive = useRef(true);
   const preparing = useRef(false);
   const requestController = useRef<AbortController | null>(null);

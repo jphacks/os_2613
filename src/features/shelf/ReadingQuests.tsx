@@ -14,6 +14,8 @@ type Item = { id: Quest; title: string; text: string; steps: string[]; go?: { la
 const items: Item[] = [
   { id: 'read', title: '本を読む', text: '読みたい本を本棚に追加して、縦書きで読み始めます。',
     steps: ['本棚の「＋ 本を追加」を押します。', 'タイトルや著者で検索し、読みたい作品の「追加」を押します。', '本棚に戻り、本を押して開きます。', 'スマホは左右にスワイプ、PCは紙面を押してページをめくります。', '本を開くと完了です。'], go: { label: '本を探して追加する', to: '/add' } },
+  { id: 'music', title: 'BGMを流す', text: '好きなBGMを流しながら、読書や勉強に集中してみましょう。',
+    steps: ['本棚から小説か教材を開きます。', '音符ボタンを押してBGMの設定を開きます。', '集中BGMから好きな曲を選ぶか、小説のBGMをオンにして読みガイドを開始します。', '音量を上げ、BGMが再生されると完了です。'] },
   { id: 'bluesky', title: 'Bluesky と連携する', text: 'Bluesky のアカウントでログインすると、感想を共有できます。',
     steps: ['「設定」を開きます。', 'Bluesky のハンドル（例：name.bsky.social）を入力します。', 'ログインできたら完了です。'], go: { label: '設定を開く', to: '/settings' } },
   { id: 'review', title: '本のレビューを書く', text: '読んだ本に星と感想を付けて、みんなと共有します。',
@@ -29,6 +31,8 @@ function Illustration({ id, size = 44 }: { id: Quest; size?: number }) {
   const u = size / 44; // 44px を基準に拡大・縮小する
   const g = colors.accent, w = colors.surface, line = colors.line;
   switch (id) {
+    case 'music':
+      return <View style={{ width: size, height: size, borderRadius: 10 * u, backgroundColor: w, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: g, fontSize: 32 * u }}>♫</Text></View>;
     case 'add': // 本の表紙と「＋」
       return <View style={{ width: size, height: size }}>
         <View style={{ position: 'absolute', left: 8 * u, top: 4 * u, width: 22 * u, height: 32 * u, borderRadius: 3 * u, backgroundColor: g }} />
@@ -82,6 +86,12 @@ function Preview({ id }: { id: Quest }) {
   const g = colors.accent;
   const box = (children: React.ReactNode) => <View style={s.preview}>{children}<Text style={s.caption}>画面イメージ</Text></View>;
   switch (id) {
+    case 'music':
+      return box(<>
+        <View style={p.bar}><Text style={p.bold}>♫ 集中BGM</Text><View style={p.btn}><Text style={p.btnText}>再生中</Text></View></View>
+        <Text style={p.muted}>好きな曲を選んで、読書のおともに。</Text>
+        <View style={p.track}><View style={p.fill} /></View>
+      </>);
     case 'add':
       return box(<>
         <View style={p.bar}><Text style={p.muted}>走れメロス</Text><View style={p.btn}><Text style={p.btnText}>検索</Text></View></View>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { edgeTurn } from './gestures.mjs';
-import { guideScrollLeft, visibleScrollPage } from './scroll-position.mjs';
+import { guideScrollLeft, smoothGuideScroll, visibleScrollPage } from './scroll-position.mjs';
 import { measuredPagesAsync, pageAtOffset } from './pagination.mjs';
 import { fontFamilies, type DisplayPreferences } from './preferences.mjs';
 import { bindGuideKeyboard } from './guide-keyboard.mjs';
@@ -33,6 +33,7 @@ export default function VerticalPage(props: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const observedPage = useRef(-1);
   const autoScroll = useRef(false), scrollFrame = useRef<number | null>(null);
+  const scrollTarget = useRef<number | null>(null);
   const latest = useRef(props); latest.current = props;
   useEffect(() => bindGuideKeyboard(document, () => latest.current.disabled || latest.current.picking ? undefined : latest.current.onToggleGuide), []);
   const [layout, setLayout] = useState({ count: 1, width: 0, viewport: 0, starts: [0, 0] });
@@ -125,25 +126,40 @@ export default function VerticalPage(props: Props) {
   function stopScroll() {
     if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
     scrollFrame.current = null;
+    scrollTarget.current = null;
+    autoScroll.current = false;
   }
   useEffect(() => {
     if (!guide || !running || picking || ghost || props.headerDrag || disabled || calculating) return;
     const scroll = scrollRef.current, char = chars[cursor];
     const node = char && textRef.current?.querySelector<HTMLElement>(`[data-i][data-offset="${char.end}"]`);
     if (!scroll || !node || !layout.viewport) return;
-    const target = guideScrollLeft(scroll.scrollLeft, scroll.getBoundingClientRect().right, node.getBoundingClientRect().right, layout.viewport, scroll.scrollWidth);
-    const from = scroll.scrollLeft;
-    if (Math.abs(target - from) < 0.5) return;
+    // transformで浮かせた文字の矩形は揺れるため、組版時の座標を使う。
+    const column = node.offsetLeft;
+    const nodes = Array.from(node.parentElement!.querySelectorAll<HTMLElement>('[data-i]'));
+    let first = cursor;
+    while (first > 0 && nodes[first - 1]?.offsetLeft === column) first--;
+    let next = cursor + 1;
+    while (next < nodes.length && nodes[next].offsetLeft === column) next++;
+    const progress = (cursor - first) / Math.max(1, next - first);
+    const nextColumn = nodes[next]?.offsetLeft ?? column;
+    const right = node.parentElement!.getBoundingClientRect().left + column + node.offsetWidth + (nextColumn - column) * progress;
+    scrollTarget.current = guideScrollLeft(scroll.scrollLeft, scroll.getBoundingClientRect().right, right, layout.viewport, scroll.scrollWidth);
+  }, [guide, running, cursor, chars, page, layout, picking, ghost, props.headerDrag, disabled, calculating]);
+  useEffect(() => {
+    if (!guide || !running || picking || ghost || props.headerDrag || disabled || calculating || !layout.viewport) { stopScroll(); return; }
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    let previous = performance.now();
     autoScroll.current = true;
-    const began = performance.now();
     const frame = (now: number) => {
-      const progress = Math.min(1, (now - began) / 240);
-      scroll.scrollLeft = from + (target - from) * (1 - (1 - progress) ** 3);
-      scrollFrame.current = progress < 1 ? requestAnimationFrame(frame) : null;
+      if (scrollTarget.current !== null) scroll.scrollLeft = smoothGuideScroll(scroll.scrollLeft, scrollTarget.current, Math.min(64, now - previous));
+      previous = now;
+      scrollFrame.current = requestAnimationFrame(frame);
     };
     scrollFrame.current = requestAnimationFrame(frame);
     return stopScroll;
-  }, [guide, running, cursor, chars, page, layout, picking, ghost, props.headerDrag, disabled, calculating]);
+  }, [guide, running, layout, picking, ghost, props.headerDrag, disabled, calculating]);
   function onScroll() {
     const scroll = scrollRef.current;
     if (!scroll || !layout.viewport || autoScroll.current) return;

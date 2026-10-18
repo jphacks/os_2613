@@ -11,3 +11,9 @@ export function guideScrollLeft(scrollLeft, viewportRight, characterRight, width
   const progress = Math.max(0, Math.min(Math.max(0, scrollWidth - width), distance - width * 0.35));
   return progress > 0 ? -progress : 0;
 }
+
+// フレーム間隔が変わっても同じ速さで追従し、目標位置を通り越さない。
+export function smoothGuideScroll(current, target, elapsed) {
+  if (![current, target, elapsed].every(Number.isFinite)) return current;
+  return current + (target - current) * (1 - Math.exp(-Math.max(0, elapsed) / 220));
+}
