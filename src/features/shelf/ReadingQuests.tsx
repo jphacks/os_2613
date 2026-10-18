@@ -1,21 +1,19 @@
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useAccount } from '@/features/account/AccountProvider';
 import type { Quest } from '@/features/account/context';
 import { colors } from '@/shared/theme';
 
-// 読書クエスト：アプリの使い方を6つの小さな目標にしたもの。
+// 読書クエスト：本の追加は読書の手順に含め、端末に合った目標だけを表示する。
 // それぞれに説明・手順・イラストを付け、実際に操作すると自動で完了になる。
 // ウィジェットだけはアプリから置いたか分からないので、「置けた」ボタンで完了にする。
 
 type Item = { id: Quest; title: string; text: string; steps: string[]; go?: { label: string; to: Href }; manual?: boolean };
 
 const items: Item[] = [
-  { id: 'add', title: '本を追加する', text: '青空文庫から、読みたい本を本棚に入れます。',
-    steps: ['本棚の「＋ 本を追加」を押します。', 'タイトルや著者で検索します。', '読みたい作品の「追加」を押すと完了です。'], go: { label: '本を追加する', to: '/add' } },
-  { id: 'read', title: '本を読む', text: '本棚の本を開いて、縦書きで読み始めます。',
-    steps: ['本棚から本を押して開きます。', 'スマホは左右にスワイプ、PCは紙面を押してページをめくります。', '本を開くと完了です。'] },
+  { id: 'read', title: '本を読む', text: '読みたい本を本棚に追加して、縦書きで読み始めます。',
+    steps: ['本棚の「＋ 本を追加」を押します。', 'タイトルや著者で検索し、読みたい作品の「追加」を押します。', '本棚に戻り、本を押して開きます。', 'スマホは左右にスワイプ、PCは紙面を押してページをめくります。', '本を開くと完了です。'], go: { label: '本を探して追加する', to: '/add' } },
   { id: 'bluesky', title: 'Bluesky と連携する', text: 'Bluesky のアカウントでログインすると、感想を共有できます。',
     steps: ['「設定」を開きます。', 'Bluesky のハンドル（例：name.bsky.social）を入力します。', 'ログインできたら完了です。'], go: { label: '設定を開く', to: '/settings' } },
   { id: 'review', title: '本のレビューを書く', text: '読んだ本に星と感想を付けて、みんなと共有します。',
@@ -127,20 +125,24 @@ function Preview({ id }: { id: Quest }) {
 
 export function ReadingQuests() {
   const { prefs, ready, complete } = useAccount();
-  const [folded, setFolded] = useState(false);
+  const { width } = useWindowDimensions();
+  const mobile = Platform.OS === 'ios' ? !Platform.isPad : width < 768;
+  const visibleItems = items.filter(item => mobile || (item.id !== 'focus' && item.id !== 'widget'));
+  const [foldedOverride, setFolded] = useState<boolean | null>(null);
+  const folded = foldedOverride ?? mobile;
   const [selected, setSelected] = useState<Item | null>(null);
-  if (!ready || !prefs.quests || items.every(item => prefs.done.includes(item.id))) return null;
-  const doneCount = items.filter(item => prefs.done.includes(item.id)).length;
+  if (!ready || !prefs.quests || visibleItems.every(item => prefs.done.includes(item.id))) return null;
+  const doneCount = visibleItems.filter(item => prefs.done.includes(item.id)).length;
   return <>
     <View style={s.panel}>
       <Pressable onPress={() => setFolded(!folded)} style={s.head}>
         <View style={s.stack}>{[0, 1, 2].map(i => <View key={i} style={[s.book, { marginLeft: i % 2 ? 3 : 0, width: 23 - i }]} />)}</View>
         <Text style={s.heading}>読書クエスト</Text>
-        <Text style={s.small}>{doneCount}/{items.length}　{folded ? '＋' : '−'}</Text>
+        <Text style={s.small}>{doneCount}/{visibleItems.length}　{folded ? '＋' : '−'}</Text>
       </Pressable>
       {/* 進み具合の棒 */}
-      <View style={s.track}><View style={[s.fill, { width: `${(doneCount / items.length) * 100}%` }]} /></View>
-      {!folded && items.map(item => {
+      <View style={s.track}><View style={[s.fill, { width: `${(doneCount / visibleItems.length) * 100}%` }]} /></View>
+      {!folded && visibleItems.map(item => {
         const done = prefs.done.includes(item.id);
         // 一覧はアイコンを付けず、箇条書きで並べる（イラストは説明の画面に出す）
         return <Pressable key={item.id} accessibilityLabel={`${item.title}の説明`} onPress={() => setSelected(item)} style={s.row}>
@@ -156,6 +158,7 @@ export function ReadingQuests() {
           <View style={s.hero}><Illustration id={selected.id} size={72} /></View>
           <Text style={s.title}>{selected.title}</Text>
           <Text style={s.description}>{selected.text}</Text>
+          {selected.id === 'read' && <><Text style={s.description}>{prefs.done.includes('add') ? '✓ 本の追加' : '1. 本を追加する'}</Text><Preview id="add" /><Text style={s.description}>{prefs.done.includes('read') ? '✓ 本を読む' : '2. 本を開いて読む'}</Text></>}
           <Preview id={selected.id} />
           {selected.steps.map((step, i) => <View style={s.step} key={step}><Text style={s.number}>{i + 1}</Text><Text style={s.description}>{step}</Text></View>)}
           {selected.go && <Pressable onPress={() => { const to = selected.go!.to; setSelected(null); router.push(to); }} style={s.primary}><Text style={s.light}>{selected.go.label}</Text></Pressable>}

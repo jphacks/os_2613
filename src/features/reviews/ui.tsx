@@ -1,3 +1,4 @@
+import { AppIcon } from '@/shared/AppIcon';
 import { ReviewText } from './ReviewText';
 import { ReviewOverlays, type ReviewPerson } from './ReviewOverlays';
 import { Avatar } from '@/shared/Avatar';
@@ -15,7 +16,7 @@ export function Button({ children, onPress, subtle = false, disabled = false }: 
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[s.button, subtle && s.subtleButton, disabled && { opacity: 0.4 }]}><Text style={subtle ? s.link : s.light}>{children}</Text></Pressable>;
 }
 export function RefreshButton({ loading, onPress }: { loading: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel="更新" disabled={loading} onPress={onPress} style={[s.refresh, loading && { opacity: 0.4 }]}><Text style={s.link}>{loading ? '更新中…' : '↻ 更新'}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel="更新" disabled={loading} onPress={onPress} style={[s.refresh, loading && { opacity: 0.4 }]}><AppIcon name="refresh" size={18} /><Text style={s.link}>{loading ? '更新中…' : '更新'}</Text></Pressable>;
 }
 export function ReviewCard({ review, own = false, hideBook = false, expanded = false, beforeNavigate }: { expanded?: boolean; review: Review; own?: boolean; hideBook?: boolean; beforeNavigate?: () => void }) {
   const [reveal, setReveal] = useState(false);
@@ -65,7 +66,7 @@ export const s = StyleSheet.create({
   eyebrow: { color: colors.accent, fontSize: 10, letterSpacing: 1.8, fontWeight: '700' }, title: { color: colors.ink, fontSize: 30, fontWeight: '600', marginTop: 8 },
   heading: { color: colors.ink, fontSize: 20, fontWeight: '600' }, note: { color: colors.muted, fontSize: 13, lineHeight: 22 }, meta: { color: colors.muted, fontSize: 11, lineHeight: 18 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }, between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, grow: { flex: 1, minWidth: 0 },
-  refresh: { backgroundColor: colors.button, borderRadius: 999, paddingHorizontal: 14, minHeight: 40, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  refresh: { flexDirection: 'row', gap: 6, backgroundColor: colors.button, borderRadius: 999, paddingHorizontal: 14, minHeight: 40, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
   button: { backgroundColor: colors.accent, borderRadius: 999, paddingVertical: 13, paddingHorizontal: 20, alignItems: 'center' }, subtleButton: { backgroundColor: colors.button },
   light: { color: colors.surface, fontSize: 14, fontWeight: '600' }, link: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   card: { backgroundColor: colors.surface, borderRadius: 20, padding: 22, gap: 16 }, empty: { paddingVertical: 36, alignItems: 'center', gap: 12 },

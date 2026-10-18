@@ -1,3 +1,6 @@
+import { StudyToolsContext } from '@/features/study/StudyToolPanel';
+import { useContext } from 'react';
+import { AppIcon } from '@/shared/AppIcon';
 import { Image } from 'expo-image';
 import { GuideSpeed } from '@/features/reader/GuideSpeed';
 import { useAccount } from '@/features/account/AccountProvider';
@@ -72,8 +75,12 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   const [subCount, setSubCount] = useState(1);
   const [display, setDisplay] = useState<DisplayPreferences>({ ...defaultPreferences });
   const [displayReady, setDisplayReady] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const studyDisplayControl = useMemo(() => <Pressable accessibilityRole="button" accessibilityLabel="表示設定" disabled={!displayReady} onPress={() => { setMenu(false); setMusicOpen(false); setSettingsOpen(true); }} style={[styles.toolIcon, !displayReady && styles.disabled]}><Text style={styles.buttonText}>Aa</Text></Pressable>, [displayReady]);
+  const studyTools = useContext(StudyToolsContext);
+  const selectStudyTool = studyTools?.select;
+  const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
+  const settingsOpen = study && studyTools ? studyTools.active === 'display' : localSettingsOpen;
+  const setSettingsOpen = (open: boolean) => study && studyTools ? studyTools.select(open ? 'display' : null) : setLocalSettingsOpen(open);
+  const studyDisplayControl = useMemo(() => <Pressable accessibilityRole="button" accessibilityLabel="表示設定" disabled={!displayReady} onPress={() => { setMenu(false); setMusicOpen(false); setSettingsOpen(true); }} style={[styles.toolIcon, !displayReady && styles.disabled]}><Text style={styles.buttonText}>AA</Text></Pressable>, [displayReady, selectStudyTool, study]);
   const [musicOpen, setMusicOpen] = useState(false);
   function toggleGuide() { if (!guide) setGuide(true); setRunning(!guide || !running); }
   const [feature, setFeature] = useState<'comic' | 'characters' | null>(null);
@@ -296,7 +303,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     {menu && !study && <GuideOptionsHost transparent visible animationType="none" pointerEvents="box-none" style={Platform.OS === 'web' ? [StyleSheet.absoluteFill, { zIndex: 45 }] : undefined} onRequestClose={() => setMenu(false)}>
       {Platform.OS !== 'web' && <View style={{ flexDirection: 'row', marginTop: 64, marginLeft: 12 }}>
         <Pressable accessibilityRole="button" accessibilityLabel="読みガイドを閉じる" style={styles.toolIcon} onPress={() => setMenu(false)}><Text style={styles.waveIcon}>≋</Text></Pressable>
-        {!study && prefs.music && <Pressable accessibilityRole="button" accessibilityLabel="BGM設定へ切り替え" style={styles.toolIcon} onPress={() => { setMenu(false); setMusicOpen(true); }}><Text style={styles.buttonText}>♫</Text></Pressable>}
+        {!study && prefs.music && <Pressable accessibilityRole="button" accessibilityLabel="BGM設定へ切り替え" style={styles.toolIcon} onPress={() => { setMenu(false); setMusicOpen(true); }}><AppIcon name="music_note" /></Pressable>}
       </View>}
       <View pointerEvents="box-none" style={[styles.menuBack, Platform.OS !== 'web' && { top: 108 }]}>
         <Pressable style={styles.menu} onPress={() => {}}><ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
@@ -366,7 +373,8 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
           {target && range ? <>
             <Action onPress={() => setSelected(null)}>‹ しおり一覧へ</Action>
             <View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View>
-            <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`} />
+            <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`}
+ />
             <View style={styles.toolbar}><Action disabled={busy} filled onPress={() => { resume(target); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(target.id)}>しおりを移動</Action><Action disabled={busy} onPress={() => { void save(state => removeMark(state, target.id)).then(ok => { if (ok) { setSelected(null); setUndo(null); } }); }}>外す</Action></View>
           </> : <>
             {!sorted.length && <Text style={styles.note}>しおりはまだありません。本文の文字を選んで挟めます。</Text>}

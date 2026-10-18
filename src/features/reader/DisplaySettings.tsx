@@ -1,3 +1,4 @@
+import { StudyToolPanel } from '@/features/study/StudyToolPanel';
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/shared/theme';
@@ -85,7 +86,7 @@ export function DisplaySettings({ value, close, apply, onPreview }: { onPreview?
   }
   const fontLabel = fontOptions.find(([font]) => font === draft.font)?.[1] ?? '明朝';
 
-  return <Modal visible transparent animationType="slide" onRequestClose={back}><View style={styles.overlay}><View style={styles.sheet}>
+  return <StudyToolPanel visible transparent animationType="slide" onRequestClose={back}><View style={styles.overlay}><View style={styles.sheet}>
     <View style={styles.header}>
       <Pressable accessibilityRole="button" accessibilityLabel="戻る" onPress={back} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
       <Text style={styles.title}>表示の設定</Text>
@@ -122,7 +123,7 @@ export function DisplaySettings({ value, close, apply, onPreview }: { onPreview?
       <Pressable accessibilityRole="button" disabled={saving} onPress={() => setDraft({ ...defaultPreferences })} style={[styles.button, styles.reset]}><Text style={styles.resetText}>リセット</Text></Pressable>
       <Pressable accessibilityRole="button" disabled={saving} onPress={save} style={[styles.button, styles.save]}><Text style={styles.saveText}>{saving ? '保存しています…' : '保存'}</Text></Pressable>
     </View>
-  </View></View></Modal>;
+  </View></View></StudyToolPanel>;
 }
 
 const styles = StyleSheet.create({

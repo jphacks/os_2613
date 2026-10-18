@@ -1,3 +1,5 @@
+import { StudyToolPanel } from '@/features/study/StudyToolPanel';
+import { AppIcon } from '@/shared/AppIcon';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -51,9 +53,9 @@ export function StudyMusic({ open: externalOpen, onOpenChange, hideTrigger = fal
   const button = (label: string, action: () => void, disabled = false) => <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={action} style={[styles.button, disabled && styles.disabled]}><Text style={styles.text}>{label}</Text></Pressable>;
   return <View>
     {!hideTrigger && <Pressable accessibilityRole="button" accessibilityLabel={`集中BGMを開く${status.playing ? '（再生中）' : ''}`} accessibilityState={{ expanded: open }} onPress={() => setOpen(true)} style={[readerToolButton, status.playing && styles.active]}>
-      <Text style={readerToolSymbol}>♫</Text>
+      <AppIcon name="music_note" size={28} />
     </Pressable>}
-    <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+    <StudyToolPanel visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
       <View style={styles.overlay}>
         <Pressable accessibilityRole="button" accessibilityLabel="集中BGMを閉じる" onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />
         <View accessibilityViewIsModal style={styles.card}>
@@ -61,7 +63,7 @@ export function StudyMusic({ open: externalOpen, onOpenChange, hideTrigger = fal
             <View style={styles.row}><Text accessibilityRole="header" style={styles.heading}>集中BGM</Text>{button('閉じる', () => setOpen(false))}</View>
             <Text style={styles.note}>勉強のおともに、好きな音を。</Text>
             {studyTracks.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: item.id === selected }} onPress={() => void play(item.id)} style={[styles.track, item.id === selected && styles.activeTrack]}>
-              <Text style={styles.symbol}>♪</Text><View style={styles.trackBody}><Text style={styles.title}>{item.title}</Text><Text style={styles.note}>{item.description}{item.source === null ? ' · 準備中' : ''}</Text></View>
+              <AppIcon name="music_note" /><View style={styles.trackBody}><Text style={styles.title}>{item.title}</Text><Text style={styles.note}>{item.description}{item.source === null ? ' · 準備中' : ''}</Text></View>
             </Pressable>)}
             <View style={styles.row}><Text accessibilityLiveRegion="polite" style={styles.text}>{track ? `${track.title} · ${status.playing ? '再生中' : '停止中'}` : '曲を選んで再生'}</Text>{button(status.playing ? '一時停止' : '再生', () => { if (status.playing) { request.current++; player.pause(); } else if (selected) void play(selected); }, !track || track.source === null)}</View>
             <View style={styles.row}><Text style={styles.text}>音量</Text><Text style={styles.note}>{Math.round(volume * 100)}%</Text></View>
@@ -72,12 +74,12 @@ export function StudyMusic({ open: externalOpen, onOpenChange, hideTrigger = fal
           </ScrollView>
         </View>
       </View>
-    </Modal>
+    </StudyToolPanel>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: `${colors.ink}55` },
+  overlay: { flex: 1, alignItems: 'flex-end', justifyContent: 'flex-start', paddingTop: 54, paddingHorizontal: 12, paddingBottom: 12 },
   card: { width: '100%', maxWidth: 360, maxHeight: '90%', backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.line },
   content: { padding: 20, gap: 12 }, row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   heading: { fontSize: 18, fontWeight: '700', color: colors.ink }, text: { fontSize: 13, color: colors.ink }, note: { fontSize: 12, lineHeight: 18, color: colors.muted },

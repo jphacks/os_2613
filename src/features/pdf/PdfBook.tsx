@@ -58,7 +58,8 @@ export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false
   const frame = useRef<number | null>(null);
   const step = spread ? 2 : 1;
   const total = doc?.numPages ?? 0;
-  const scale = Math.min(Math.max(1, size.width - 32 - (step - 1) * 12) / step / paper.width, Math.max(1, size.height - 32) / paper.height) * zoom;
+  const fitWidth = Math.max(1, size.width - 12 - (spread ? 2 : 0)) / step / paper.width;
+  const scale = spread ? Math.min(fitWidth, Math.max(1, size.height - 12) / paper.height) * Math.min(1, zoom) : fitWidth * zoom;
   const pageWidth = paper.width * scale, pageHeight = paper.height * scale;
 
   useEffect(() => {
@@ -90,7 +91,7 @@ export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false
     const target = Math.max(1, Math.min(total || 1, number));
     const start = target - ((target - 1) % step);
     const row = stageRef.current?.querySelector<HTMLElement>(`[data-page="${start}"]`);
-    if (row && stageRef.current) stageRef.current.scrollTop = row.offsetTop - 16;
+    if (!spread && row && stageRef.current) stageRef.current.scrollTop = row.offsetTop - 6;
     position.current = start; setPage(start);
   }
   useEffect(() => { position.current = initialPage; jump(initialPage); }, [initialPage, doc]);
@@ -98,6 +99,7 @@ export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false
   useEffect(() => { if (doc) jump(position.current); }, [zoom, spread, size, doc]);
 
   function onScroll() {
+    if (spread) return;
     if (frame.current !== null) return;
     frame.current = requestAnimationFrame(() => {
       frame.current = null;
@@ -113,11 +115,14 @@ export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false
     });
   }
   return <div style={styles.root}>
-    <div ref={stageRef} style={styles.stage} onScroll={onScroll} aria-label="原文PDF・縦スクロール">
-      {error ? <p role="alert" style={styles.message}>{error}</p> : !doc ? <p role="status" style={styles.message}>教材を読み込んでいます…</p> : size.width > 0 && <div style={styles.paperList}>
+    <div ref={stageRef} style={{ ...styles.stage, overflow: spread ? 'hidden' : 'auto', touchAction: spread ? 'none' : 'pan-y' }} onScroll={onScroll}
+      tabIndex={0} onKeyDown={event => { if (!spread) return; if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') { event.preventDefault(); jump(page + (event.key === 'ArrowRight' ? 2 : -2)); } }}
+      onClick={event => { if (!spread || !doc) return; const bounds = event.currentTarget.getBoundingClientRect(); jump(page + (event.clientX - bounds.left < bounds.width / 2 ? -2 : 2)); }} aria-label={spread ? '原文PDF・左を押すと前、右を押すと次の見開き' : '原文PDF・縦スワイプ'}>
+      {error ? <p role="alert" style={styles.message}>{error}</p> : !doc ? <p role="status" style={styles.message}>教材を読み込んでいます…</p> : size.width > 0 && <div style={{ ...styles.paperList, ...(spread ? { height: '100%', justifyContent: 'center', padding: 6, gap: 0 } : { padding: 6 }) }}>
         {Array.from({ length: Math.ceil(total / step) }, (_, index) => {
           const start = index * step + 1;
-          return <div key={start} data-page={start} style={styles.paperRow}>
+          if (spread && start !== page) return null;
+          return <div key={start} data-page={start} style={{ ...styles.paperRow, gap: spread ? 2 : 0 }}>
             {Array.from({ length: Math.min(step, total - start + 1) }, (_, offset) => <PdfPage key={`${uri}:${start + offset}`} doc={doc} number={start + offset} width={pageWidth} height={pageHeight} root={stageRef.current} />)}
           </div>;
         })}
@@ -142,7 +147,7 @@ const styles: Record<string, React.CSSProperties> = {
   pageMessage: { position: 'absolute', padding: 16, fontSize: 13, color: '#73776E' },
   message: { color: '#73776E', fontSize: 13, padding: 16 },
   bar: { flex: 'none', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, padding: 10, borderTop: '1px solid #DEDFD4' },
-  button: { font: 'inherit', fontSize: 13, padding: '8px 12px', borderRadius: 10, border: '1px solid #DEDFD4', background: '#FFFDF8', color: '#386149', cursor: 'pointer' },
+  button: { font: 'inherit', fontSize: 13, padding: '8px 12px', borderRadius: 10, border: 'none', background: '#FFFDF8', color: '#386149', cursor: 'pointer' },
   count: { fontSize: 12, color: '#73776E', minWidth: 80, textAlign: 'center' },
   seek: { flex: 1, minWidth: 40, maxWidth: 520, accentColor: '#386149' },
 };

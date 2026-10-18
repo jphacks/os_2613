@@ -1,8 +1,9 @@
+import { AppIcon } from './AppIcon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from './theme';
 export function NavigationButton({ onPress, label = '戻る', close = false, disabled = false }: { onPress: () => void; label?: string; close?: boolean; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({ pressed }) => [s.button, pressed && { backgroundColor: colors.line }, disabled && { opacity: 0.4 }]}>
-    {close ? <Text style={s.cross}>×</Text> : <View style={s.chevron} />}
+    <AppIcon name={close ? 'close' : 'arrow_back'} size={22} />
     <Text numberOfLines={1} style={s.label}>{label}</Text>
   </Pressable>;
 }

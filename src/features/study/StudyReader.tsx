@@ -1,11 +1,14 @@
+import { AppIcon } from '@/shared/AppIcon';
+import { StudyToolsContext, StudyToolPanel, type StudyTool } from './StudyToolPanel';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Book } from '@/content/books';
 import type { StudyState } from '@/server/study.mjs';
 import { BookReading } from '@/features/bookmark/BookReading';
 import PdfBook from '@/features/pdf/PdfBook';
 import { PdfDisplayControls } from '@/features/pdf/PdfDisplayControls';
+import { NavigationButton } from '@/shared/NavigationButton';
 import { colors } from '@/shared/theme';
 import { studySectionNumber } from './format.mjs';
 import { StudyMusic } from '@/features/music/StudyMusic';
@@ -17,17 +20,19 @@ const levels: { id: Level; label: string; description: string }[] = [
   { id: 'original', label: '原文', description: '元の教材をそのまま読み、証明や図表を含めて確認します。' },
 ];
 export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | null }) {
-  const [level, setLevel] = useState<Level>('beginner');
+  const [level, setLevel] = useState<Level>('original');
   const [pdfZoom, setPdfZoom] = useState(1);
-  const [pdfSpread, setPdfSpread] = useState(false);
+  const [pdfSpread, setPdfSpread] = useState(true);
   const [state, setState] = useState<StudyState | null>(null);
   const [displayControl, setDisplayControl] = useState<ReactNode>(null);
   const [index, setIndex] = useState(0);
   const [chapterIndex, setChapterIndex] = useState(0);
   const [scrollRequest, setScrollRequest] = useState<{ offset: number; token: number } | null>(null);
   const [expandedChapterIndex, setExpandedChapterIndex] = useState<number | null>(0);
-  const { width } = useWindowDimensions();
-  const [sidebarOpen, setSidebarOpen] = useState(() => width >= 900);
+  const [activeTool, setActiveTool] = useState<StudyTool>(null);
+  const changeMusicOpen = useCallback((open: boolean) => setActiveTool(open ? 'music' : null), []);
+  const sidebarOpen = activeTool === 'chapters';
+  const setSidebarOpen = (open: boolean) => setActiveTool(open ? 'chapters' : null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -39,7 +44,6 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
     void AsyncStorage.getItem(preference).then(raw => {
       if (!active || !raw) return;
       const saved = JSON.parse(raw);
-      if (levels.some(item => item.id === saved.level)) setLevel(saved.level);
       if (Number.isInteger(saved.index) && saved.index >= 0) setIndex(saved.index);
       if (Number.isInteger(saved.chapterIndex) && saved.chapterIndex >= 0) { setChapterIndex(saved.chapterIndex); setExpandedChapterIndex(saved.chapterIndex); }
     }).catch(() => {}).finally(() => { if (active) setReady(true); });
@@ -106,12 +110,11 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
     const section = [...chapterSections].reverse().find(item => item.startOffset <= offset);
     if (section && section.unit.index !== index) setIndex(section.unit.index);
   }
-  const studyInfo = chapter ? `${chapter.title}　${loading ? '…' : `${chapter.units.filter(i => state?.units[i].lesson).length}/${chapter.units.length}区分${busy ? '・生成中' : ''}`}　${current ? `${current.firstPage}〜${current.lastPage}p` : ''}` : '';
   const action = (label: string, onPress: () => void, disabled = false, chosen = false) => <Pressable accessibilityRole="button" accessibilityState={{ selected: chosen, disabled }} disabled={disabled} onPress={onPress} style={[styles.button, chosen && styles.chosen, disabled && { opacity: 0.4 }]}><Text style={[styles.text, chosen && { color: colors.surface }]}>{label}</Text></Pressable>;
   const studyToolbar = <View style={styles.topRow}>
-    <View accessibilityRole="tablist" style={styles.levelBar}>{levels.map(item => <Pressable key={item.id} accessibilityRole="tab"
+    <View accessibilityRole="tablist" style={[styles.levelBar, level === 'original' && !pdfSpread && { flexDirection: 'column' }]}>{levels.map(item => <Pressable key={item.id} accessibilityRole="tab"
       accessibilityState={{ selected: item.id === level, disabled: !ready || busy }} disabled={!ready || busy}
-      onPress={() => setLevel(item.id)}
+      onPress={() => { setLevel(item.id); setSidebarOpen(true); }}
       style={[styles.levelTab, item.id === level && styles.levelTabActive]}>
       <Text style={[styles.levelText, item.id === level && styles.levelTextActive]}>{item.label}</Text>
     </Pressable>)}</View>
@@ -123,20 +126,23 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   const supplementAction = level !== 'original' && chapter && !chapter.baseComplete && chapter.units.some(i => !!state?.units[i].lesson) && !chapter.enhanced
     ? action('図解を追加（有料）', () => void generate('enhance'), loading || busy)
     : null;
-  return <View style={styles.container}>
-    <View style={styles.controls}>
+  const panelToolbar = <View style={{ gap: 8, alignItems: 'center' }}>
+    <View style={{ gap: 4 }}>{levels.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.label}の章を選択`} disabled={!ready || busy} onPress={() => { setLevel(item.id); setActiveTool('chapters'); }} style={[styles.levelTab, { borderRadius: 9, backgroundColor: colors.button }, level === item.id && styles.levelTabActive]}><Text style={[styles.levelText, level === item.id && styles.levelTextActive]}>{item.label}</Text></Pressable>)}</View>
+    <Pressable accessibilityRole="button" accessibilityLabel="表示設定" onPress={() => setActiveTool('display')} style={styles.featureButton}><Text style={styles.aa}>AA</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="曲を選択" onPress={() => setActiveTool('music')} style={styles.featureButton}><AppIcon name="music_note" size={28} /></Pressable>
+  </View>;
+  return <StudyToolsContext.Provider value={{ active: activeTool, select: setActiveTool, toolbar: panelToolbar }}><View style={styles.container}>
+    {((!state && !loading) || !!(error || current?.error)) && <View style={styles.controls}>
       {!state && !loading && action('保存状態を再確認', () => void load())}
       {!!(error || current?.error) && <Text accessibilityLiveRegion="polite" style={styles.error}>{error || current?.error}</Text>}
-    </View>
+    </View>}
     <View style={styles.readerRow}>
-      <View style={[styles.sidebar, { width: sidebarOpen ? (width >= 1200 ? 240 : 210) : 42 }]}>
-        <View style={styles.sidebarHeader}>
-          {sidebarOpen && <Text accessibilityRole="header" style={styles.sidebarTitle}>章・区分</Text>}
-          <Pressable accessibilityRole="button" accessibilityLabel={sidebarOpen ? '目次を閉じる' : '目次を開く'} accessibilityState={{ expanded: sidebarOpen }}
-            onPress={() => setSidebarOpen(open => !open)} style={styles.sidebarToggle}>
-            <Text style={styles.sidebarToggleText}>{sidebarOpen ? '‹' : '›'}</Text>
-          </Pressable>
-        </View>
+      <StudyToolPanel visible={sidebarOpen} transparent animationType="fade" onRequestClose={() => setSidebarOpen(false)}>
+        <View style={styles.panelHost}>
+          <Pressable accessibilityRole="button" accessibilityLabel="章の選択を閉じる" onPress={() => setSidebarOpen(false)} style={StyleSheet.absoluteFill} />
+          <View accessibilityViewIsModal style={styles.sidebar}>
+            <View style={styles.sidebarHeader}><Text accessibilityRole="header" style={styles.sidebarTitle}>{selected.label} · 章を選択</Text><NavigationButton close label="閉じる" onPress={() => setSidebarOpen(false)} /></View>
+            <View style={styles.panelActions}>{lessonCreateAction}{supplementAction}</View>
         {sidebarOpen && <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.chapterList}>
           {state?.chapters.map(item => {
             const selectedChapter = item.index === chapterIndex;
@@ -158,7 +164,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
                   return <Pressable key={unitIndex} accessibilityRole="button" accessibilityState={{ selected: selectedUnit, disabled: busy }} disabled={busy}
                     accessibilityLabel={`区分 ${part + 1}: ${unit?.title ?? `区分 ${part + 1}`}、${unit?.lesson ? '生成済み' : '未生成'}`}
                     onPress={() => {
-                      setIndex(unitIndex); setError('');
+                      setIndex(unitIndex); setError(''); setSidebarOpen(false);
                       const section = chapterSections.find(item => item.unit.index === unitIndex);
                       if (section) setScrollRequest({ offset: section.startOffset + 5, token: Date.now() });
                     }} style={[styles.unit, unit?.lesson && styles.generatedUnit, selectedUnit && styles.activeUnit]}>
@@ -169,15 +175,14 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
             </View>;
           })}
         </ScrollView>}
-      </View>
-      <View style={styles.reading}>
-    <View style={styles.modeToolsRow}>
+          </View>
+        </View>
+      </StudyToolPanel>
+      <View style={[styles.reading, level === 'original' && !pdfSpread && styles.singleReading]}>
+    <View style={[styles.modeToolsRow, level === 'original' && !pdfSpread && styles.verticalTools]}>
       {studyToolbar}
-      {lessonCreateAction}
-      {supplementAction}
       {level === 'original' ? <PdfDisplayControls zoom={pdfZoom} spread={pdfSpread} onZoom={setPdfZoom} onSpread={setPdfSpread} /> : displayControl}
-      <StudyMusic />
-      <Text numberOfLines={1} style={styles.originalInfo}>{studyInfo}</Text>
+      <StudyMusic open={activeTool === 'music'} onOpenChange={changeMusicOpen} />
     </View>
     {level === 'original' ? <>
       {pdfUri ? <PdfBook uri={pdfUri} initialPage={chapter?.firstPage ?? 1} zoom={pdfZoom} spread={pdfSpread} dom={{ style: { flex: 1 } }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
@@ -187,24 +192,28 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
         book={{ id: `study:${book.id}:${state.hash}:${level}:${chapterIndex}`, aozoraId: 0, title: `${book.title}・${selected.label}`, subtitle: chapter.title, author: book.author,
           cardUrl: book.source ?? '', htmlUrl: book.source ?? '', characters: '', importedAt: state.hash,
           text: `${chapterContent}\n\nAIによる学習補助教材です。図・式・厳密な条件は原文でも確認してください。` }} />
-        : <View style={styles.empty}><Text style={styles.text}>{chapter?.title ?? '学びたい章を選んでください。'}</Text><Text style={styles.note}>教材作成ボタンを押すと、選択中の章の初級・中級教材、図・グラフ・挿絵をまとめて作成・保存します。他の章は作成せず、保存済みの教材を開くだけではAPIを使いません。</Text></View>}
+        : <View style={styles.empty}><Text style={styles.text}>{chapter?.title ?? '学びたい章を選んでください。'}</Text><Text style={styles.note}>上の難易度ボタンから章を選び、教材作成ボタンを押すと、選択中の章の初級・中級教材、図・グラフ・挿絵をまとめて作成・保存します。他の章は作成せず、保存済みの教材を開くだけではAPIを使いません。</Text></View>}
       </View>
     </View>
-  </View>;
+  </View></StudyToolsContext.Provider>;
 }
 const styles = StyleSheet.create({
+  featureButton: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.button, alignItems: 'center', justifyContent: 'center' }, aa: { color: colors.accent, fontSize: 20, fontWeight: '700' },
   container: { flex: 1 }, controls: { padding: 8, gap: 5, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.line },
   topRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  levelBar: { flexDirection: 'row', alignItems: 'stretch', borderWidth: 1, borderColor: colors.line, borderRadius: 9, overflow: 'hidden', backgroundColor: colors.surface },
-  levelTab: { minWidth: 48, paddingHorizontal: 10, paddingVertical: 7, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderColor: colors.line },
+  levelBar: { flexDirection: 'row', alignItems: 'stretch', borderRadius: 9, overflow: 'hidden', backgroundColor: colors.button },
+  levelTab: { minWidth: 48, paddingHorizontal: 10, paddingVertical: 7, alignItems: 'center', justifyContent: 'center',  },
   levelTabActive: { backgroundColor: colors.accent }, levelText: { color: colors.ink, fontSize: 13, fontWeight: '600' }, levelTextActive: { color: colors.surface },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'nowrap' },
-  button: { paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: colors.line, borderRadius: 8 }, chosen: { backgroundColor: colors.accent },
+  button: { paddingHorizontal: 10, paddingVertical: 9, backgroundColor: colors.button, borderRadius: 8 }, chosen: { backgroundColor: colors.accent },
   text: { color: colors.ink, fontSize: 14 }, note: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   error: { color: '#a32323', fontSize: 13 }, empty: { flex: 1, padding: 24, gap: 16, justifyContent: 'center' },
   readerRow: { flex: 1, flexDirection: 'row', minHeight: 0 }, reading: { flex: 1, minWidth: 0 },
+  singleReading: { flexDirection: 'row' }, verticalTools: { width: 60, paddingLeft: 0, paddingVertical: 8, flexDirection: 'column', flexWrap: 'nowrap' },
   modeToolsRow: { minHeight: 46, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', paddingLeft: 12, gap: 8 }, aaSpacer: { width: 38, height: 38, flexShrink: 0 }, originalInfo: { flex: 1, minWidth: 0, color: colors.muted, fontSize: 12 },
-  sidebar: { borderRightWidth: 1, borderColor: colors.line, backgroundColor: colors.paper, padding: 6 },
+  panelHost: { flex: 1, alignItems: 'flex-end', paddingTop: 54, paddingRight: 12, paddingBottom: 12 },
+  panelActions: { gap: 8, paddingBottom: 10 },
+  sidebar: { width: 340, maxWidth: '94%', flex: 1, maxHeight: 640, borderWidth: 1, borderColor: colors.line, borderRadius: 16, backgroundColor: colors.surface, padding: 12 },
   sidebarHeader: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 },
   sidebarTitle: { color: colors.muted, fontSize: 12, paddingHorizontal: 5 },
   sidebarToggle: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 7, backgroundColor: colors.surface },
