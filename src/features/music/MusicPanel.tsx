@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
-import { ActivityIndicator, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { colors } from '@/shared/theme';
 import { readerToolButton, readerToolSymbol } from '@/features/reader/toolStyles';
 import type { SavedBook } from '@/features/library/types';
@@ -120,21 +120,22 @@ export function MusicPanel({ book, position, guideActive, visible = true, detail
     mixer.arm(); cueMixer.arm(); setEnabled(true); setNotice('');
   }
   if (!visible) return null;
-  const OptionsHost = Platform.OS === 'web' ? View : Modal;
   const icon = (symbol: string, label: string, action: () => void, disabled = false, active = false) => <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={action} style={[styles.button, active && styles.active, disabled && { opacity: 0.35 }]}><Text style={[styles.symbol, active && styles.light]}>{symbol}</Text></Pressable>;
   return <View style={styles.panel}>
     <StudyMusic hideTrigger open={studyMusicOpen} onOpenChange={setStudyMusicOpen} interrupted={enabled} onPlay={stop} />
     {icon('♫', 'BGMの設定を開く', () => setDetails(!details), false, enabled)}
-    {details && <OptionsHost transparent visible animationType="none" pointerEvents="box-none" style={Platform.OS === 'web' ? StyleSheet.absoluteFill : undefined} onRequestClose={() => setDetails(false)}>
-      {Platform.OS !== 'web' && <View style={{ flexDirection: 'row', marginTop: insets.top + 64, marginLeft: 12 }}>{icon('♫', 'BGM設定を閉じる', () => setDetails(false))}{onGuidePress && icon('≋', '読みガイドへ切り替え', onGuidePress)}</View>}
-      <View style={[styles.backdrop, { width: Math.min(300, width - 24) }, Platform.OS !== 'web' && { top: insets.top + 108, left: 12 }]}><View style={[styles.card, Platform.OS !== 'web' && { maxHeight: Math.max(80, Math.min(340, height - insets.top - 108 - Math.max(insets.bottom, 12))) }]}><ScrollView contentContainerStyle={styles.details}>
+    {details && <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <View style={[styles.backdrop, { width: Math.min(420, width - 24) }]}><View style={[styles.card, Platform.OS !== 'web' && { maxHeight: Math.max(80, Math.min(420, height - insets.top - 164 - Math.max(insets.bottom, 12))) }]}><ScrollView contentContainerStyle={styles.details}>
         <View style={styles.row}><Pressable accessibilityRole="button" accessibilityLabel="BGM設定を閉じる" onPress={() => setDetails(false)} style={styles.button}><Text style={styles.symbol}>‹</Text></Pressable><Text style={styles.heading}>BGM</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="集中BGMを選ぶ" onPress={() => { setDetails(false); setStudyMusicOpen(true); }} style={styles.control}><Text style={styles.text}>♪ 集中BGMを選ぶ</Text><Text style={styles.text}>集中BGM 1・集中BGM 2</Text></Pressable>
     <View style={styles.row}>
       <Pressable accessibilityRole="button" onPress={enabled ? stop : start} style={[styles.control, enabled && styles.active]}><Text style={[styles.text, enabled && styles.light]}>{enabled ? 'BGM ON' : 'BGM OFF'}</Text></Pressable>
       {busy ? <View style={styles.button} accessibilityLabel="BGM取得中"><ActivityIndicator size="small" color={colors.accent} /></View> : <Pressable accessibilityRole="button" onPress={() => void load()} style={styles.control}><Text style={styles.text}>BGM取得</Text></Pressable>}
-      <View style={styles.volume}><VolumeBar value={volume} onChange={setVolume} /></View>
       {icon(error ? '!' : 'ⓘ', 'BGMの情報・音源クレジット', () => setInfoOpen(!infoOpen))}
+    </View>
+    <View style={styles.volume}>
+      <View style={styles.volumeLabel}><Text style={styles.text}>音量</Text><Text style={styles.text}>{Math.round(volume * 100)}%</Text></View>
+      <VolumeBar value={volume} onChange={setVolume} />
     </View>
     {!!error && <Pressable onPress={() => setDetails(true)}><Text accessibilityRole="alert" style={styles.text} numberOfLines={1}>{error}</Text></Pressable>}
 
@@ -144,20 +145,21 @@ export function MusicPanel({ book, position, guideActive, visible = true, detail
         {[...(current ? [current] : []), ...activeCues].map((track, index) => <View key={`${track.id}:${index}`} style={styles.credit}><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.url)} style={styles.text}>{track.creator} / {track.name}</Text><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.license)} style={styles.text}>{track.license.includes('/zero/') ? 'CC0' : 'CC BY'}</Text></View>)}
         {!current && <Text style={styles.text}>同梱の予備BGM</Text>}
         </View>}
-      </ScrollView></View></View></OptionsHost>}
+      </ScrollView></View></View></View>}
   </View>;
 }
 const styles = StyleSheet.create({
   panel: { padding: 0, zIndex: 50 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, alignItems: 'center', alignSelf: 'flex-end', width: '100%', maxWidth: 360 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', width: '100%' },
   control: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.button },
   button: readerToolButton,
   active: { backgroundColor: colors.accent }, light: { color: colors.surface },
   symbol: readerToolSymbol,
-  volume: { flex: 1 },
+  volume: { width: '100%', gap: 4 },
+  volumeLabel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   text: { color: colors.ink, fontSize: 12, lineHeight: 20 },
   heading: { color: colors.ink, fontSize: 18, fontWeight: '600' },
-  backdrop: { position: 'absolute', top: 44, left: -68, backgroundColor: 'transparent' },
-  card: { width: '100%', maxWidth: 300, maxHeight: 340, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.line },
-  details: { padding: 22, gap: 16 }, credit: { gap: 4 }, close: { alignSelf: 'flex-end', padding: 8 },
+  backdrop: { position: 'absolute', top: 52, left: -68, backgroundColor: 'transparent' },
+  card: { width: '100%', maxHeight: 420, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.line },
+  details: { padding: 16, gap: 16 }, credit: { gap: 4 }, close: { alignSelf: 'flex-end', padding: 8 },
 });

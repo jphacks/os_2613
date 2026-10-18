@@ -75,6 +75,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const studyDisplayControl = useMemo(() => <Pressable accessibilityRole="button" accessibilityLabel="表示設定" disabled={!displayReady} onPress={() => { setMenu(false); setMusicOpen(false); setSettingsOpen(true); }} style={[styles.toolIcon, !displayReady && styles.disabled]}><Text style={styles.buttonText}>Aa</Text></Pressable>, [displayReady]);
   const [musicOpen, setMusicOpen] = useState(false);
+  const [toolsHeight, setToolsHeight] = useState(48);
   function toggleGuide() { if (!guide) setGuide(true); setRunning(!guide || !running); }
   const [feature, setFeature] = useState<'comic' | 'characters' | null>(null);
   const [menu, setMenu] = useState(false);
@@ -254,7 +255,6 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     if (mark && !moving) { setRunning(false); setSelected(mark.id); setScope('previous'); setPanel(true); }
   }
   const paint = paperColors(display);
-  const GuideOptionsHost = Platform.OS === 'web' ? View : Modal;
   return <View ref={screenRef} collapsable={false} style={[styles.screen, { backgroundColor: paint.background }]}>
     {/* ヘッダー：中央にタイトルと作者、右にメニュー */}
     <Stack.Screen options={{
@@ -272,7 +272,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
         </BookmarkHandle>}
       </View>,
     }} />
-    {!study && <View style={styles.topTools}>
+    {!study && <View style={styles.topTools} onLayout={event => setToolsHeight(event.nativeEvent.layout.height)}>
       <View style={styles.studyToolRow}>
         <View style={styles.directTools}>
           {studyDisplayControl}
@@ -286,12 +286,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
       {study && moving && <View style={styles.placement}><Action disabled={busy || draft === null} filled onPress={() => void confirm()}>この位置に挟む</Action><Action disabled={busy} onPress={() => { setMoving(null); setDraft(null); }}>キャンセル</Action></View>}
     {/* 読みガイドがONのときだけ、開始・一時停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
     {/* 漫画・表示設定・読みガイドはメニューから開く。しおりは上部から直接操作する。 */}
-    {menu && !study && <GuideOptionsHost transparent visible animationType="none" pointerEvents="box-none" style={Platform.OS === 'web' ? [StyleSheet.absoluteFill, { zIndex: 45 }] : undefined} onRequestClose={() => setMenu(false)}>
-      {Platform.OS !== 'web' && <View style={{ flexDirection: 'row', marginTop: insets.top + 64, marginLeft: 12 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="読みガイドを閉じる" style={styles.toolIcon} onPress={() => setMenu(false)}><Text style={styles.waveIcon}>≋</Text></Pressable>
-        {!study && prefs.music && <Pressable accessibilityRole="button" accessibilityLabel="BGM設定へ切り替え" style={styles.toolIcon} onPress={() => { setMenu(false); setMusicOpen(true); }}><Text style={styles.buttonText}>♫</Text></Pressable>}
-      </View>}
-      <View pointerEvents="box-none" style={[styles.menuBack, Platform.OS !== 'web' && { top: insets.top + 108, bottom: Math.max(insets.bottom, 12) }]}>
+    {menu && !study && <View pointerEvents="box-none" style={[styles.menuBack, { top: toolsHeight + 8, bottom: Math.max(insets.bottom, 12) }]}>
         <Pressable style={styles.menu} onPress={() => {}}><ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
           <View style={styles.toolbar}><Text style={styles.heading}>読みガイド</Text><View style={{ flex: 1 }} /><Action onPress={() => setMenu(false)}>閉じる</Action></View>
           <Action filled={guide} onPress={() => { setGuide(!guide); setRunning(!guide); }}>{guide ? 'ガイド ON' : 'ガイド OFF'}</Action>
@@ -299,7 +294,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
           <Text style={styles.note}>浮き上がり</Text><Slider value={guideLift} min={0} max={2} step={0.1} format={value => `${Math.round(value * 100)}%`} onChange={changeLift} />
           </ScrollView>
         </Pressable>
-      </View></GuideOptionsHost>}
+      </View>}
     {/* 紙面は画面いっぱい。左側を押すと次、右側を押すと前のページ */}
     <View ref={paperRef} collapsable={false} style={[styles.paper, { backgroundColor: paint.background }]}>
       <ReadingPage
@@ -393,7 +388,7 @@ const styles = StyleSheet.create({
   toolbarTight: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   directTools: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 2 }, toolIcon: readerToolButton,
   topTools: { paddingLeft: 12, zIndex: 40 }, studyToolRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', minHeight: 46 }, studyInfo: { flex: 1, minWidth: 0, marginLeft: 8, color: colors.muted, fontSize: 12 }, toolsButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
-  menuBack: { position: 'absolute', top: 48, bottom: 12, left: 12, right: 12, zIndex: 45, backgroundColor: 'transparent', alignItems: 'flex-start' },
+  menuBack: { position: 'absolute', top: 56, bottom: 12, left: 12, right: 12, zIndex: 45, backgroundColor: 'transparent', alignItems: 'flex-start' },
   menu: { width: 280, maxWidth: '85%', maxHeight: '65%', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.line, boxShadow: '0 2px 8px rgba(41,46,41,0.07)' },
   menuHead: { color: colors.accent, fontSize: 12, fontWeight: '700', letterSpacing: 1.5, marginTop: 4 },
   source: { alignSelf: 'center', paddingTop: 2 },
