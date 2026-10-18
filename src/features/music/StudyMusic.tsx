@@ -7,21 +7,26 @@ import { readerToolButton, readerToolSymbol } from '@/features/reader/toolStyles
 import { VolumeBar } from './VolumeBar';
 import { studyTracks } from './study-tracks';
 
-export function StudyMusic() {
+export function StudyMusic({ open: externalOpen, onOpenChange, hideTrigger = false, interrupted = false, onPlay }: { open?: boolean; onOpenChange?: (open: boolean) => void; hideTrigger?: boolean; interrupted?: boolean; onPlay?: () => void } = {}) {
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = externalOpen ?? localOpen;
+  const setOpen = useCallback((value: boolean) => { setLocalOpen(value); onOpenChange?.(value); }, [onOpenChange]);
   const [selected, setSelected] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.3);
+  const [loop, setLoop] = useState(true);
   const [error, setError] = useState('');
   const request = useRef(0);
-  const stop = useCallback(() => { request.current++; player.pause(); setOpen(false); }, [player]);
+  const loadedTrack = useRef<string | null>(null);
+  const stop = useCallback(() => { request.current++; player.pause(); setOpen(false); }, [player, setOpen]);
   useFocusEffect(useCallback(() => stop, [stop]));
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => { if (state !== 'active') stop(); });
     return () => subscription.remove();
   }, [stop]);
-  useEffect(() => { player.volume = volume; player.loop = true; }, [player, volume]);
+  useEffect(() => { player.volume = volume; player.loop = loop; }, [player, volume, loop]);
+  useEffect(() => { if (interrupted) { request.current++; player.pause(); } }, [interrupted, player]);
 
   async function play(id: string) {
     const track = studyTracks.find(item => item.id === id);
@@ -35,8 +40,9 @@ export function StudyMusic() {
     try {
       await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false });
       if (token !== request.current) return;
-      if (id !== selected || status.error) player.replace(track.source);
-      player.loop = true; player.volume = volume; player.play();
+      if (id !== loadedTrack.current || status.error) { player.replace(track.source); loadedTrack.current = id; }
+      onPlay?.();
+      player.loop = loop; player.volume = volume; player.play();
     } catch {
       if (token === request.current) setError('再生できません。音源と端末の音声設定を確認して、再生し直してください。');
     }
@@ -44,9 +50,9 @@ export function StudyMusic() {
   const track = studyTracks.find(item => item.id === selected);
   const button = (label: string, action: () => void, disabled = false) => <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={action} style={[styles.button, disabled && styles.disabled]}><Text style={styles.text}>{label}</Text></Pressable>;
   return <View>
-    <Pressable accessibilityRole="button" accessibilityLabel={`集中BGMを開く${status.playing ? '（再生中）' : ''}`} accessibilityState={{ expanded: open }} onPress={() => setOpen(true)} style={[readerToolButton, status.playing && styles.active]}>
+    {!hideTrigger && <Pressable accessibilityRole="button" accessibilityLabel={`集中BGMを開く${status.playing ? '（再生中）' : ''}`} accessibilityState={{ expanded: open }} onPress={() => setOpen(true)} style={[readerToolButton, status.playing && styles.active]}>
       <Text style={readerToolSymbol}>♫</Text>
-    </Pressable>
+    </Pressable>}
     <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
       <View style={styles.overlay}>
         <Pressable accessibilityRole="button" accessibilityLabel="集中BGMを閉じる" onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />
@@ -60,7 +66,8 @@ export function StudyMusic() {
             <View style={styles.row}><Text accessibilityLiveRegion="polite" style={styles.text}>{track ? `${track.title} · ${status.playing ? '再生中' : '停止中'}` : '曲を選んで再生'}</Text>{button(status.playing ? '一時停止' : '再生', () => { if (status.playing) { request.current++; player.pause(); } else if (selected) void play(selected); }, !track || track.source === null)}</View>
             <View style={styles.row}><Text style={styles.text}>音量</Text><Text style={styles.note}>{Math.round(volume * 100)}%</Text></View>
             <VolumeBar value={volume} onChange={setVolume} />
-            <Text style={styles.note}>ループ再生 · 教材を離れると停止します</Text>
+            <Pressable accessibilityRole="switch" accessibilityLabel="BGMの繰り返し再生" accessibilityState={{ checked: loop }} onPress={() => setLoop(value => !value)} style={styles.button}><Text style={styles.text}>繰り返し：{loop ? 'オン' : 'オフ'}</Text></Pressable>
+            <Text style={styles.note}>教材を離れると停止します</Text>
             {!!(error || status.error) && <Text accessibilityRole="alert" style={styles.note}>{error || '音源を読み込めません。別の曲を選ぶか、音源を確認して再生し直してください。'}</Text>}
           </ScrollView>
         </View>
