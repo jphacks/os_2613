@@ -60,7 +60,7 @@ export function StudyMusic() {
             <View style={styles.row}><Text accessibilityLiveRegion="polite" style={styles.text}>{track ? `${track.title} · ${status.playing ? '再生中' : '停止中'}` : '曲を選んで再生'}</Text>{button(status.playing ? '一時停止' : '再生', () => { if (status.playing) { request.current++; player.pause(); } else if (selected) void play(selected); }, !track || track.source === null)}</View>
             <View style={styles.row}><Text style={styles.text}>音量</Text><Text style={styles.note}>{Math.round(volume * 100)}%</Text></View>
             <VolumeBar value={volume} onChange={setVolume} />
-            <Text style={styles.note}>ループ再生 · 教材を離れると停止します</Text>
+            <Text style={styles.note}>ループ再生 · 教材を離れると停止します · 再生には通信が必要です</Text>
             {!!(error || status.error) && <Text accessibilityRole="alert" style={styles.note}>{error || '音源を読み込めません。別の曲を選ぶか、音源を確認して再生し直してください。'}</Text>}
           </ScrollView>
         </View>
