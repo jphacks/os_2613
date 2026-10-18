@@ -35,6 +35,17 @@ test('保存済み本文の式だけ変換し、元の文字列とUTF16の位置
   assert.match(parts[1].markup, /<mfrac>/);
   assert.equal(mathSegments('例は2^3と(x+1)^2です。').length, 2);
 });
+test('数式区切りのない保存済み要約でも文章内の関係式を数式表示する', () => {
+  const text = '関数 f(x)=x^2 とする。確率 P(X=x)=p_x である。極限 lim_{x→a} f(x)=ℓ を考える。';
+  const parts = mathSegments(text);
+  assert.deepEqual(parts.map(part => part.raw), ['f(x)=x^2', 'P(X=x)=p_x', 'lim_{x→a} f(x)=ℓ']);
+  assert.match(parts[0].markup, /<msup>/);
+  assert.match(parts[1].markup, /<msub>/);
+  assert.match(parts[2].markup, /<mo>→<\/mo>/);
+  for (const part of parts) assert.equal(text.slice(part.start, part.end), part.raw);
+  assert.equal(mathSegments('対象A/Bの比較や、表記x^2を確認する。').some(part => part.raw === 'A/B'), false);
+  assert.equal(mathSegments('分数1/2を計算する。')[0].raw, '1/2');
+});
 test('複数行の数式をまとめても本文・改行・しおり位置を変えない', () => {
   const text = String.raw`説明です。
 \[
