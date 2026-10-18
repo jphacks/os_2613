@@ -1,3 +1,6 @@
+import { ReaderPanel, usePhoneReaderPanel } from '@/shared/ReaderPanel';
+import type { ReactNode } from 'react';
+import { SpeakerButton } from './SpeakerButton';
 import { useAccount } from '@/features/account/AccountProvider';
 import { AppIcon } from '@/shared/AppIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { ActivityIndicator, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { colors } from '@/shared/theme';
-import { readerToolButton, readerToolSymbol } from '@/features/reader/toolStyles';
+import { readerToolButton, readerToolSymbol, readerPanelHeader, readerPanelTitle } from '@/features/reader/toolStyles';
 import type { SavedBook } from '@/features/library/types';
 import type { MusicPlan } from './plan-model.mjs';
 import { prepareMusic } from './prepare.mjs';
@@ -21,12 +24,14 @@ import { anchorLegacyScenes } from './music-timing.mjs';
 import { StudyMusic } from './StudyMusic';
 
 const fallback = require('../../../assets/audio/reading-pad.wav');
-export function MusicPanel({ book, position, guideActive, visible = true, detailsOpen, onDetailsChange, onGuidePress }: { visible?: boolean; book: SavedBook; position: number; guideActive: boolean; detailsOpen?: boolean; onDetailsChange?: (open: boolean) => void; onGuidePress?: () => void }) {
+export function MusicPanel({ book, position, guideActive, guideEnabled = true, visible = true, detailsOpen, onDetailsChange, onGuidePress }: { visible?: boolean; book: SavedBook; position: number; guideActive: boolean; guideEnabled?: boolean; detailsOpen?: boolean; onDetailsChange?: (open: boolean) => void; onGuidePress?: () => void }) {
+  const phoneSheet = usePhoneReaderPanel();
   const [plan, setPlan] = useState<MusicPlan | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [localDetails, setLocalDetails] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [studyMusicOpen, setStudyMusicOpen] = useState(false);
+  const [mode, setMode] = useState<'focus' | 'story'>('story');
+  const [focusControls, setFocusControls] = useState<ReactNode>(null);
   const details = detailsOpen ?? localDetails;
   const setDetails = (open: boolean) => { setLocalDetails(open); onDetailsChange?.(open); };
   const { width, height } = useWindowDimensions();
@@ -70,6 +75,7 @@ export function MusicPanel({ book, position, guideActive, visible = true, detail
     return () => clearTimeout(timer);
   }, [volume, volumeReady, mixer]);
   const stop = useCallback(() => { mixer.stop(); cueMixer.stop(); setEnabled(false); }, [mixer, cueMixer]);
+  useEffect(() => { if (!guideEnabled) stop(); }, [guideEnabled, stop]);
   useFocusEffect(useCallback(() => stop, [stop]));
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => { if (state !== 'active') stop(); });
@@ -128,22 +134,26 @@ export function MusicPanel({ book, position, guideActive, visible = true, detail
     mixer.arm(); cueMixer.arm(); setEnabled(true); setNotice('');
   }
   if (!visible) return null;
-  const icon = (symbol: string, label: string, action: () => void, disabled = false, active = false) => <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={action} style={[styles.button, active && styles.active, disabled && { opacity: 0.35 }]}>{symbol === '♫' ? <AppIcon name="music_note" size={28} color={active ? colors.surface : colors.accent} /> : <Text style={[styles.symbol, active && styles.light]}>{symbol}</Text>}</Pressable>;
+  const icon = (symbol: string, label: string, action: () => void, disabled = false, active = false) => <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={action} style={[styles.button, active && styles.active, disabled && { opacity: 0.35 }]}>{symbol === '♫' ? <AppIcon name="music_note" size={24} color={active ? colors.surface : colors.accent} /> : <Text style={[styles.symbol, active && styles.light]}>{symbol}</Text>}</Pressable>;
   return <View style={styles.panel}>
-    <StudyMusic hideTrigger open={studyMusicOpen} onOpenChange={setStudyMusicOpen} interrupted={enabled} onPlay={stop} />
+    <StudyMusic embedded hideTrigger controlsOnly onControls={setFocusControls} interrupted={enabled || mode !== 'focus'} onPlay={stop} />
     {icon('♫', 'BGMの設定を開く', () => setDetails(!details), false, enabled)}
-    {details && <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+    <ReaderPanel visible={details} label="BGM" onClose={() => setDetails(false)} desktop={<View pointerEvents={details ? "box-none" : "none"} style={[StyleSheet.absoluteFill, !details && { display: 'none' }]}>
       <View style={[styles.backdrop, { width: Math.min(420, width - 24) }]}><View style={[styles.card, Platform.OS !== 'web' && { maxHeight: Math.max(80, Math.min(420, height - insets.top - 164 - Math.max(insets.bottom, 12))) }]}><ScrollView contentContainerStyle={styles.details}>
-        <View style={styles.row}><Pressable accessibilityRole="button" accessibilityLabel="BGM設定を閉じる" onPress={() => setDetails(false)} style={styles.button}><AppIcon name="arrow_back" /></Pressable><Text style={styles.heading}>BGM</Text></View>
-        <Pressable accessibilityRole="button" accessibilityLabel="集中BGMを選ぶ" onPress={() => { setDetails(false); setStudyMusicOpen(true); }} style={styles.control}><Text style={styles.text}>♪ 集中BGMを選ぶ</Text><Text style={styles.text}>集中BGM 1・集中BGM 2</Text></Pressable>
+        <View style={[readerPanelHeader, { marginHorizontal: -16 }]}>{!phoneSheet && <Pressable accessibilityRole="button" accessibilityLabel="BGM設定を閉じる" onPress={() => setDetails(false)} style={styles.button}><AppIcon name="arrow_back" /></Pressable>}<Text style={readerPanelTitle}>BGM</Text></View>
+        <View style={styles.modeToggle}>
+          {([{ id: 'focus', label: '集中BGM' }, { id: 'story', label: '世界観BGM' }] as const).map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: mode === item.id }} onPress={() => { if (mode !== item.id) stop(); setMode(item.id); }} style={[styles.modeOption, mode === item.id && styles.active]}><Text style={[styles.text, mode === item.id && styles.light]}>{item.label}</Text></Pressable>)}
+        </View>
+        <View style={mode !== 'focus' && { display: 'none' }}>{focusControls}</View>
+        <View style={[{ gap: 12 }, mode !== 'story' && { display: 'none' }]}>
+          <Text style={styles.text}>読みガイドの開始とともに鳴り、読む位置に合わせて切り替わります。</Text>
     <View style={styles.row}>
-      <Pressable accessibilityRole="button" onPress={enabled ? stop : start} style={[styles.control, enabled && styles.active]}><Text style={[styles.text, enabled && styles.light]}>{enabled ? 'BGM ON' : 'BGM OFF'}</Text></Pressable>
-      {busy ? <View style={styles.button} accessibilityLabel="BGM取得中"><ActivityIndicator size="small" color={colors.accent} /></View> : <Pressable accessibilityRole="button" onPress={() => void load()} style={styles.control}><Text style={styles.text}>BGM取得</Text></Pressable>}
+      {busy ? <View style={styles.button} accessibilityLabel="BGM取得中"><ActivityIndicator size="small" color={colors.accent} /></View> : <Pressable accessibilityRole="button" onPress={() => void load()} style={styles.control}><Text style={styles.text}>音源を取得（有料）</Text></Pressable>}
       {icon(error ? '!' : 'ⓘ', 'BGMの情報・音源クレジット', () => setInfoOpen(!infoOpen))}
     </View>
     <View style={styles.volume}>
       <View style={styles.volumeLabel}><Text style={styles.text}>音量</Text><Text style={styles.text}>{Math.round(volume * 100)}%</Text></View>
-      <VolumeBar value={volume} onChange={setVolume} />
+<View style={styles.row}><SpeakerButton enabled={enabled} disabled={!guideEnabled} onToggle={enabled ? stop : start} /><View style={{ flex: 1 }}><VolumeBar value={volume} onChange={setVolume} /></View></View>
     </View>
     {!!error && <Pressable onPress={() => setDetails(true)}><Text accessibilityRole="alert" style={styles.text} numberOfLines={1}>{error}</Text></Pressable>}
 
@@ -153,10 +163,37 @@ export function MusicPanel({ book, position, guideActive, visible = true, detail
         {[...(current ? [current] : []), ...activeCues].map((track, index) => <View key={`${track.id}:${index}`} style={styles.credit}><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.url)} style={styles.text}>{track.creator} / {track.name}</Text><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.license)} style={styles.text}>{track.license.includes('/zero/') ? 'CC0' : 'CC BY'}</Text></View>)}
         {!current && <Text style={styles.text}>同梱の予備BGM</Text>}
         </View>}
-      </ScrollView></View></View></View>}
+        </View>
+      </ScrollView></View></View></View>}><ScrollView contentContainerStyle={styles.details}>
+        <View style={[readerPanelHeader, { marginHorizontal: -16 }]}>{!phoneSheet && <Pressable accessibilityRole="button" accessibilityLabel="BGM設定を閉じる" onPress={() => setDetails(false)} style={styles.button}><AppIcon name="arrow_back" /></Pressable>}<Text style={readerPanelTitle}>BGM</Text></View>
+        <View style={styles.modeToggle}>
+          {([{ id: 'focus', label: '集中BGM' }, { id: 'story', label: '世界観BGM' }] as const).map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: mode === item.id }} onPress={() => { if (mode !== item.id) stop(); setMode(item.id); }} style={[styles.modeOption, mode === item.id && styles.active]}><Text style={[styles.text, mode === item.id && styles.light]}>{item.label}</Text></Pressable>)}
+        </View>
+        <View style={mode !== 'focus' && { display: 'none' }}>{focusControls}</View>
+        <View style={[{ gap: 12 }, mode !== 'story' && { display: 'none' }]}>
+          <Text style={styles.text}>読みガイドの開始とともに鳴り、読む位置に合わせて切り替わります。</Text>
+    <View style={styles.row}>
+      {busy ? <View style={styles.button} accessibilityLabel="BGM取得中"><ActivityIndicator size="small" color={colors.accent} /></View> : <Pressable accessibilityRole="button" onPress={() => void load()} style={styles.control}><Text style={styles.text}>音源を取得（有料）</Text></Pressable>}
+      {icon(error ? '!' : 'ⓘ', 'BGMの情報・音源クレジット', () => setInfoOpen(!infoOpen))}
+    </View>
+    <View style={styles.volume}>
+      <View style={styles.volumeLabel}><Text style={styles.text}>音量</Text><Text style={styles.text}>{Math.round(volume * 100)}%</Text></View>
+<View style={styles.row}><SpeakerButton enabled={enabled} disabled={!guideEnabled} onToggle={enabled ? stop : start} /><View style={{ flex: 1 }}><VolumeBar value={volume} onChange={setVolume} /></View></View>
+    </View>
+    {!!error && <Pressable onPress={() => setDetails(true)}><Text accessibilityRole="alert" style={styles.text} numberOfLines={1}>{error}</Text></Pressable>}
+
+        {infoOpen && <View style={{ gap: 12 }}>
+        <Text style={styles.text}>{error || notice || '読みガイドに合わせて再生します。初回取得は本文をAI分析します（有料）。'}</Text>
+        <Text style={styles.text}>{enabled && !guideActive ? '読みガイドを開始すると音が鳴ります。' : '環境音・効果音は本文の該当箇所で重なります。'}</Text>
+        {[...(current ? [current] : []), ...activeCues].map((track, index) => <View key={`${track.id}:${index}`} style={styles.credit}><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.url)} style={styles.text}>{track.creator} / {track.name}</Text><Text accessibilityRole="link" onPress={() => void Linking.openURL(track.license)} style={styles.text}>{track.license.includes('/zero/') ? 'CC0' : 'CC BY'}</Text></View>)}
+        {!current && <Text style={styles.text}>同梱の予備BGM</Text>}
+        </View>}
+        </View>
+      </ScrollView></ReaderPanel>
   </View>;
 }
 const styles = StyleSheet.create({
+  modeToggle: { flexDirection: 'row', padding: 3, backgroundColor: colors.button, borderRadius: 999 }, modeOption: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 999 },
   panel: { padding: 0, zIndex: 50 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', width: '100%' },
   control: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.button },

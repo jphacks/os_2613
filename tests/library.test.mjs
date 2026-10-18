@@ -38,3 +38,36 @@ test('保存データが壊れているときは、既存データを上書き�
   await assert.rejects(repository.load()); await assert.rejects(repository.add(book(1)));
   assert.equal(writes, 0);
 });
+
+
+test('収録本を空の本棚へ登録し、保存後の再読み込みや同時追加でも重複しない', async () => {
+  const storage = memoryStorage();
+  const repository = createLibraryRepository(storage, [book(1567)]);
+  assert.deepEqual(await repository.load(), [book(1567)]);
+  await Promise.all([repository.add(book(1567)), repository.add(book(2))]);
+  assert.deepEqual(await createLibraryRepository(storage, [book(1567)]).load(), [book(1567), book(2)]);
+});
+
+test('既存の本棚を残して収録本を補い、登録済みの本文や追加日時は上書きしない', async () => {
+  const original = { ...book(1567), text: '以前の本文', importedAt: '2025-01-01T00:00:00Z' };
+  const storage = memoryStorage(JSON.stringify([book(1), original]));
+  assert.deepEqual(await createLibraryRepository(storage, [book(1567)]).load(), [book(1), original]);
+  const other = memoryStorage(JSON.stringify([book(1)]));
+  assert.deepEqual(await createLibraryRepository(other, [book(1567)]).load(), [book(1), book(1567)]);
+});
+
+test('保存データが壊れている場合は収録本を登録して既存データを上書きしない', async () => {
+  let writes = 0;
+  const repository = createLibraryRepository({ getItem: async () => '{broken', setItem: async () => { writes++; } }, [book(1567)]);
+  await assert.rejects(repository.load()); assert.equal(writes, 0);
+});
+
+test('同梱の走れメロスは本文・出典を持ち、既存漫画と同じ本IDで開ける', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const melos = JSON.parse(await readFile(new URL('../assets/books/aozora/hashire-melos.json', import.meta.url), 'utf8'));
+  const repository = createLibraryRepository(memoryStorage(), [melos]);
+  const [saved] = await repository.load();
+  assert.equal(saved.id, 'aozora-1567'); assert.equal(saved.aozoraId, 1567);
+  assert.equal(saved.title, '走れメロス'); assert.ok(saved.text.length > 9000);
+  assert.ok(saved.text.startsWith('メロスは激怒した。')); assert.match(saved.htmlUrl, /^https:\/\/www\.aozora\.gr\.jp\//);
+});

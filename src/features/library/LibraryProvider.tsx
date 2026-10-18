@@ -1,3 +1,4 @@
+import melos from '../../../assets/books/aozora/hashire-melos.json';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import type { SavedBook } from './types';
@@ -11,7 +12,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [books, setBooks] = useState<SavedBook[]>([]);
   const [ready, setReady] = useState(false);
   const [warning, setWarning] = useState('');
-  const [repository] = useState(() => createLibraryRepository(libraryStorage));
+  const [repository] = useState(() => createLibraryRepository(libraryStorage, [melos]));
   useEffect(() => {
     let active = true;
     void repository.load().then(saved => { if (active) setBooks(saved); })

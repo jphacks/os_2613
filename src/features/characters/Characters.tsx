@@ -17,7 +17,7 @@ export function Characters({ text, marks, jump }: { text: string; marks: Mark[];
   useEffect(() => { if (!target && sorted.length) setSelected(sorted[0].id); }, [target, marks]);
   const prefix = target ? textToBookmark(text, marks, target.id) : '';
   return <ScrollView contentContainerStyle={styles.body}>
-    <Text style={styles.title}>人物相関図</Text><Text style={styles.text}>本のはじめから、選んだしおりまでの人物と関係です。</Text>
+    <Text style={styles.text}>本のはじめから、選んだしおりまでの人物と関係です。</Text>
     {!marks.length ? <Text style={styles.text}>読んだところにしおりを挟むと、そこまでの相関図を作れます。</Text> : <>
       <Text style={styles.heading}>対象のしおり</Text><View style={styles.row}>{sorted.map(mark => <Action key={mark.id} selected={selected === mark.id} press={() => setSelected(mark.id)}>{`しおり ${marks.findIndex(item => item.id === mark.id) + 1}${mark.id === sorted[0]?.id ? '（最後に操作）' : ''}`}</Action>)}</View>
       <GraphResult key={`${target?.id}:${target?.updatedAt}:${documentVersion(prefix)}`} text={prefix} jump={jump} />

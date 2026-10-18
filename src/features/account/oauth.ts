@@ -1,3 +1,4 @@
+import { nativeOAuthClientId } from '../../../config/oauth.cjs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { avatarUrl } from '@/shared/avatar.mjs';
 import { reviewCollection, likeCollection, reviewScope } from '../reviews/model.mjs';
@@ -5,7 +6,7 @@ import { nativeMetadata } from './native-metadata.mjs';
 import type { ExpoOAuthClient, OAuthSession } from '@atproto/oauth-client-expo';
 export type Identity = { did: string; handle: string; name: string; avatar?: string };
 const didKey = 'dopabooks:native-oauth:did:v1';
-const clientId = process.env.EXPO_PUBLIC_ATPROTO_NATIVE_CLIENT_ID;
+const clientId = process.env.EXPO_PUBLIC_ATPROTO_NATIVE_CLIENT_ID || nativeOAuthClientId;
 export const loginAvailable = !!clientId;
 let creating: Promise<ExpoOAuthClient> | undefined;
 let activeSession: OAuthSession | null = null;

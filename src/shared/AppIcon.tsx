@@ -1,6 +1,11 @@
 import { Image } from 'expo-image';
 import { colors } from './theme';
 const icons = {
+  waves: require('../../assets/icons/material/waves.svg'),
+  repeat: require('../../assets/icons/material/repeat.svg'),
+  looks_one: require('../../assets/icons/material/looks_one.svg'),
+  volume_up: require('../../assets/icons/material/volume_up.svg'),
+  volume_off: require('../../assets/icons/material/volume_off.svg'),
   close: require('../../assets/icons/material/close.svg'),
   arrow_back: require('../../assets/icons/material/arrow_back.svg'),
   settings: require('../../assets/icons/material/settings.svg'),

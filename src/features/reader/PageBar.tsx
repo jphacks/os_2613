@@ -8,6 +8,7 @@ export function PageBar({ page, count, disabled, ink, accent, line, onChange }: 
   const shown = Math.min(count - 1, preview ?? page);
   function update(x: number) { latest.current = pageFromTrack(x, width.current, count); setPreview(latest.current); }
   return <View style={styles.row}>
+    <Text style={{ color: ink, fontSize: 12, textAlign: 'center' }}>{shown + 1} / {count} ページ</Text>
     <View accessibilityRole="adjustable" accessibilityLabel="ページ移動" accessibilityState={{ disabled }}
       aria-valuemin={1} aria-valuemax={count} aria-valuenow={shown + 1} aria-valuetext={`${shown + 1} / ${count} ページ`}
       accessibilityValue={{ min: 1, max: count, now: shown + 1, text: `${shown + 1} / ${count} ページ` }}
@@ -25,11 +26,10 @@ export function PageBar({ page, count, disabled, ink, accent, line, onChange }: 
       </View>
       <View pointerEvents="none" style={[styles.thumb, { backgroundColor: accent, right: `${count <= 1 ? 0 : shown / (count - 1) * 100}%` }]} />
     </View>
-    <Text style={{ color: ink, fontSize: 13, minWidth: 80, textAlign: 'right' }}>{shown + 1} / {count} ページ</Text>
   </View>;
 }
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20 },
-  touch: { flex: 1, height: 38, justifyContent: 'center' }, track: { height: 5, borderRadius: 3, overflow: 'hidden', flexDirection: 'row-reverse' },
-  fill: { height: 5 }, thumb: { position: 'absolute', top: 12, width: 14, height: 14, borderRadius: 7, marginRight: -7 },
+  row: { flexDirection: 'column', alignItems: 'stretch', gap: 0, paddingHorizontal: 20 },
+  touch: { width: '100%', height: 32, justifyContent: 'center' }, track: { height: 5, borderRadius: 3, overflow: 'hidden', flexDirection: 'row-reverse' },
+  fill: { height: 5 }, thumb: { position: 'absolute', top: 9, width: 14, height: 14, borderRadius: 7, marginRight: -7 },
 });

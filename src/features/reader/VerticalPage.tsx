@@ -1,8 +1,9 @@
 'use dom';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { edgeTurn } from './gestures.mjs';
-import { guideScrollLeft, smoothGuideScroll, visibleScrollPage } from './scroll-position.mjs';
+import { reachedEnding } from './ending.mjs';
+import { edgeTurn, horizontalTurn } from './gestures.mjs';
+import { guideScrollLeft, guideRowWave, visibleScrollPage, guideOpacity } from './scroll-position.mjs';
 import { measuredPagesAsync, pageAtOffset } from './pagination.mjs';
 import { fontFamilies, type DisplayPreferences } from './preferences.mjs';
 import { bindGuideKeyboard } from './guide-keyboard.mjs';
@@ -19,13 +20,16 @@ export type Props = {
   onPages: (count: number) => void; onReflow: (page: number) => void; onVisible: (offset: number) => void;
   onNext: () => void; onPrev: () => void; onAdvance: () => void; onPause: () => void;
   onToggleGuide?: () => void;
+  onFinish?: () => void;
+  onOpenReview?: () => void;
+  bookTitle?: string;
   onPick: (offset: number) => void; onMarkPress: (offset: number) => void;
   onDragStart: (offset: number) => void; onDrop: (from: number, to: number | null) => void;
   headerDrag: { token: number; x: number; y: number; phase: 'move' | 'end' | 'cancel' } | null;
   onHeaderDrop: (token: number, offset: number | null) => void;
   dom?: import('expo/dom').DOMProps;
 };
-type Gesture = { id: number; x: number; y: number; from: number | null; dragged: boolean; placing: boolean; scroll: number; mouse: boolean };
+type Gesture = { id: number; x: number; y: number; from: number | null; dragged: boolean; placing: boolean; scroll: number; mouse: boolean; continuous: boolean };
 function Ribbon() { return <svg width="18" height="28" viewBox="0 0 18 28" aria-hidden="true"><path d="M1 1h16v25l-8-6-8 6z" fill="currentColor" /></svg>; }
 
 export default function VerticalPage(props: Props) {
@@ -34,14 +38,21 @@ export default function VerticalPage(props: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const observedPage = useRef(-1);
   const autoScroll = useRef(false), scrollFrame = useRef<number | null>(null);
-  const scrollTarget = useRef<number | null>(null);
+  const wasRunning = useRef(false);
+  const guideStartScroll = useRef(0);
+  const guideTravel = useRef<number | null>(null);
+  const guideAdvanced = useRef(-1);
+  const [waveRange, setWaveRange] = useState({ first: 0, last: 0 });
+  const guideMetrics = useRef<{ rows: { distance: number; indices: number[] }[]; spacing: number; capacity: number } | null>(null);
+  const wheelLock = useRef(false);
+  const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (wheelTimer.current) clearTimeout(wheelTimer.current); }, []);
   const latest = useRef(props); latest.current = props;
   useEffect(() => bindGuideKeyboard(document, () => latest.current.disabled || latest.current.picking ? undefined : latest.current.onToggleGuide), []);
   const [layout, setLayout] = useState({ count: 1, width: 0, viewport: 0, starts: [0, 0] });
   const [guideCursor, setGuideCursor] = useState({ page: 0, index: 0 });
   const gesture = useRef<Gesture | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
-  const [dragOffset, setDragOffset] = useState<number | null>(null);
   const [edge, setEdge] = useState<'next' | 'prev' | null>(null);
   const anchor = useRef({ text, start, offset: start });
   const measured = useRef('');
@@ -51,7 +62,7 @@ export default function VerticalPage(props: Props) {
   const focusSeen = useRef<number | null>(null);
   const headerDropSeen = useRef<number | null>(null);
   const step = Math.round(display.fontSize * display.lineHeight);
-  const page = Math.min(Math.max(0, sub), layout.count - 1);
+  const page = Math.min(Math.max(0, sub), props.onFinish ? layout.count : layout.count - 1);
   const cursor = guideCursor.page === page ? guideCursor.index : 0;
   function setCursor(index: number) { setGuideCursor({ page, index }); }
   const begin = layout.starts[page] ?? 0, end = layout.starts[page + 1] ?? text.length;
@@ -90,7 +101,7 @@ export default function VerticalPage(props: Props) {
       setLayout({ count, width, viewport: view.clientWidth, starts });
       latest.current.onPages(count);
       // 設定や画面幅が変わっても、読んでいた文字のあるページを残す。
-      if (sameText) latest.current.onReflow(pageAtOffset(starts, anchor.current.offset - start));
+      if (sameText && anchor.current.offset < start + text.length) latest.current.onReflow(pageAtOffset(starts, anchor.current.offset - start));
     }).catch(() => {
       if (measurement.current === job) latest.current.onLoadError?.('本文のページを準備できませんでした。もう一度お試しください。');
     }).finally(() => { if (measurement.current === job) { measuring.current = ''; setCalculating(false); } });
@@ -100,7 +111,7 @@ export default function VerticalPage(props: Props) {
     // WebViewの中にいるときだけ、ページ全体の高さを画面いっぱいにする（Webでは親の高さに従う）。
     if ((window as any).ReactNativeWebView) {
       for (const el of [document.documentElement, document.body, document.getElementById('root')]) {
-        if (el) { el.style.height = '100%'; el.style.margin = '0'; }
+        if (el) { el.style.height = '100%'; el.style.margin = '0'; el.style.overflow = 'hidden'; el.style.overscrollBehavior = 'none'; }
       }
     }
     let active = true;
@@ -115,7 +126,7 @@ export default function VerticalPage(props: Props) {
     if (!layout.width) return;
     const offset = start + (layout.starts[page] ?? 0);
     anchor.current = { text, start, offset }; setCursor(0);
-    latest.current.onVisible(offset);
+    if (page < layout.count) latest.current.onVisible(offset);
   }, [page, layout, text, start]);
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
@@ -126,29 +137,44 @@ export default function VerticalPage(props: Props) {
     stopScroll();
     scroll.scrollTo({ left: -page * layout.viewport, behavior: 'instant' as ScrollBehavior });
   }, [page, layout]);
+  useLayoutEffect(() => {
+    if (!guide || !running) scrollRef.current?.scrollTo({ left: -page * layout.viewport, behavior: 'instant' as ScrollBehavior });
+  }, [guide, running, page, layout.viewport]);
   function stopScroll() {
     if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
     scrollFrame.current = null;
-    scrollTarget.current = null;
     autoScroll.current = false;
   }
-  useEffect(() => {
-    if (!guide || !running || picking || ghost || props.headerDrag || disabled || calculating) return;
-    const scroll = scrollRef.current, char = chars[cursor];
-    const node = char && textRef.current?.querySelector<HTMLElement>(`[data-i][data-offset="${char.end}"]`);
-    if (!scroll || !node || !layout.viewport) return;
-    // transformで浮かせた文字の矩形は揺れるため、組版時の座標を使う。
-    const column = node.offsetLeft;
-    const nodes = Array.from(node.parentElement!.querySelectorAll<HTMLElement>('[data-i]'));
-    let first = cursor;
-    while (first > 0 && nodes[first - 1]?.offsetLeft === column) first--;
-    let next = cursor + 1;
-    while (next < nodes.length && nodes[next].offsetLeft === column) next++;
-    const progress = (cursor - first) / Math.max(1, next - first);
-    const nextColumn = nodes[next]?.offsetLeft ?? column;
-    const right = node.parentElement!.getBoundingClientRect().left + column + node.offsetWidth + (nextColumn - column) * progress;
-    scrollTarget.current = guideScrollLeft(scroll.scrollLeft, scroll.getBoundingClientRect().right, right, layout.viewport, scroll.scrollWidth);
-  }, [guide, running, cursor, chars, page, layout, picking, ghost, props.headerDrag, disabled, calculating]);
+  // 停止後の開始は現在ページの右上から。ページをまたぐ自動送りではリセットしない。
+  useLayoutEffect(() => {
+    if (guide && running && !wasRunning.current) {
+      setCursor(0);
+      guideStartScroll.current = -page * layout.viewport;
+      scrollRef.current?.scrollTo({ left: guideStartScroll.current, behavior: 'instant' as ScrollBehavior });
+      guideTravel.current = null; guideAdvanced.current = -1;
+    }
+    wasRunning.current = guide && running;
+  }, [guide, running, page, layout.viewport]);
+  // 実測した列の位置を使い、空いた行間も実際の距離として扱う。
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    const first = chars[0] && textRef.current?.querySelector<HTMLElement>(`[data-i][data-offset="${chars[0].end}"]`);
+    const container = first?.parentElement;
+    if (!scroll || !container) { guideMetrics.current = null; return; }
+    const spacing = layout.viewport / Math.max(1, Math.round(layout.width / step));
+    const origin = scroll.getBoundingClientRect().right - container.getBoundingClientRect().left - scroll.scrollLeft;
+    const nodes = Array.from(container.querySelectorAll<HTMLElement>('[data-i]'));
+    const rows: { distance: number; indices: number[] }[] = [];
+    for (const node of nodes) {
+      const index = Number(node.dataset.i);
+      if (chars[index]?.char === '\n' || !node.offsetWidth) continue;
+      const distance = origin - node.offsetLeft - node.offsetWidth / 2;
+      const row = rows.find(row => Math.abs(row.distance - distance) < 1);
+      if (row) row.indices.push(index); else rows.push({ distance, indices: [index] });
+    }
+    rows.sort((a, b) => a.distance - b.distance);
+    guideMetrics.current = { rows, spacing, capacity: Math.max(1, Math.floor(container.clientHeight / display.fontSize)) };
+  }, [chars, layout, display.font, display.fontSize, step]);
   useEffect(() => {
     if (!guide || !running || picking || ghost || props.headerDrag || disabled || calculating || !layout.viewport) { stopScroll(); return; }
     const scroll = scrollRef.current;
@@ -156,16 +182,37 @@ export default function VerticalPage(props: Props) {
     let previous = performance.now();
     autoScroll.current = true;
     const frame = (now: number) => {
-      if (scrollTarget.current !== null) scroll.scrollLeft = smoothGuideScroll(scroll.scrollLeft, scrollTarget.current, Math.min(64, now - previous));
+      const metrics = guideMetrics.current;
+      if (metrics?.rows.length) {
+        if (guideTravel.current === null) guideTravel.current = metrics.rows[0].distance - metrics.spacing / 2;
+        // 読む速さ・一列の文字数・実際の行間から速度を決める。短い行や空行では加速しない。
+        const velocity = metrics.spacing * latest.current.speed / (60000 * metrics.capacity);
+        guideTravel.current += Math.max(0, now - previous) * velocity;
+        const wave = guideRowWave(metrics.rows, guideTravel.current, metrics.spacing);
+        if (wave) {
+          setGuideCursor(before => before.page === page && before.index === wave.index ? before : { page, index: wave.index });
+          setWaveRange(before => before.first === wave.first && before.last === wave.last ? before : { first: wave.first, last: wave.last });
+        } else setWaveRange(before => before.first === -1 ? before : { first: -1, last: -1 });
+        const target = Math.min(guideStartScroll.current, guideScrollLeft(0, 0, -guideTravel.current, layout.viewport, scroll.scrollWidth));
+        if (Math.abs(scroll.scrollLeft - target) > .1) scroll.scrollLeft = target;
+        if (guideTravel.current >= metrics.rows[metrics.rows.length - 1].distance + metrics.spacing / 2 && guideAdvanced.current !== page) {
+          guideAdvanced.current = page; latest.current.onAdvance();
+        }
+      }
       previous = now;
       scrollFrame.current = requestAnimationFrame(frame);
     };
     scrollFrame.current = requestAnimationFrame(frame);
     return stopScroll;
-  }, [guide, running, layout, picking, ghost, props.headerDrag, disabled, calculating]);
+  }, [guide, running, page, layout, picking, ghost, props.headerDrag, disabled, calculating]);
+  function finishReading() {
+    observedPage.current = layout.count;
+    latest.current.onPause(); latest.current.onFinish?.();
+  }
   function onScroll() {
     const scroll = scrollRef.current;
     if (!scroll || !layout.viewport || autoScroll.current) return;
+    if (latest.current.onFinish && !picking && !disabled && reachedEnding(scroll.scrollLeft, layout.viewport, layout.count)) { finishReading(); return; }
     const visible = visibleScrollPage(scroll.scrollLeft, layout.viewport, layout.count);
     if (observedPage.current !== visible) {
       observedPage.current = visible;
@@ -176,7 +223,9 @@ export default function VerticalPage(props: Props) {
   useEffect(() => {
     if (!focus || focusSeen.current === focus.token || !layout.width || focus.offset < start || focus.offset > start + text.length) return;
     focusSeen.current = focus.token;
-    latest.current.onReflow(pageAtOffset(layout.starts, focus.offset - start));
+    const target = pageAtOffset(layout.starts, focus.offset - start);
+    scrollRef.current?.scrollTo({ left: -target * layout.viewport, behavior: 'instant' as ScrollBehavior });
+    latest.current.onReflow(target);
   }, [focus, layout, start, text]);
   useEffect(() => {
     if (disabled || calculating || !layout.width || !focus || page !== pageAtOffset(layout.starts, focus.offset - start)) return;
@@ -185,14 +234,6 @@ export default function VerticalPage(props: Props) {
     const timer = setTimeout(() => latest.current.onReady?.(), 0);
     return () => clearTimeout(timer);
   }, [disabled, calculating, layout, focus, page, start]);
-  useEffect(() => {
-    if (!guide || !running || picking || ghost || props.headerDrag || disabled || calculating || !layout.width) return;
-    const timer = setTimeout(() => {
-      const next = cursor + 1;
-      if (next >= chars.length) latest.current.onAdvance(); else setCursor(next);
-    }, chars[cursor]?.char === '\n' ? 0 : 60000 / speed);
-    return () => clearTimeout(timer);
-  }, [guide, running, picking, ghost, disabled, calculating, cursor, speed, page, layout, chars]);
   useEffect(() => {
     const pause = () => { if (document.hidden) latest.current.onPause(); };
     document.addEventListener('visibilitychange', pause);
@@ -229,7 +270,6 @@ export default function VerticalPage(props: Props) {
   }
   function movePoint(x: number, y: number) {
     const offset = pointOffset(x, y);
-    setDragOffset(offset);
     const character = offset === null ? null : textRef.current?.querySelector<HTMLElement>(`[data-i][data-offset="${offset}"]`);
     const rect = character?.getBoundingClientRect();
     setGhost(rect ? { x: rect.left + rect.width / 2, y: rect.bottom - 10 } : { x, y });
@@ -247,7 +287,10 @@ export default function VerticalPage(props: Props) {
     latest.current.onHeaderDrop(drag.token, drag.phase === 'end' && root && !disabled && !calculating ? pointOffset(x, y) : null);
   }, [props.headerDrag, disabled, calculating, page, layout]);
   function pointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    // 自動送り中は本文操作で停止・ページ移動しない。停止はツールバーから行う。
+    if (guide && running) { event.preventDefault(); return; }
     if (disabled || calculating || props.headerDrag || !event.isPrimary || event.button !== 0 || gesture.current) return;
+    if (event.target instanceof Element && event.target.closest('button,a,input,textarea,select')) return;
     stopScroll(); autoScroll.current = false;
     let target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-mark]') : null;
     if (!target && !picking) {
@@ -258,10 +301,10 @@ export default function VerticalPage(props: Props) {
         if (distance < nearest) { nearest = distance; target = node; }
       });
     }
-    gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, from: target ? Number(target.dataset.mark) : null, dragged: false, placing: picking, scroll: scrollRef.current?.scrollLeft ?? 0, mouse: event.pointerType === 'mouse' };
+    gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, from: target ? Number(target.dataset.mark) : null, dragged: false, placing: picking, scroll: scrollRef.current?.scrollLeft ?? 0, mouse: event.pointerType === 'mouse', continuous: guide && running };
     if (target || picking) event.preventDefault();
     latest.current.onPause();
-    if (target || picking || event.pointerType === 'mouse') event.currentTarget.setPointerCapture(event.pointerId);
+    if (target || picking || event.pointerType === 'mouse' || !(guide && running)) event.currentTarget.setPointerCapture(event.pointerId);
     if (picking) movePoint(event.clientX, event.clientY);
   }
   function pointerMove(event: Pick<PointerEvent, 'pointerId' | 'clientX' | 'clientY'>) {
@@ -273,19 +316,27 @@ export default function VerticalPage(props: Props) {
       current.dragged = true;
     }
     if (current.dragged || current.placing) movePoint(event.clientX, event.clientY);
-    else if (current.mouse && current.from === null && scrollRef.current) scrollRef.current.scrollLeft = current.scroll - (event.clientX - current.x);
+    else if (current.continuous && current.mouse && current.from === null && scrollRef.current) scrollRef.current.scrollLeft = current.scroll - (event.clientX - current.x);
   }
   function finish(event: Pick<PointerEvent, 'pointerId' | 'clientX' | 'clientY'>, cancelled = false) {
     const current = gesture.current;
     if (!current || current.id !== event.pointerId) return;
-    gesture.current = null; setGhost(null); setDragOffset(null); setEdge(null);
+    gesture.current = null; setGhost(null); setEdge(null);
     if (rootRef.current?.hasPointerCapture(event.pointerId)) rootRef.current.releasePointerCapture(event.pointerId);
     if (current.dragged && current.from !== null) { latest.current.onDrop(current.from, cancelled ? null : pointOffset(event.clientX, event.clientY)); return; }
     if (cancelled) return;
     if (current.placing) { const offset = pointOffset(event.clientX, event.clientY); if (offset !== null) latest.current.onPick(offset); return; }
     const dx = event.clientX - current.x, dy = event.clientY - current.y;
-    if (Math.hypot(dx, dy) > 12) return;
-    if (current.from !== null) { latest.current.onMarkPress(current.from); return; }
+    if (current.from !== null) { if (Math.hypot(dx, dy) <= 12) latest.current.onMarkPress(current.from); return; }
+    if (!current.continuous) {
+      const direction = horizontalTurn(dx, dy);
+      if (direction === 'next') latest.current.onNext();
+      else if (direction === 'prev') latest.current.onPrev();
+      else if (current.mouse && Math.hypot(dx, dy) <= 12) {
+        const bounds = rootRef.current?.getBoundingClientRect();
+        if (bounds) event.clientX < bounds.left + bounds.width / 2 ? latest.current.onNext() : latest.current.onPrev();
+      }
+    }
   }
   // 紙面の外へ動かした場合や、親の描画でcaptureが外れた場合も、離す操作を受け取る。
   useEffect(() => {
@@ -305,31 +356,50 @@ export default function VerticalPage(props: Props) {
     const marked = marks.includes(offset), chosen = picking && draft === offset;
     if (!marked && !chosen) return null;
     return <span role="button" tabIndex={0} aria-label="しおり" data-offset={offset} data-mark={marked ? offset : undefined}
-      onKeyDown={event => { if (event.key === 'Enter' && marked && !picking) latest.current.onMarkPress(offset); }}
+      onKeyDown={event => { if (guide && running) return; if (event.key === 'Enter' && marked && !picking) latest.current.onMarkPress(offset); }}
       style={{ ...styles.ribbon, ...(first ? { top: 0, right: 0, left: 'auto' } : {}), color: paint.accent, opacity: marked && (faded === offset || (ghost && gesture.current?.from === offset)) ? 0.25 : 1 }}><span style={{ pointerEvents: 'none', display: 'block' }}><Ribbon /></span></span>;
   }
-  return <div ref={rootRef} style={{ ...styles.root, background: paint.background, touchAction: picking ? 'none' : 'pan-x', cursor: ghost ? 'grabbing' : undefined }} onDragStart={event => event.preventDefault()} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)}>
+  return <div ref={rootRef} style={{ ...styles.root, background: paint.background, touchAction: 'none', cursor: ghost ? 'grabbing' : undefined }} onDragStart={event => event.preventDefault()} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)}>
     {calculating && <div role="status" style={{ position: 'absolute', top: 4, left: 24, color: paint.muted, fontSize: 12, pointerEvents: 'none' }}>ページを整えています…</div>}
     <div ref={viewRef} style={styles.view}>
       <div ref={measureRef} aria-hidden="true" style={{ ...styles.text, visibility: 'hidden', pointerEvents: 'none', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>{text}</div>
       <div ref={scrollRef} role="region" aria-label="本文・横スクロール" tabIndex={0} onScroll={onScroll}
         onWheel={event => {
+          if (guide && running) { event.preventDefault(); return; }
           if (picking || disabled || !scrollRef.current) return;
+          if (!guide || !running) {
+            if (wheelLock.current || Math.max(Math.abs(event.deltaX), Math.abs(event.deltaY)) < 4) return;
+            wheelLock.current = true; wheelTimer.current = setTimeout(() => { wheelLock.current = false; }, 240);
+            (Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX < 0 : event.deltaY > 0) ? latest.current.onNext() : latest.current.onPrev(); return;
+          }
           stopScroll(); autoScroll.current = false; latest.current.onPause();
-          if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) scrollRef.current.scrollLeft -= event.deltaY;
         }}
-        onKeyDown={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { stopScroll(); autoScroll.current = false; latest.current.onPause(); } }}
-        style={{ ...styles.scroll, overflowX: picking || disabled || !!ghost ? 'hidden' : 'auto' }}>
+        onKeyDown={event => {
+          if (guide && running && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); return; }
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key) || disabled || picking) return;
+          event.preventDefault(); stopScroll(); latest.current.onPause();
+          if (event.key === 'ArrowLeft') latest.current.onNext();
+          else if (event.key === 'ArrowRight') latest.current.onPrev();
+          else if (event.key === 'Home') latest.current.onReflow(0);
+          else if (latest.current.onFinish) latest.current.onFinish(); else latest.current.onReflow(layout.count - 1);
+        }}
+        style={{ ...styles.scroll, overflowX: 'hidden', touchAction: 'none' }}>
         <div ref={textRef} style={styles.track}>
           {Array.from({ length: layout.count }, (_, sheet) => {
             let position = start + (layout.starts[sheet] ?? 0);
             const sheetChars = Math.abs(sheet - page) <= 2 ? Array.from(text.slice(layout.starts[sheet], layout.starts[sheet + 1])).map(char => { const begin = position; position += char.length; return { char, begin, end: position }; }) : [];
-            return <div key={sheet} aria-label={`${sheet + 1}ページ`} style={{ ...styles.sheet, width: layout.viewport || '100%', borderLeft: `1px solid ${paint.chosen}` }}>
-              <div style={{ ...styles.clip, width: layout.width || '100%' }}><div style={{ ...styles.text, color: paint.ink, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>
-      {sheet === 0 && ribbon(start, true)}{sheetChars.map(({ char, end }, index) => <span key={end} data-i={index} data-offset={end} style={{ position: 'relative', display: char === '\n' ? 'inline' : 'inline-block', opacity: guide && sheet === page ? Math.max(0.50, 1 - Math.abs(index - cursor) * 0.13) : 1, fontWeight: guide && sheet === page && Math.abs(index - cursor) <= 2 ? 700 : 400, transform: guide && sheet === page ? `translateX(${-Math.max(0, 1 - Math.abs(index - cursor) / 5) * 2 * guideLift}px) scale(${1 + Math.max(0, 1 - Math.abs(index - cursor) / 5) * 0.09 * guideLift})` : undefined, textShadow: guide && sheet === page && Math.abs(index - cursor) < 4 ? `0 1px 1px color-mix(in srgb, ${paint.muted} 20%, transparent)` : undefined, transition: 'opacity 100ms ease, transform 100ms ease, text-shadow 100ms ease', background: (picking && draft === end) || (ghost && dragOffset === end) ? paint.chosen : undefined }}>{char}{ribbon(end)}</span>)}
+            return <div key={sheet} aria-label={`${sheet + 1}ページ`} style={{ ...styles.sheet, width: layout.viewport || '100%', borderLeft: 'none' }}>
+              <div style={{ ...styles.clip, width: layout.viewport || '100%' }}><div style={{ ...styles.text, color: paint.ink, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${layout.viewport / Math.max(1, Math.round(layout.width / step)) || step}px` }}>
+      {sheet === 0 && ribbon(start, true)}{sheetChars.map(({ char, end }, index) => <span key={end} data-i={index} data-offset={end} style={{ position: 'relative', display: char === '\n' ? 'inline' : 'inline-block', opacity: guide && running ? guideOpacity(index, cursor, sheet === page && index >= waveRange.first && index <= waveRange.last) : 1, fontWeight: 400, transform: guide && running && sheet === page && index >= waveRange.first && index <= waveRange.last ? `scaleY(${1 + Math.max(0, 1 - Math.abs(index - cursor) / 5) * 0.09 * guideLift})` : undefined, textShadow: guide && running && sheet === page && index >= waveRange.first && index <= waveRange.last && Math.abs(index - cursor) < 4 ? `0 1px 1px color-mix(in srgb, ${paint.muted} 20%, transparent)` : undefined, transition: 'opacity 100ms ease, transform 100ms ease, text-shadow 100ms ease', background: !ghost && picking && draft === end ? paint.chosen : undefined }}>{char}{ribbon(end)}</span>)}
               </div></div>
             </div>;
           })}
+          {props.onFinish && <div aria-label="読了ページ" style={{ ...styles.sheet, width: layout.viewport || '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 24, textAlign: 'center', background: paint.background, color: paint.ink }}>
+            <span style={{ color: paint.accent, fontSize: 13, letterSpacing: '.15em' }}>おわり</span>
+            <h2 style={{ fontSize: 26, fontWeight: 500, margin: 0 }}>読了しました</h2>
+            <p style={{ margin: 0, fontSize: 14, color: paint.muted }}>『{props.bookTitle ?? ''}』</p>
+            <button onClick={() => latest.current.onOpenReview?.()} style={{ border: 'none', borderRadius: 16, padding: '14px 24px', background: paint.chosen, color: paint.ink, font: 'inherit', cursor: 'pointer' }}>感想を書く</button>
+          </div>}
         </div>
       </div>
     </div>
@@ -342,7 +412,7 @@ export default function VerticalPage(props: Props) {
   </div>;
 }
 const styles: Record<string, React.CSSProperties> = {
-  root: { height: '100%', width: '100%', padding: '24px 24px', boxSizing: 'border-box', userSelect: 'none', touchAction: 'pan-x', position: 'relative' },
+  root: { height: '100%', width: '100%', padding: '24px 24px', boxSizing: 'border-box', userSelect: 'none', touchAction: 'pan-x', position: 'relative', overflow: 'hidden', overscrollBehavior: 'none' },
   turnHint: { position: 'absolute', top: '50%', transform: 'translateY(-50%)', fontSize: 22, opacity: 0.16, pointerEvents: 'none', lineHeight: 1 },
   view: { height: '100%', display: 'flex', justifyContent: 'flex-end', position: 'relative', minHeight: 0, overflow: 'hidden' },
   scroll: { position: 'absolute', inset: 0, direction: 'rtl', overflowY: 'hidden', overscrollBehaviorX: 'contain', scrollbarWidth: 'none', touchAction: 'pan-x' },

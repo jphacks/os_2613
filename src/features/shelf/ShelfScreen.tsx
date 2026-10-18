@@ -1,3 +1,6 @@
+import { loadStats, type Stats } from '@/features/stats/stats';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import BookReviews from '@/features/reviews/BookReviews';
 import { useAccount } from '@/features/account/AccountProvider';
 import { ReadingQuests } from '@/features/shelf/ReadingQuests';
@@ -49,11 +52,15 @@ export default function ShelfScreen() {
   const { books: savedBooks, ready, warning } = useLibrary();
   // 本棚を開いたら、ウィジェットの「今日のおすすめ」を選び直す（同じ日は同じ本。星はレビューの実際の集計）
   useEffect(() => { if (ready) void refreshRecommendation(savedBooks); }, [ready, savedBooks]);
-  // 読書状態はまだ記録していないので、「すべて」「読みたい」のときだけ並べる
-  const shown = !['all', 'want'].includes(state) ? [] : [
+  const [readingStats, setReadingStats] = useState<Stats | null>(null);
+  useFocusEffect(useCallback(() => { let active = true; void loadStats().then(value => { if (active) setReadingStats(value); }); return () => { active = false; }; }, []));
+  const shown = [
     ...(kind === 'study' ? [] : savedBooks.map(b => ({ id: b.id, title: b.title, author: b.author, label: '小説' }))),
     ...(kind === 'novel' ? [] : studyBooks.map(b => ({ id: b.id, title: b.title, author: b.author, label: '教材' }))),
-  ];
+  ].filter(book => {
+    const status = readingStats?.books[book.id]?.finishedAt ? 'done' : readingStats?.sessions.some(item => item.bookId === book.id) ? 'reading' : 'want';
+    return state === 'all' || state === status;
+  });
 
   // 1段に並ぶ冊数は、実際の棚の幅（測った値）から決め、段ごとに棚板を敷く。
   // 余った幅は本と本の間に均等に分けて、棚の右に余白が残らないようにする。

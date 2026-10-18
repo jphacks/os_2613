@@ -16,8 +16,9 @@ import { reviewCollection, validateReview, type ReviewBook, type ReviewRecord } 
 import { deleteReview, ownReview, publishReview } from './publishing';
 import { Button, Stars, s } from './ui';
 type Result = Awaited<ReturnType<typeof publishReview>>;
-export default function ComposeReview() {
-  const params = useLocalSearchParams<{ book?: string }>();
+export default function ComposeReview({ initialBookId, embedded = false }: { initialBookId?: string; embedded?: boolean } = {}) {
+  const routeParams = useLocalSearchParams<{ book?: string }>();
+  const params = { ...routeParams, book: initialBookId ?? routeParams.book };
   const { identity, prefs, ready: accountReady, refreshIdentity, update, complete } = useAccount(), { books, ready } = useLibrary();
   const [choosing, setChoosing] = useState(false), [displayName, setDisplayName] = useState('');
   useEffect(() => { if (accountReady) setDisplayName(prefs.name); }, [accountReady, identity?.did]);
@@ -113,12 +114,12 @@ export default function ComposeReview() {
   }
   const allowed = access.review && (!share || access.bluesky);
   return <ScrollView style={s.screen} contentContainerStyle={[s.body, { maxWidth: '100%' }]} keyboardShouldPersistTaps="handled">
-    <Stack.Screen options={{ title: '感想を書く', headerLeft: () => <NavigationButton label="タイムライン" onPress={() => router.dismissTo('/timeline')} /> }} />
+    {!embedded && <Stack.Screen options={{ title: '感想を書く', headerLeft: () => <NavigationButton label="タイムライン" onPress={() => router.dismissTo('/timeline')} /> }} />}
     <>
-      <View style={s.between}><Text style={s.title}>{existing ? '感想を編集する' : '感想を書く'}</Text>{identity && <View style={s.row}><Avatar uri={identity.avatar} size={32} /><Text style={s.note}>{prefs.nameChosen ? prefs.name : identity.name}</Text></View>}</View>
+      <View style={s.between}><Text style={embedded ? s.heading : s.title}>{existing ? '感想を編集する' : '感想を書く'}</Text>{identity && <View style={s.row}><Avatar uri={identity.avatar} size={32} /><Text style={s.note}>{prefs.nameChosen ? prefs.name : identity.name}</Text></View>}</View>
       {!identity && <View style={s.card}><Text style={s.heading}>Blueskyと接続して投稿</Text><Text style={s.note}>閲覧はログインなしでできます。投稿にはアカウントが必要です。</Text><Button disabled={busy || !loginAvailable || !loaded} onPress={() => void permit()}>{busy ? '接続中…' : 'Blueskyでサインインする ↗'}</Button>{!loginAvailable && <Text style={s.error}>iPhone のアプリからのサインインは準備中です。PC のブラウザーでお試しください。</Text>}{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}</View>}
       <View style={s.section}><Text style={s.heading}>本</Text>
-        {selected && <View style={[s.bookLink, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }]}><View style={s.miniBook}><Text style={s.miniBookText}>本</Text></View><View style={s.grow}><Text style={s.bookTitle}>{selected.title}</Text><Text style={s.note}>{selected.author}</Text></View><Button subtle disabled={busy || !!result} onPress={() => setChoosing(value => !value)}>{choosing ? '閉じる' : '変更'}</Button></View>}
+        {selected && <View style={[s.bookLink, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line }]}><View style={s.miniBook}><Text style={s.miniBookText}>本</Text></View><View style={s.grow}><Text style={s.bookTitle}>{selected.title}</Text><Text style={s.note}>{selected.author}</Text></View><Button subtle disabled={embedded || busy || !!result} onPress={() => setChoosing(value => !value)}>{choosing ? '閉じる' : '変更'}</Button></View>}
         {(!selected || choosing) && <View style={{ gap: 8 }}><TextInput accessibilityLabel="本棚のタイトルや著者で絞り込む" value={query} onChangeText={setQuery} placeholder="タイトル・著者で探す" placeholderTextColor={colors.muted} style={s.input} editable={!busy && !result} />
           <ScrollView style={{ maxHeight: 190 }} nestedScrollEnabled><View style={{ gap: 6 }}>{choices.filter(book => book.id !== bookId && (!query || `${book.title} ${book.author}`.includes(query))).map(book => <Pressable accessibilityRole="button" accessibilityLabel={`${book.title}を選択`} disabled={busy || !!result} key={book.id} onPress={() => choose(book.id)} style={{ paddingVertical: 12, paddingHorizontal: 14, backgroundColor: colors.surface, borderRadius: 12 }}><Text style={s.bookTitle}>{book.title}</Text><Text style={s.meta}>{book.author}</Text></Pressable>)}</View></ScrollView>
         </View>}

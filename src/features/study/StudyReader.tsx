@@ -1,3 +1,4 @@
+import { ReaderPanel } from '@/shared/ReaderPanel';
 import { AppIcon } from '@/shared/AppIcon';
 import { StudyToolsContext, StudyToolPanel, type StudyTool } from './StudyToolPanel';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -155,7 +156,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
     : null;
   const panelToolbar = <View style={{ gap: 8, alignItems: 'center' }}>
     <View style={{ gap: 4 }}>{levels.map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.label}の章を選択`} disabled={!ready || busy} onPress={() => { setLevel(item.id); setActiveTool('chapters'); }} style={[styles.levelTab, { borderRadius: 9, backgroundColor: colors.button }, level === item.id && styles.levelTabActive]}><Text style={[styles.levelText, level === item.id && styles.levelTextActive]}>{item.label}</Text></Pressable>)}</View>
-    <Pressable accessibilityRole="button" accessibilityLabel="表示設定" onPress={() => setActiveTool('display')} style={styles.featureButton}><Text style={styles.aa}>AA</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="表示設定" onPress={() => setActiveTool('display')} style={styles.featureButton}><Text style={styles.aa}>Aa</Text></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel="曲を選択" onPress={() => setActiveTool('music')} style={styles.featureButton}><AppIcon name="music_note" size={28} /></Pressable>
   </View>;
   return <StudyToolsContext.Provider value={{ active: activeTool, select: setActiveTool, toolbar: panelToolbar }}><View style={styles.container}>
@@ -164,7 +165,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
       {!!(error || current?.error) && <Text accessibilityLiveRegion="polite" style={styles.error}>{error || current?.error}</Text>}
     </View>}
     <View style={styles.readerRow}>
-      <StudyToolPanel visible={sidebarOpen} transparent animationType="fade" onRequestClose={() => setSidebarOpen(false)}>
+      <ReaderPanel visible={sidebarOpen} label="章・区分" onClose={() => setSidebarOpen(false)} desktop={<StudyToolPanel visible={sidebarOpen} transparent animationType="fade" onRequestClose={() => setSidebarOpen(false)}>
         <View style={styles.panelHost}>
           <Pressable accessibilityRole="button" accessibilityLabel="章の選択を閉じる" onPress={() => setSidebarOpen(false)} style={StyleSheet.absoluteFill} />
           <View accessibilityViewIsModal style={styles.sidebar}>
@@ -204,7 +205,41 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
         </ScrollView>}
           </View>
         </View>
-      </StudyToolPanel>
+      </StudyToolPanel>}><View style={styles.sidebarHeader}><Text accessibilityRole="header" style={styles.sidebarTitle}>{selected.label} · 章を選択</Text><NavigationButton close label="閉じる" onPress={() => setSidebarOpen(false)} /></View>
+            <View style={styles.panelActions}>{lessonCreateAction}{supplementAction}</View>
+        {sidebarOpen && <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.chapterList}>
+          {state?.chapters.map(item => {
+            const selectedChapter = item.index === chapterIndex;
+            const expanded = item.index === expandedChapterIndex;
+            return <View key={item.index}>
+              <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedChapter, expanded, disabled: busy }} disabled={busy}
+                onPress={() => {
+                  if (expanded) { setExpandedChapterIndex(null); return; }
+                  setExpandedChapterIndex(item.index);
+                  if (!selectedChapter) { setChapterIndex(item.index); setIndex(item.units[0]); setError(''); }
+                }} style={[styles.chapter, selectedChapter && styles.activeChapter, busy && { opacity: 0.6 }]}>
+                <Text style={[styles.chapterTitle, selectedChapter && styles.activeText]}>{item.title}</Text>
+                <Text style={[styles.chapterNote, selectedChapter && styles.activeText]}>{item.complete && !item.needsIllustrations ? '✓ 教材・図・挿絵を保存済み' : item.baseComplete && item.complete ? '教材・図解済み、挿絵未完了' : item.needsVisuals ? '本文あり・図解未完了' : `${item.firstPage}〜${item.lastPage}p`}</Text>
+              </Pressable>
+              {expanded && level !== 'original' && item.units.length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unitScroll} contentContainerStyle={styles.unitList}>
+                {item.units.map((unitIndex, part) => {
+                  const unit = state?.units[unitIndex];
+                  const selectedUnit = index === unitIndex;
+                  return <Pressable key={unitIndex} accessibilityRole="button" accessibilityState={{ selected: selectedUnit, disabled: busy }} disabled={busy}
+                    accessibilityLabel={`区分 ${part + 1}: ${unit?.title ?? `区分 ${part + 1}`}、${unit?.lesson ? '生成済み' : '未生成'}`}
+                    onPress={() => {
+                      setIndex(unitIndex); setError(''); setSidebarOpen(false);
+                      const section = chapterSections.find(item => item.unit.index === unitIndex);
+                      if (section) setScrollRequest({ offset: section.startOffset + 5, token: Date.now() });
+                    }} style={[styles.unit, unit?.lesson && styles.generatedUnit, selectedUnit && styles.activeUnit]}>
+                    <Text style={[styles.unitNumber, (unit?.lesson || selectedUnit) && styles.activeUnitText]}>{part + 1}</Text>
+                  </Pressable>;
+                })}
+              </ScrollView>}
+            </View>;
+          })}
+        </ScrollView>}
+</ReaderPanel>
       <View style={[styles.reading, level === 'original' && !pdfSpread && styles.singleReading]}>
     <View style={[styles.modeToolsRow, level === 'original' && !pdfSpread && styles.verticalTools]}>
       {studyToolbar}

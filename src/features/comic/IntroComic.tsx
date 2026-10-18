@@ -24,7 +24,7 @@ function checked(value: State, opening: string): State {
   if ((!script && value.completed) || (value.status === 'ready' && (!script || value.completed !== (value.totalImages ?? 4)))) throw new Error('保存内容を確認できません。画面を開き直してください。');
   return { ...value, script };
 }
-export function IntroComic({ book, read }: { book: SavedBook; read: () => void }) {
+export function IntroComic({ book, read }: { book: SavedBook; read?: () => void }) {
   if (book.id === 'aozora-1567' && book.aozoraId === 1567) return <MelosComic book={book} read={read} />;
   return <ComicEdition key={book.id} book={book} read={read} />;
 }
@@ -34,19 +34,17 @@ const melosPanels = [
   { source: require('../../../assets/comics/hashire-melos/3.webp'), description: '王は友を人質に置き、三日目の日暮れまでに戻るよう命じる。' },
   { source: require('../../../assets/comics/hashire-melos/4.webp'), description: 'メロスは親友セリヌンティウスに事情を打ち明け、信頼を託す。' },
 ];
-function MelosComic({ book, read }: { book: SavedBook; read: () => void }) {
+function MelosComic({ book, read }: { book: SavedBook; read?: () => void }) {
   const [pageWidth, setPageWidth] = useState(0);
   return <ScrollView contentContainerStyle={styles.body}>
-    <Text style={styles.kicker}>物語の入口</Text><Text style={styles.title}>{book.title}</Text><Text style={styles.text}>{book.author}</Text>
-    <Text style={styles.heading}>漫画から、読んでみよう。</Text>
-    <Pressable accessibilityRole="button" style={styles.button} onPress={read}><Text style={styles.buttonText}>原文を読む →</Text></Pressable>
+    <View style={styles.introHeader}><Text style={styles.kicker}>物語の入口</Text><Text accessibilityRole="header" style={styles.title}>{book.title}</Text><Text style={styles.author}>{book.author}</Text><Text style={styles.introCaption}>漫画で出会う、物語のはじまり。</Text></View>
     <View style={[styles.mangaPage, { flexDirection: pageWidth >= 620 ? 'row-reverse' : 'column' }]} onLayout={event => setPageWidth(event.nativeEvent.layout.width)}>
       {melosPanels.map((panel, index) => <Image key={index} source={panel.source} style={{ width: pageWidth >= 620 ? '49%' : '100%', aspectRatio: 3 / 4 }} contentFit="contain" cachePolicy="disk" accessibilityLabel={`${index + 1}コマ目：${panel.description}`} />)}
     </View>
-    <Pressable accessibilityRole="button" style={styles.primary} onPress={read}><Text style={styles.light}>原文を読む →</Text></Pressable>
+    {read && <Pressable accessibilityRole="button" style={styles.primary} onPress={read}><Text style={styles.light}>原文を読む →</Text></Pressable>}
   </ScrollView>;
 }
-function ComicEdition({ book, read }: { book: SavedBook; read: () => void }) {
+function ComicEdition({ book, read }: { book: SavedBook; read?: () => void }) {
   const source = useMemo(() => introSource(book.text, book.title), [book.text, book.title]);
   const cacheKey = `dopabooks:comic:manga:v4:${book.id}:${documentVersion(JSON.stringify({ title: book.title, ...source }))}`;
   const [pageWidth, setPageWidth] = useState(0);
@@ -90,9 +88,7 @@ function ComicEdition({ book, read }: { book: SavedBook; read: () => void }) {
     finally { clearTimeout(timer); if (active.current) setWorking(false); }
   }
   return <ScrollView contentContainerStyle={styles.body}>
-    <Text style={styles.kicker}>物語の入口</Text><Text style={styles.title}>{book.title}</Text><Text style={styles.text}>{book.author}</Text>
-    <Text style={styles.heading}>漫画から、読んでみよう。</Text>
-    <Pressable accessibilityRole="button" style={styles.button} onPress={read}><Text style={styles.buttonText}>原文を読む →</Text></Pressable>
+    <View style={styles.introHeader}><Text style={styles.kicker}>物語の入口</Text><Text accessibilityRole="header" style={styles.title}>{book.title}</Text><Text style={styles.author}>{book.author}</Text><Text style={styles.introCaption}>漫画で出会う、物語のはじまり。</Text></View>
     {state?.status === 'idle' && <Text style={styles.text}>物語のはじまりを、4コマの漫画でのぞいてみませんか。</Text>}
     {loading && <ActivityIndicator color={colors.accent} />}
     {state?.status === 'running' ? <View style={styles.card}><ActivityIndicator color={colors.accent} /><Text accessibilityLiveRegion="polite" style={styles.text}>{state.script ? `漫画を描いています（${state.completed} / 4 コマ）` : '物語の紹介を考えています…'}</Text></View> : state?.status !== 'ready' && state && <Pressable accessibilityRole="button" disabled={working || loading || (state.failure?.code === 'LIMIT' && !state.canResumeRemaining && !state.canResumeScript)} style={styles.primary} onPress={() => void generate()}><Text style={styles.light}>{working ? '準備しています…' : state.script ? '漫画の作成を再開する' : state.status === 'error' ? 'もう一度作る' : '紹介漫画を作る'}</Text></Pressable>}
@@ -108,7 +104,7 @@ function ComicEdition({ book, read }: { book: SavedBook; read: () => void }) {
       <ComicImage comicKey={state.key} index={index + 1} caption={panel.caption} />
       <Text style={styles.text}>{panel.caption}</Text>
     </View>)}
-    {state?.status === 'ready' && <Pressable accessibilityRole="button" style={styles.primary} onPress={read}><Text style={styles.light}>原文を読む →</Text></Pressable>}
+    {read && <Pressable accessibilityRole="button" style={styles.primary} onPress={read}><Text style={styles.light}>原文を読む →</Text></Pressable>}
   </ScrollView>;
 }
 function ComicImage({ comicKey, index, caption, portrait = false }: { comicKey: string; index: number; caption: string; portrait?: boolean }) {
@@ -120,6 +116,7 @@ function ComicImage({ comicKey, index, caption, portrait = false }: { comicKey: 
 }
 const styles = StyleSheet.create({
   mangaPage: { backgroundColor: '#fff', padding: 8, gap: 8, flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start' },
+  introHeader: { paddingVertical: 20, paddingHorizontal: 20, gap: 9, borderRadius: 18, backgroundColor: colors.button }, author: { fontSize: 14, color: colors.muted }, introCaption: { color: colors.accent, fontSize: 13, marginTop: 6 },
   body: { padding: 20, paddingBottom: 40, gap: 18, width: '100%', maxWidth: 760, alignSelf: 'center' }, kicker: { color: colors.accent, fontSize: 12, letterSpacing: 2 }, title: { fontSize: 28, color: colors.ink }, heading: { fontSize: 19, fontWeight: '600', color: colors.ink }, text: { color: colors.ink, fontSize: 16, lineHeight: 28 }, card: { gap: 14, paddingVertical: 12 },
-  image: { width: '100%', aspectRatio: 1.5, backgroundColor: colors.surface }, button: { alignSelf: 'flex-start', padding: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: colors.surface }, buttonText: { color: colors.accent, fontSize: 15 }, primary: { alignSelf: 'flex-start', backgroundColor: colors.accent, padding: 14, borderRadius: 10 }, light: { color: colors.surface, fontSize: 16 },
+  image: { width: '100%', aspectRatio: 1.5, backgroundColor: colors.surface }, button: { alignSelf: 'flex-start', padding: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: colors.surface }, buttonText: { color: colors.accent, fontSize: 15 }, primary: { alignSelf: 'flex-start', backgroundColor: colors.accent, paddingHorizontal: 22, paddingVertical: 14, borderRadius: 999 }, light: { color: colors.surface, fontSize: 16 },
 });
