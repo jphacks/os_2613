@@ -4,7 +4,7 @@ import { Avatar } from '@/shared/Avatar';
 import { useAccount } from '@/features/account/AccountProvider';
 import { useState } from 'react';
 import { router, type Href } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/shared/theme';
 import type { Review } from './model.mjs';
 import { likeReview } from './publishing';
@@ -24,7 +24,7 @@ export function ReviewCard({ review, own = false, hideBook = false, expanded = f
   const [person, setPerson] = useState<ReviewPerson | null>(null);
   const { identity } = useAccount();
   const Card = expanded ? View : Pressable;
-  return <Card style={s.card} onPress={expanded ? undefined : () => setPostOpen(true)} accessibilityRole={expanded ? undefined : "button"} accessibilityLabel={expanded ? undefined : `${review.displayName}の感想全文を読む`}>
+  return <Card style={s.card} onPress={expanded ? undefined : () => setPostOpen(true)} accessibilityRole={expanded || Platform.OS === 'web' ? undefined : "button"} role={!expanded && Platform.OS === 'web' ? "article" : undefined} {...(!expanded && Platform.OS === 'web' ? { onKeyDown: (event: { key?: string; target: unknown; currentTarget: unknown; preventDefault: () => void }) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setPostOpen(true); } } } : {})} accessibilityLabel={expanded ? undefined : `${review.displayName}の感想全文を読む`}>
     <View style={s.between}><Pressable accessibilityRole="button" accessibilityLabel={`${review.displayName}のプロフィール`} onPress={event => { event.stopPropagation(); setPerson({ did: review.did, name: review.displayName, handle: review.handle, avatar: review.avatar }); }} style={s.person}><Avatar uri={identity?.did === review.did ? identity.avatar : review.avatar} size={36} /><View style={s.grow}><Text style={s.name}>{review.displayName}</Text><Text style={s.meta} numberOfLines={1}>@{review.handle}</Text></View></Pressable><Text style={s.meta}>{new Date(review.updatedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}</Text></View>
     {!hideBook && <Pressable accessibilityRole="link" onPress={event => { event.stopPropagation(); setBookOpen(true); }} style={s.bookLink}><View style={s.miniBook} /><View style={s.grow}><Text style={s.bookTitle}>{review.book.title}</Text><Text style={s.meta}>{review.book.author}</Text></View><Text style={s.link}>›</Text></Pressable>}
     <Stars value={review.rating} />

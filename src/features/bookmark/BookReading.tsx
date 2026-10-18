@@ -21,7 +21,8 @@ import { PageBar } from '@/features/reader/PageBar';
 import { IntroComic } from '@/features/comic/IntroComic';
 import { Characters } from '@/features/characters/Characters';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { forgetWidgetBook, rememberWidgetBook } from '@/features/widget/bookmarks';
+import { rememberWidgetBook } from '@/features/widget/bookmarks';
+import { summarizeForWidget } from '@/features/widget/summary';
 import { recordFinished, recordReading } from '@/features/stats/stats';
 import { Alert, AppState, Platform } from 'react-native';
 import { openFocusSettings } from '@/features/focus/openFocusSettings';
@@ -116,19 +117,26 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     const sub = AppState.addEventListener('change', state => { if (state === 'active') since = Date.now(); else flush(); });
     return () => { sub.remove(); flush(); };
   }, [trackingId]);
-  // しおりが変わったら、ウィジェットに出す「最新のしおり」も更新する（しおりが無くなった本は外す）
+  // ウィジェットには「最後に読んだ位置」を渡す（しおりを動かしても、この位置は変わらない）
   useEffect(() => {
-    if (!ready) return;
-    if (study) return;
-    const latestMark = [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-    if (!latestMark) { void forgetWidgetBook(book.id); return; }
+    if (!ready || study || reading.cursor <= 0) return;
     void rememberWidgetBook({
-      bookId: book.id, title: book.title, author: book.author, offset: latestMark.offset,
-      excerpt: book.text.slice(Math.max(0, latestMark.offset - 60), latestMark.offset).replace(/\s+/g, ' ').trim(),
-      progress: Math.round((latestMark.offset / Math.max(1, book.text.length)) * 100),
-      updatedAt: latestMark.updatedAt,
+      bookId: book.id, title: book.title, author: book.author, offset: reading.cursor,
+      excerpt: book.text.slice(Math.max(0, reading.cursor - 60), reading.cursor).replace(/\s+/g, ' ').trim(),
+      progress: Math.round((reading.cursor / Math.max(1, book.text.length)) * 100),
+      updatedAt: Date.now(),
     });
-  }, [ready, reading.marks, book, study]);
+  }, [ready, reading.cursor, book, study]);
+  // 本を閉じたとき・アプリを離れたときに、「1つ前のしおり」から「最後に読んだ位置」までを自動で要約して
+  // ウィジェットに渡す。まだ読んでいない部分は含めない。読み進めた量が少ないときは作らない（API の利用料を抑える）。
+  const latestForSummary = useRef({ cursor: 0, marks: reading.marks });
+  latestForSummary.current = { cursor: reading.cursor, marks: reading.marks };
+  useEffect(() => {
+    if (study) return;
+    const summarize = () => { void summarizeForWidget(book, latestForSummary.current.cursor, latestForSummary.current.marks.map(mark => mark.offset)); };
+    const sub = AppState.addEventListener('change', state => { if (state !== 'active') summarize(); });
+    return () => { sub.remove(); summarize(); };
+  }, [book, study]);
   useEffect(() => {
     let active = true;
     void AsyncStorage.getItem(preferenceKey).then(raw => { if (active && raw) setDisplay(normalizePreferences(JSON.parse(raw))); })
@@ -358,8 +366,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
           {target && range ? <>
             <Action onPress={() => setSelected(null)}>‹ しおり一覧へ</Action>
             <View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View>
-            <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`}
-              onSummary={summary => { if (!study && target.id === [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt)[0]?.id) void rememberWidgetBook({ bookId: book.id, summary }); }} />
+            <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`} />
             <View style={styles.toolbar}><Action disabled={busy} filled onPress={() => { resume(target); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(target.id)}>しおりを移動</Action><Action disabled={busy} onPress={() => { void save(state => removeMark(state, target.id)).then(ok => { if (ok) { setSelected(null); setUndo(null); } }); }}>外す</Action></View>
           </> : <>
             {!sorted.length && <Text style={styles.note}>しおりはまだありません。本文の文字を選んで挟めます。</Text>}

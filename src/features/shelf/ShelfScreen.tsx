@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { books } from '@/content/books';
 import { Cover } from '@/features/shelf/Cover';
 import { useLibrary } from '@/features/library/LibraryProvider';
+import { refreshRecommendation } from '@/features/widget/recommend';
 import { Chips } from '@/shared/Chips';
 import { colors, coverColors } from '@/shared/theme';
 
@@ -46,6 +47,8 @@ export default function ShelfScreen() {
   const [kind, setKind] = useState('all');
   const [state, setState] = useState('all');
   const { books: savedBooks, ready, warning } = useLibrary();
+  // 本棚を開いたら、ウィジェットの「今日のおすすめ」を選び直す（同じ日は同じ本。星はレビューの実際の集計）
+  useEffect(() => { if (ready) void refreshRecommendation(savedBooks); }, [ready, savedBooks]);
   // 読書状態はまだ記録していないので、「すべて」「読みたい」のときだけ並べる
   const shown = !['all', 'want'].includes(state) ? [] : [
     ...(kind === 'study' ? [] : savedBooks.map(b => ({ id: b.id, title: b.title, author: b.author, label: '小説' }))),

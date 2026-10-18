@@ -100,11 +100,9 @@ struct Provider: TimelineProvider {
       completion(Timeline(entries: [BookmarkEntry(date: now, book: nil, index: 0, total: 0)], policy: .after(tomorrow)))
       return
     }
-    // 1冊ずつ15分おきに表示し、一巡したら作り直す
-    let entries = books.enumerated().map { offset, book in
-      BookmarkEntry(date: now.addingTimeInterval(Double(offset * rotateMinutes * 60)), book: book, index: offset, total: books.count)
-    }
-    completion(Timeline(entries: entries, policy: .atEnd))
+    // 最後に読んだ本（先頭の1冊）だけを表示する。アプリが読んだ位置やまとめを更新するたびに作り直される
+    let tomorrow = Calendar.current.startOfDay(for: now.addingTimeInterval(86400))
+    completion(Timeline(entries: [BookmarkEntry(date: now, book: books[0], index: 0, total: 1)], policy: .after(tomorrow)))
   }
 }
 
@@ -348,23 +346,24 @@ struct LargeView: View {
 }
 
 // しおりがまだ無いときに出す「今日のおすすめ」（青空文庫で読める、著作権の切れた作品）。日替わりで1冊。
-// 星の評価は、のちに SNS の評価と連動させる。アプリが App Group のキー "recommendations" に
-// 同じ形の配列を書いたらそちらを使い、無ければ下の仮の一覧を使う（仮の評価は目安の値）。
+// アプリが App Group のキー "recommendations" に、本棚に無い・読み終えていない本から選んだ1冊と
+// 実際のレビューの集計を書く。まだ書かれていなければ下の一覧を使う（評価は無いので星は出さない）。
 struct Recommendation: Codable {
   let title: String
   let author: String
   let blurb: String
   let rating: Double   // 星の数（0〜5）
-  let reviews: Int     // 評価の件数
+  let reviews: Int     // 評価の件数（0 なら星を出さない）
+  let link: String?    // 押したときに開く場所（本の紹介画面）
 }
 
 private let builtinRecommendations: [Recommendation] = [
-  Recommendation(title: "走れメロス", author: "太宰 治", blurb: "友を人質に、三日で戻ると誓った男の全力疾走。", rating: 4.5, reviews: 0),
-  Recommendation(title: "吾輩は猫である", author: "夏目 漱石", blurb: "名前のない猫が、人間たちの暮らしを見つめる。", rating: 4.0, reviews: 0),
-  Recommendation(title: "坊っちゃん", author: "夏目 漱石", blurb: "無鉄砲な新米教師が、田舎の学校で大暴れ。", rating: 4.0, reviews: 0),
-  Recommendation(title: "羅生門", author: "芥川 龍之介", blurb: "雨の夜、行き場を失った下人が下した決断。", rating: 4.5, reviews: 0),
-  Recommendation(title: "注文の多い料理店", author: "宮沢 賢治", blurb: "山奥の洋食店。扉を開けるたびに増える注文。", rating: 4.5, reviews: 0),
-  Recommendation(title: "蜘蛛の糸", author: "芥川 龍之介", blurb: "地獄に垂らされた一本の糸と、人の心。", rating: 4.0, reviews: 0),
+  Recommendation(title: "走れメロス", author: "太宰 治", blurb: "友を人質に、三日で戻ると誓った男の全力疾走。", rating: 0, reviews: 0, link: nil),
+  Recommendation(title: "吾輩は猫である", author: "夏目 漱石", blurb: "名前のない猫が、人間たちの暮らしを見つめる。", rating: 0, reviews: 0, link: nil),
+  Recommendation(title: "坊っちゃん", author: "夏目 漱石", blurb: "無鉄砲な新米教師が、田舎の学校で大暴れ。", rating: 0, reviews: 0, link: nil),
+  Recommendation(title: "羅生門", author: "芥川 龍之介", blurb: "雨の夜、行き場を失った下人が下した決断。", rating: 0, reviews: 0, link: nil),
+  Recommendation(title: "注文の多い料理店", author: "宮沢 賢治", blurb: "山奥の洋食店。扉を開けるたびに増える注文。", rating: 0, reviews: 0, link: nil),
+  Recommendation(title: "蜘蛛の糸", author: "芥川 龍之介", blurb: "地獄に垂らされた一本の糸と、人の心。", rating: 0, reviews: 0, link: nil),
 ]
 
 private func todaysRecommendation() -> Recommendation {
@@ -412,11 +411,11 @@ struct NoBookView: View {
         FadingText(text: pick.blurb, size: 14, lines: 2)
       }
       if small {
-        Stars(rating: pick.rating, size: 14).padding(.top, 12)
+        if pick.reviews > 0 { Stars(rating: pick.rating, size: 14).padding(.top, 12) }
         Spacer(minLength: 0)
       } else {
         Spacer(minLength: 0)
-        Stars(rating: pick.rating, size: 13)
+        if pick.reviews > 0 { Stars(rating: pick.rating, size: 13) }
       }
     }
     .padding(.top, small ? 14 : 24).padding(.bottom, small ? 14 : 22)
@@ -438,7 +437,8 @@ struct DopaBooksWidgetView: View {
 
   // 押したときに開く場所：しおりがあればその本のしおりの位置、無ければ本棚
   private var link: URL? {
-    guard let book = entry.book, !book.bookId.isEmpty else { return URL(string: "dopabooks://") }
+    // しおりの本が無いときは、今日のおすすめの紹介画面を開く
+    guard let book = entry.book, !book.bookId.isEmpty else { return URL(string: todaysRecommendation().link ?? "dopabooks://") }
     let mark = book.offset.map { "?mark=\(Int($0))" } ?? ""
     return URL(string: "dopabooks://book/\(book.bookId)\(mark)")
   }
