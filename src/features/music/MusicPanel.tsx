@@ -15,6 +15,7 @@ import type { MusicTrack } from '@/server/music.mjs';
 import Constants from 'expo-constants';
 import { audioSource } from './audio-source.mjs';
 import { anchorLegacyScenes } from './music-timing.mjs';
+import { StudyMusic } from './StudyMusic';
 
 const fallback = require('../../../assets/audio/reading-pad.wav');
 export function MusicPanel({ book, position, guideActive, visible = true, detailsOpen, onDetailsChange, onGuidePress }: { visible?: boolean; book: SavedBook; position: number; guideActive: boolean; detailsOpen?: boolean; onDetailsChange?: (open: boolean) => void; onGuidePress?: () => void }) {
@@ -22,6 +23,7 @@ export function MusicPanel({ book, position, guideActive, visible = true, detail
   const [enabled, setEnabled] = useState(false);
   const [localDetails, setLocalDetails] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [studyMusicOpen, setStudyMusicOpen] = useState(false);
   const details = detailsOpen ?? localDetails;
   const setDetails = (open: boolean) => { setLocalDetails(open); onDetailsChange?.(open); };
   const { width } = useWindowDimensions();
@@ -119,11 +121,13 @@ export function MusicPanel({ book, position, guideActive, visible = true, detail
   const OptionsHost = Platform.OS === 'web' ? View : Modal;
   const icon = (symbol: string, label: string, action: () => void, disabled = false, active = false) => <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, selected: active }} disabled={disabled} onPress={action} style={[styles.button, active && styles.active, disabled && { opacity: 0.35 }]}><Text style={[styles.symbol, active && styles.light]}>{symbol}</Text></Pressable>;
   return <View style={styles.panel}>
+    <StudyMusic hideTrigger open={studyMusicOpen} onOpenChange={setStudyMusicOpen} interrupted={enabled} onPlay={stop} />
     {icon('♫', 'BGMの設定を開く', () => setDetails(!details), false, enabled)}
     {details && <OptionsHost transparent visible animationType="none" pointerEvents="box-none" style={Platform.OS === 'web' ? StyleSheet.absoluteFill : undefined} onRequestClose={() => setDetails(false)}>
       {Platform.OS !== 'web' && <View style={{ flexDirection: 'row', marginTop: 64, marginLeft: 12 }}>{icon('♫', 'BGM設定を閉じる', () => setDetails(false))}{onGuidePress && icon('≋', '読みガイドへ切り替え', onGuidePress)}</View>}
       <View style={[styles.backdrop, { width: Math.min(300, width - 24) }, Platform.OS !== 'web' && { top: 108, left: 12 }]}><View style={styles.card}><ScrollView contentContainerStyle={styles.details}>
         <View style={styles.row}><Pressable accessibilityRole="button" accessibilityLabel="BGM設定を閉じる" onPress={() => setDetails(false)} style={styles.button}><Text style={styles.symbol}>‹</Text></Pressable><Text style={styles.heading}>BGM</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="集中BGMを選ぶ" onPress={() => { setDetails(false); setStudyMusicOpen(true); }} style={styles.control}><Text style={styles.text}>♪ 集中BGMを選ぶ</Text><Text style={styles.text}>集中BGM 1・集中BGM 2</Text></Pressable>
     <View style={styles.row}>
       <Pressable accessibilityRole="button" onPress={enabled ? stop : start} style={[styles.control, enabled && styles.active]}><Text style={[styles.text, enabled && styles.light]}>{enabled ? 'BGM ON' : 'BGM OFF'}</Text></Pressable>
       {busy ? <View style={styles.button} accessibilityLabel="BGM取得中"><ActivityIndicator size="small" color={colors.accent} /></View> : <Pressable accessibilityRole="button" onPress={() => void load()} style={styles.control}><Text style={styles.text}>BGM取得</Text></Pressable>}
