@@ -2,7 +2,7 @@ import { AppIcon } from '@/shared/AppIcon';
 import { StudyToolsContext, StudyToolPanel, type StudyTool } from './StudyToolPanel';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Book } from '@/content/books';
 import type { StudyState } from '@/server/study.mjs';
 import { BookReading } from '@/features/bookmark/BookReading';
@@ -113,6 +113,11 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   const contentKey = `${book.id}:${level}:${level === 'original' ? `${pdfUri}:${chapter?.firstPage ?? 1}` : `${state?.hash}:${chapterIndex}`}:${readerAttempt}`;
   const contentReady = useCallback(() => setReadyContent(contentKey), [contentKey]);
   const contentFailed = useCallback((message: string) => setContentError({ key: contentKey, message }), [contentKey]);
+  const readLocalPdf = useCallback(async () => {
+    if (!pdfUri) throw new Error('PDF_NOT_AVAILABLE');
+    const { File } = await import('expo-file-system');
+    return new File(pdfUri).base64();
+  }, [pdfUri]);
   const waiting = !ready || (level === 'original' ? !pdfUri || readyContent !== contentKey : loading || (chapterHasLesson && readyContent !== contentKey));
   const waitingError = contentError.key === contentKey ? contentError.message : '';
   useEffect(() => {
@@ -205,7 +210,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
     </View>
     <View style={styles.pageContent}>
     {level === 'original' ? <>
-      {pdfUri ? <PdfBook key={contentKey} uri={pdfUri} initialPage={chapter?.firstPage ?? 1} zoom={pdfZoom} spread={pdfSpread} onReady={contentReady} onLoadError={contentFailed} dom={{ style: { flex: 1 }, onError: () => contentFailed('PDF画面を読み込めませんでした。もう一度お試しください。'), onContentProcessDidTerminate: () => contentFailed('PDF画面の処理が停止しました。もう一度お試しください。') }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
+      {pdfUri ? <PdfBook key={contentKey} uri={pdfUri} readLocalPdf={Platform.OS === 'web' ? undefined : readLocalPdf} initialPage={chapter?.firstPage ?? 1} zoom={pdfZoom} spread={pdfSpread} onReady={contentReady} onLoadError={contentFailed} dom={{ style: { flex: 1 }, onError: () => contentFailed('PDF画面を読み込めませんでした。もう一度お試しください。'), onContentProcessDidTerminate: () => contentFailed('PDF画面の処理が停止しました。もう一度お試しください。') }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
     </>
       : chapterHasLesson && current && state && chapter ? <BookReading key={contentKey} study onStudyDisplayControl={setDisplayControl} onReady={contentReady} onLoadError={contentFailed}
         studyScrollTarget={scrollRequest} onStudyPosition={updateSelectedSection} trackingId={book.id} studyVisuals={chapterVisuals} sourceLabel={`${book.author}「${book.title}」・${book.license}／AIによる翻案`}

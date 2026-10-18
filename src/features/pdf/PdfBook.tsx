@@ -2,12 +2,13 @@
 
 import * as pdfjs from 'pdfjs-dist';
 import { useEffect, useRef, useState } from 'react';
+import { pdfSource } from './source.mjs';
 
 // iOSではWebView内でPDFを描画する。画面付近だけ描き、離れたページのCanvasは解放する。
 const cdn = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}`;
 pdfjs.GlobalWorkerOptions.workerSrc = `${cdn}/build/pdf.worker.min.mjs`;
 
-type Props = { uri: string; initialPage?: number; zoom?: number; spread?: boolean; onReady?: () => void; onLoadError?: (message: string) => void; dom?: import('expo/dom').DOMProps };
+type Props = { uri: string; readLocalPdf?: () => Promise<string>; initialPage?: number; zoom?: number; spread?: boolean; onReady?: () => void; onLoadError?: (message: string) => void; dom?: import('expo/dom').DOMProps };
 
 function PdfPage({ doc, number, width, height, root, onRendered, onLoadError }: { doc: pdfjs.PDFDocumentProxy; number: number; width: number; height: number; root: HTMLDivElement | null; onRendered: (page: number) => void; onLoadError?: (message: string) => void }) {
   const slot = useRef<HTMLDivElement>(null);
@@ -49,7 +50,7 @@ function PdfPage({ doc, number, width, height, root, onRendered, onLoadError }: 
   </div>;
 }
 
-export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false, onReady, onLoadError }: Props) {
+export default function PdfBook({ uri, readLocalPdf, initialPage = 1, zoom = 1, spread = false, onReady, onLoadError }: Props) {
   const callbacks = useRef({ onReady, onLoadError }); callbacks.current = { onReady, onLoadError };
   const stageRef = useRef<HTMLDivElement>(null);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
@@ -80,15 +81,20 @@ export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false
   useEffect(() => {
     let cancelled = false;
     setDoc(null); setError('');
-    const task = pdfjs.getDocument({ url: uri, cMapUrl: `${cdn}/cmaps/`, cMapPacked: true, standardFontDataUrl: `${cdn}/standard_fonts/` });
-    void task.promise.then(async pdf => {
+    let task: pdfjs.PDFDocumentLoadingTask | undefined;
+    void pdfSource(uri, readLocalPdf).then(source => {
+      if (cancelled) return;
+      task = pdfjs.getDocument({ ...source, cMapUrl: `${cdn}/cmaps/`, cMapPacked: true, standardFontDataUrl: `${cdn}/standard_fonts/` });
+      return task.promise;
+    }).then(async pdf => {
+      if (!pdf || cancelled) return;
       const first = await pdf.getPage(1);
       if (cancelled) return;
       const viewport = first.getViewport({ scale: 1 });
       setPaper({ width: viewport.width, height: viewport.height }); setDoc(pdf);
-    }).catch(() => { if (!cancelled) { const message = '教材を開けませんでした。通信を確認して、もう一度お試しください。'; setError(message); callbacks.current.onLoadError?.(message); } });
-    return () => { cancelled = true; void task.destroy(); };
-  }, [uri]);
+    }).catch(reason => { if (!cancelled) { const message = reason instanceof Error && reason.message.startsWith('LOCAL_PDF_') ? '端末内のPDFを読み込めませんでした。教材を開き直してください。' : '教材を開けませんでした。通信を確認して、もう一度お試しください。'; setError(message); callbacks.current.onLoadError?.(message); } });
+    return () => { cancelled = true; void task?.destroy(); };
+  }, [uri, readLocalPdf]);
 
   function jump(number: number) {
     const target = Math.max(1, Math.min(total || 1, number));
