@@ -163,5 +163,5 @@ const styles = StyleSheet.create({
   text: { color: colors.ink, fontSize: 13, lineHeight: 21 },
   error: { color: colors.accent, fontSize: 14, lineHeight: 22 },
   input: { borderWidth: 1, borderColor: colors.line, borderRadius: 6, padding: 10, color: colors.ink, backgroundColor: colors.surface },
-  button: { padding: 8, borderWidth: 1, borderColor: colors.line, borderRadius: 8, marginVertical: 3 },
+  button: { padding: 8, backgroundColor: colors.button, borderRadius: 8, marginVertical: 3 },
 });

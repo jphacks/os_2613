@@ -4,7 +4,7 @@ import { router, useFocusEffect, type Href } from 'expo-router';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAccount } from '@/features/account/AccountProvider';
-import { ReviewCard, Button, s } from '@/features/reviews/ui';
+import { ReviewCard, Button, RefreshButton, s } from '@/features/reviews/ui';
 import { useReviewFeed } from '@/features/reviews/useReviewFeed';
 import { ProfilePanel } from '@/features/reviews/ProfilePanel';
 
@@ -86,7 +86,7 @@ export default function TimelineScreen() {
         ...(identity ? [{ id: 'following' as Tab, label: 'フォロー中' }] : []),
         ...(!wide && identity ? [{ id: 'mine' as Tab, label: '自分' }] : []),
       ]} />
-      {current !== 'mine' && <Pressable accessibilityRole="button" disabled={loading} onPress={() => void refresh()}><Text style={s.link}>更新 ↻</Text></Pressable>}
+      {current !== 'mine' && <RefreshButton loading={loading} onPress={() => void refresh()} />}
     </View>
     {current === 'mine' ? <ProfilePanel /> : <>
       {!identity && <View style={s.bookLink}><View style={s.grow}><Text style={s.bookTitle}>あなたの感想も、ここに。</Text><Text style={s.note}>レビューを書くにはBlueskyと接続します。</Text></View><Button subtle onPress={() => router.push('/compose-review' as Href)}>接続する ↗</Button></View>}

@@ -10,7 +10,7 @@ type Paint = { background: string; ink: string; muted: string; accent: string; c
 export type Props = {
   visuals?: import('../study/visuals.mjs').StudyVisual[];
   text: string; start: number; sub: number; marks: number[]; faded: number | null; picking: boolean; draft: number | null;
-  guide: boolean; running: boolean; speed: number; display: DisplayPreferences; paint: Paint; disabled: boolean;
+  guideLift?: number; guide: boolean; running: boolean; speed: number; display: DisplayPreferences; paint: Paint; disabled: boolean;
   focus: { offset: number; token: number } | null;
   onPosition: (offset: number) => void;
   onPages: (count: number) => void; onReflow: (page: number) => void; onVisible: (offset: number) => void;
@@ -26,7 +26,7 @@ type Gesture = { id: number; x: number; y: number; from: number | null; dragged:
 function Ribbon() { return <svg width="18" height="28" viewBox="0 0 18 28" aria-hidden="true"><path d="M1 1h16v25l-8-6-8 6z" fill="currentColor" /></svg>; }
 
 export default function VerticalPage(props: Props) {
-  const { text, start, sub, marks, faded, picking, draft, guide, running, speed, display, paint, disabled, focus } = props;
+  const { guideLift = 1, text, start, sub, marks, faded, picking, draft, guide, running, speed, display, paint, disabled, focus } = props;
   const rootRef = useRef<HTMLDivElement>(null), viewRef = useRef<HTMLDivElement>(null), textRef = useRef<HTMLDivElement>(null), measureRef = useRef<HTMLDivElement>(null);
   const latest = useRef(props); latest.current = props;
   useEffect(() => bindGuideKeyboard(document, () => latest.current.disabled || latest.current.picking ? undefined : latest.current.onToggleGuide), []);
@@ -239,7 +239,7 @@ export default function VerticalPage(props: Props) {
     <div ref={viewRef} style={styles.view}>
       <div ref={measureRef} aria-hidden="true" style={{ ...styles.text, visibility: 'hidden', pointerEvents: 'none', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>{text}</div>
       <div style={{ ...styles.clip, width: layout.width || '100%' }}><div ref={textRef} style={{ ...styles.text, color: paint.ink, fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>
-      {page === 0 && ribbon(start, true)}{chars.map(({ char, end }, index) => <span key={end} data-i={index} data-offset={end} style={{ position: 'relative', display: char === '\n' ? 'inline' : 'inline-block', opacity: guide ? Math.max(0.50, 1 - Math.abs(index - cursor) * 0.13) : 1, fontWeight: guide && Math.abs(index - cursor) <= 2 ? 700 : 400, transform: guide ? `translateX(${-Math.max(0, 1 - Math.abs(index - cursor) / 5) * 2}px) scale(${1 + Math.max(0, 1 - Math.abs(index - cursor) / 5) * 0.09})` : undefined, textShadow: guide && Math.abs(index - cursor) < 4 ? `0 1px 1px color-mix(in srgb, ${paint.muted} 20%, transparent)` : undefined, transition: 'opacity 100ms ease, transform 100ms ease, text-shadow 100ms ease', background: (picking && draft === end) || (ghost && dragOffset === end) ? paint.chosen : undefined }}>{char}{ribbon(end)}</span>)}
+      {page === 0 && ribbon(start, true)}{chars.map(({ char, end }, index) => <span key={end} data-i={index} data-offset={end} style={{ position: 'relative', display: char === '\n' ? 'inline' : 'inline-block', opacity: guide ? Math.max(0.50, 1 - Math.abs(index - cursor) * 0.13) : 1, fontWeight: guide && Math.abs(index - cursor) <= 2 ? 700 : 400, transform: guide ? `translateX(${-Math.max(0, 1 - Math.abs(index - cursor) / 5) * 2 * guideLift}px) scale(${1 + Math.max(0, 1 - Math.abs(index - cursor) / 5) * 0.09 * guideLift})` : undefined, textShadow: guide && Math.abs(index - cursor) < 4 ? `0 1px 1px color-mix(in srgb, ${paint.muted} 20%, transparent)` : undefined, transition: 'opacity 100ms ease, transform 100ms ease, text-shadow 100ms ease', background: (picking && draft === end) || (ghost && dragOffset === end) ? paint.chosen : undefined }}>{char}{ribbon(end)}</span>)}
     </div></div></div>
     {!picking && !ghost && <>
       {page < layout.count - 1 && <span aria-hidden="true" style={{ ...styles.turnHint, left: 4, color: paint.ink }}>←</span>}
