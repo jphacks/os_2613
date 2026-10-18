@@ -3,7 +3,7 @@ import { useAccount } from '@/features/account/AccountProvider';
 import { Asset } from 'expo-asset';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { findBook } from '@/content/books';
 import { colors } from '@/shared/theme';
@@ -50,13 +50,27 @@ function NovelBook({ id }: { id: string }) {
   const { mark } = useLocalSearchParams<{ mark?: string }>();
   const markPosition = typeof mark === 'string' && /^\d+$/.test(mark) ? Number(mark) : NaN;
   const markOffset = book && validOffset(book.text, markPosition) ? Math.max(0, markPosition - 1) : undefined;
-  const [entry, setEntry] = useState<'intro' | 'read'>('intro');
+  const [entry, setEntry] = useState<'intro' | 'loading' | 'read'>('intro');
+  const [readingError, setReadingError] = useState('');
+  const showIntro = markOffset === undefined && prefs.comic && entry !== 'read';
+  const readerReady = useCallback(() => setEntry(value => value === 'loading' ? 'read' : value), []);
+  const readerFailed = useCallback((message: string) => setReadingError(message), []);
   // 本棚からは漫画、しおりのウィジェットからは指定位置の本文を開く。
   useFocusEffect(useCallback(() => { setEntry(markOffset === undefined ? 'intro' : 'read'); }, [id, markOffset]));
 
   if (ready && book) return <View key={`${book.id}:${book.importedAt}:${mark ?? ''}`} style={{ flex: 1 }}>
     <Stack.Screen options={{ title: book.title }} />
-    {entry === 'intro' && markOffset === undefined && prefs.comic ? <IntroComic book={book} read={() => setEntry('read')} /> : <BookReading book={book} initialOffset={markOffset ?? 0} />}
+    {(!showIntro || entry === 'loading') && <View pointerEvents={showIntro ? 'none' : 'auto'} accessibilityElementsHidden={showIntro} importantForAccessibility={showIntro ? 'no-hide-descendants' : 'auto'} style={[StyleSheet.absoluteFill, showIntro && { opacity: 0 }]}>
+      <BookReading book={book} initialOffset={markOffset ?? 0} onReady={readerReady} onLoadError={readerFailed} />
+    </View>}
+    {showIntro && <View style={StyleSheet.absoluteFill}><IntroComic book={book} read={() => { setReadingError(''); setEntry('loading'); }} /></View>}
+    {showIntro && entry === 'loading' && <View style={styles.readingOverlay}>
+      <View style={styles.readingLoading} accessibilityLiveRegion="polite" accessibilityState={{ busy: !readingError }}>
+        {!readingError && <ActivityIndicator size="large" color={colors.accent} />}
+        <Text style={styles.loadingText}>{readingError || '原文を読み込んでいます…'}</Text>
+        <Pressable accessibilityRole="button" onPress={() => { setEntry('intro'); setReadingError(''); }} style={styles.loadingCancel}><Text style={styles.link}>漫画に戻る</Text></Pressable>
+      </View>
+    </View>}
   </View>;
 
   return (
@@ -101,6 +115,10 @@ function StudyBook({ id }: { id: string }) {
 }
 
 const styles = StyleSheet.create({
+  readingOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: `${colors.paper}DD` },
+  readingLoading: { maxWidth: 320, margin: 24, padding: 24, gap: 16, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 16 },
+  loadingText: { color: colors.ink, fontSize: 15, lineHeight: 24, textAlign: 'center' },
+  loadingCancel: { padding: 12 },
   shelfButton: { paddingHorizontal: 8, paddingVertical: 12 },
   shelfButtonText: { color: colors.accent, fontSize: 14 },
   container: { flex: 1, padding: 12, gap: 8 },

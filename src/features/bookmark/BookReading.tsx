@@ -43,7 +43,7 @@ function BookmarkIcon({ color = colors.accent }: { color?: string }) {
   return <Image source={{ uri: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}` }} style={{ width: 20, height: 28 }} contentFit="contain" />;
 }
 
-export function BookReading({ book, initialOffset, study = false, sourceLabel = '青空文庫', trackingId = book.id, studyVisuals, studyScrollTarget, onStudyPosition, onStudyDisplayControl }: { book: SavedBook; initialOffset?: number; study?: boolean; sourceLabel?: string; trackingId?: string; studyVisuals?: import('../study/visuals.mjs').StudyVisual[]; studyScrollTarget?: { offset: number; token: number } | null; onStudyPosition?: (offset: number) => void; onStudyDisplayControl?: (control: ReactNode | null) => void }) {
+export function BookReading({ book, initialOffset, study = false, sourceLabel = '青空文庫', trackingId = book.id, studyVisuals, studyScrollTarget, onStudyPosition, onStudyDisplayControl, onReady, onLoadError }: { book: SavedBook; initialOffset?: number; study?: boolean; sourceLabel?: string; trackingId?: string; studyVisuals?: import('../study/visuals.mjs').StudyVisual[]; studyScrollTarget?: { offset: number; token: number } | null; onStudyPosition?: (offset: number) => void; onStudyDisplayControl?: (control: ReactNode | null) => void; onReady?: () => void; onLoadError?: (message: string) => void }) {
   const ReadingPage = study ? HorizontalStudyPage : VerticalPage;
   const { identity, prefs, complete } = useAccount();
   const store = useMemo(() => createReadingStore(AsyncStorage, `dopabooks:reading:v1:${book.id}`, book.text), [book.id, book.text]);
@@ -75,6 +75,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   const [subCount, setSubCount] = useState(1);
   const [display, setDisplay] = useState<DisplayPreferences>({ ...defaultPreferences });
   const [displayReady, setDisplayReady] = useState(false);
+  useEffect(() => { if (!ready && error) onLoadError?.(error); }, [ready, error, onLoadError]);
   const studyTools = useContext(StudyToolsContext);
   const selectStudyTool = studyTools?.select;
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
@@ -301,11 +302,11 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     {/* 読みガイドがONのときだけ、開始・一時停止をすぐ押せる所に出す。細かい設定はメニューの中 */}
     {/* 漫画・表示設定・読みガイドはメニューから開く。しおりは上部から直接操作する。 */}
     {menu && !study && <GuideOptionsHost transparent visible animationType="none" pointerEvents="box-none" style={Platform.OS === 'web' ? [StyleSheet.absoluteFill, { zIndex: 45 }] : undefined} onRequestClose={() => setMenu(false)}>
-      {Platform.OS !== 'web' && <View style={{ flexDirection: 'row', marginTop: 64, marginLeft: 12 }}>
+      {Platform.OS !== 'web' && <View style={{ flexDirection: 'row', marginTop: insets.top + 64, marginLeft: 12 }}>
         <Pressable accessibilityRole="button" accessibilityLabel="読みガイドを閉じる" style={styles.toolIcon} onPress={() => setMenu(false)}><Text style={styles.waveIcon}>≋</Text></Pressable>
         {!study && prefs.music && <Pressable accessibilityRole="button" accessibilityLabel="BGM設定へ切り替え" style={styles.toolIcon} onPress={() => { setMenu(false); setMusicOpen(true); }}><AppIcon name="music_note" /></Pressable>}
       </View>}
-      <View pointerEvents="box-none" style={[styles.menuBack, Platform.OS !== 'web' && { top: 108 }]}>
+      <View pointerEvents="box-none" style={[styles.menuBack, Platform.OS !== 'web' && { top: insets.top + 108, bottom: Math.max(insets.bottom, 12) }]}>
         <Pressable style={styles.menu} onPress={() => {}}><ScrollView contentContainerStyle={{ padding: 12, gap: 8 }}>
           <View style={styles.toolbar}><Text style={styles.heading}>読みガイド</Text><View style={{ flex: 1 }} /><Action onPress={() => setMenu(false)}>閉じる</Action></View>
           <Action filled={guide} onPress={() => { setGuide(!guide); setRunning(!guide); }}>{guide ? 'ガイド ON' : 'ガイド OFF'}</Action>
@@ -317,6 +318,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     {/* 紙面は画面いっぱい。左側を押すと次、右側を押すと前のページ */}
     <View ref={paperRef} collapsable={false} style={[styles.paper, { backgroundColor: paint.background }]}>
       <ReadingPage
+        onReady={onReady}
         visuals={studyVisuals}
         text={book.text}
         start={0}
