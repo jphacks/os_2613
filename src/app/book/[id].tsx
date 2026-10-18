@@ -10,7 +10,7 @@ import { colors } from '@/shared/theme';
 import { useLibrary } from '@/features/library/LibraryProvider';
 import { BookReading } from '@/features/bookmark/BookReading';
 import { IntroComic } from '@/features/comic/IntroComic';
-import { validOffset } from '@/features/bookmark/model.mjs';
+import { widgetPosition } from '@/features/widget/position.mjs';
 import { StudyReader } from '@/features/study/StudyReader';
 
 // 同梱している教材のPDF。require は静的に書く必要があるので、ここで本のIDと結びつける。
@@ -52,8 +52,7 @@ function NovelBook({ id }: { id: string }) {
   const { books, ready } = useLibrary();
   const book = books.find(item => item.id === id);
   const { mark } = useLocalSearchParams<{ mark?: string }>();
-  const markPosition = typeof mark === 'string' && /^\d+$/.test(mark) ? Number(mark) : NaN;
-  const markOffset = book && validOffset(book.text, markPosition) ? Math.max(0, markPosition - 1) : undefined;
+  const markOffset = book ? widgetPosition(book.text, mark) : undefined;
   const [entry, setEntry] = useState<'intro' | 'loading' | 'read'>('intro');
   const [readingError, setReadingError] = useState('');
   const [readerAttempt, setReaderAttempt] = useState(0);
