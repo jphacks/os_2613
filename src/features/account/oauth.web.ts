@@ -50,19 +50,25 @@ async function popupIdentity(scope: string): Promise<Identity> {
     return identity;
   } finally { popup.close(); }
 }
-// Bluesky の決まりで、開発中のログインの戻り先は 127.0.0.1 でないといけない。
-// localhost で開いているときは、同じ画面の 127.0.0.1 のアドレスへ移ってから、もう一度押してもらう。
-function moveToLoopback() {
+// 開発用OAuthではIP表記の戻り先を使う。実際に待ち受けているIPv4・IPv6を確認する。
+async function moveToLoopback() {
   if (window.location.hostname !== 'localhost') return false;
+  // ブラウザーから別オリジンへの接続確認はせず、同一オリジンのAPIで調べる。
+  const response = await fetch('/api/oauth-loopback', { credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(6000) });
+  if (!response.ok) throw new Error('ログイン画面の接続先を確認できません。開発サーバーを再起動してください。');
+  const { origin } = await response.json();
+  const target = new URL(origin);
+  loopbackClientId(target.origin);
+  if (target.port !== window.location.port) throw new Error('ログイン画面の接続先が一致しません。');
   const url = new URL(window.location.href);
-  url.hostname = '127.0.0.1';
+  url.hostname = target.hostname;
   window.location.assign(url.toString());
   return true;
 }
-const movingMessage = 'ログイン用のアドレス（127.0.0.1）に移動しています。開き直したら、もう一度ボタンを押してください。';
+const movingMessage = 'ログイン画面へ移動しています。開き直したら、もう一度ボタンを押してください。';
 
 export async function signIn(_input: string): Promise<Identity | null> {
-  if (moveToLoopback()) throw new Error(movingMessage);
+  if (await moveToLoopback()) throw new Error(movingMessage);
   try { return await popupIdentity('atproto'); }
   catch (error) { if (error instanceof Error && /[ぁ-んァ-ン一-龠]/.test(error.message)) throw error; throw new Error(loginError(error)); }
 }
@@ -85,7 +91,7 @@ export async function reviewAccess() {
   return { review: scopes.includes(`repo:${reviewCollection}`), like: scopes.includes(`repo:${likeCollection}`), bluesky: scopes.includes('repo:app.bsky.feed.post?action=create') || scopes.includes('repo:app.bsky.feed.post') };
 }
 export async function authorizeReviews(bluesky = false): Promise<Identity | null> {
-  if (moveToLoopback()) throw new Error(movingMessage);
+  if (await moveToLoopback()) throw new Error(movingMessage);
   try { return await popupIdentity(bluesky ? reviewScope : `atproto repo:${reviewCollection} repo:${likeCollection}`); }
   catch (error) { if (error instanceof Error && /[ぁ-んァ-ン一-龠]/.test(error.message)) throw error; throw new Error(loginError(error)); }
 }

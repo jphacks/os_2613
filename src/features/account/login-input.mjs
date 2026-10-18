@@ -15,6 +15,18 @@ export function loopbackClientId(origin) {
   if (!['127.0.0.1', '[::1]'].includes(url.hostname) || url.protocol !== 'http:') throw new Error('開発用ログインの接続先を確認してください。');
   return `http://localhost?${new URLSearchParams({ redirect_uri: `${url.origin}/settings`, scope: reviewScope })}`;
 }
+export async function findLoopbackOrigin(origin, probe = async url => {
+  const response = await fetch(url, { credentials: 'omit', redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(2000) });
+  if (!response.ok || (await response.text()).trim() !== 'packager-status:running') throw new Error('UNAVAILABLE');
+}) {
+  const current = new URL(origin);
+  if (current.hostname !== 'localhost' || current.protocol !== 'http:') return null;
+  for (const hostname of ['[::1]', '127.0.0.1']) {
+    const url = new URL(current.origin); url.hostname = hostname;
+    try { await probe(`${url.origin}/status`); return url.origin; } catch { /* IPv4・IPv6で待ち受けが異なる場合は次を確認する。 */ }
+  }
+  throw new Error('ログイン画面に接続できません。PCの開発サーバーが起動しているか確認してください。');
+}
 export function loginError(error) {
   const text = `${error?.name || ''} ${error?.message || ''}`;
   if (/denied|cancel|abort/i.test(text)) return 'ログインがキャンセルされました。もう一度お試しください。';
