@@ -4,11 +4,11 @@
     "slug": "dopabooks",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/app-icon.png",
     "scheme": "dopabooks",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/app-icon.png",
       "bundleIdentifier": "jp.dopabooks.app",
       "supportsTablet": true,
       "infoPlist": {

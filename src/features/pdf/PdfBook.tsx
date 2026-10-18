@@ -3,144 +3,146 @@
 import * as pdfjs from 'pdfjs-dist';
 import { useEffect, useRef, useState } from 'react';
 
-// PDFを本のように見開きで表示する。
-// React Native では描けないので、DOMコンポーネント（iOSでは内部のWebView）で pdf.js を使う。
-// 描画処理を別スレッドで動かす worker は、入れたものと同じ版を配信元から読む。
+// iOSではWebView内でPDFを描画する。画面付近だけ描き、離れたページのCanvasは解放する。
 const cdn = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}`;
 pdfjs.GlobalWorkerOptions.workerSrc = `${cdn}/build/pdf.worker.min.mjs`;
 
-type Props = {
-  uri: string;
-  initialPage?: number;
-  dom?: import('expo/dom').DOMProps;
-};
+type Props = { uri: string; initialPage?: number; zoom?: number; spread?: boolean; dom?: import('expo/dom').DOMProps };
 
-export default function PdfBook({ uri, initialPage = 1 }: Props) {
+function PdfPage({ doc, number, width, height, root }: { doc: pdfjs.PDFDocumentProxy; number: number; width: number; height: number; root: HTMLDivElement | null }) {
+  const slot = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const [nearby, setNearby] = useState(false);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    if (!root || !slot.current) return;
+    const observer = new IntersectionObserver(([entry]) => setNearby(entry.isIntersecting), { root, rootMargin: '800px 0px' });
+    observer.observe(slot.current);
+    return () => observer.disconnect();
+  }, [root]);
+  useEffect(() => {
+    if (!nearby || !canvas.current) return;
+    const target = canvas.current;
+    let cancelled = false;
+    let task: pdfjs.RenderTask | undefined;
+    setError(false);
+    void doc.getPage(number).then(page => {
+      if (cancelled) return;
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(width / base.width, height / base.height);
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const viewport = page.getViewport({ scale: scale * ratio });
+      target.width = Math.ceil(viewport.width); target.height = Math.ceil(viewport.height);
+      target.style.width = `${viewport.width / ratio}px`; target.style.height = `${viewport.height / ratio}px`;
+      task = page.render({ canvas: target, viewport });
+      return task.promise;
+    }).catch(() => { if (!cancelled) setError(true); });
+    // 中断後のCanvasを再利用しないよう、画面外では要素ごと外す。
+    return () => { cancelled = true; task?.cancel(); };
+  }, [doc, number, width, height, nearby]);
+  return <div ref={slot} aria-label={`${number}ページ`} style={{ ...styles.page, width, height }}>
+    {nearby && <canvas key={`${width}:${height}`} ref={canvas} style={{ display: 'block', maxWidth: '100%' }} />}
+    {error && <p role="alert" style={styles.pageMessage}>表示できません。ページを画面外へスクロールしてから戻すか、教材を開き直してください。</p>}
+    <span style={styles.pageNumber}>{number}</span>
+  </div>;
+}
+
+export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
-  const leftRef = useRef<HTMLCanvasElement>(null);
-  const rightRef = useRef<HTMLCanvasElement>(null);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(initialPage);
-  useEffect(() => { setPage(Math.max(1, initialPage)); }, [initialPage]);
-  const [spread, setSpread] = useState(true);
+  const position = useRef(initialPage);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [paper, setPaper] = useState({ width: 595, height: 842 });
   const [error, setError] = useState('');
-  const touchX = useRef<number | null>(null);
+  const frame = useRef<number | null>(null);
+  const step = spread ? 2 : 1;
+  const total = doc?.numPages ?? 0;
+  const scale = Math.min(Math.max(1, size.width - 32 - (step - 1) * 12) / step / paper.width, Math.max(1, size.height - 32) / paper.height) * zoom;
+  const pageWidth = paper.width * scale, pageHeight = paper.height * scale;
 
-  // iPhone では内部のWebViewの中で描かれるので、ページ全体の高さを画面いっぱいにする
   useEffect(() => {
     if ((window as any).ReactNativeWebView) {
-      for (const el of [document.documentElement, document.body, document.getElementById('root')]) {
-        if (el) { el.style.height = '100%'; el.style.margin = '0'; }
+      for (const element of [document.documentElement, document.body, document.getElementById('root')]) {
+        if (element) { element.style.height = '100%'; element.style.margin = '0'; }
       }
     }
+    const stage = stageRef.current!;
+    const observer = new ResizeObserver(() => setSize({ width: stage.clientWidth, height: stage.clientHeight }));
+    observer.observe(stage);
+    return () => { observer.disconnect(); if (frame.current !== null) cancelAnimationFrame(frame.current); };
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    setDoc(null);
-    setError('');
-    pdfjs
-      // 日本語のPDFは文字の対応表（CMap）が無いと文字が描けないので、あわせて読み込む
-      .getDocument({ url: uri, cMapUrl: `${cdn}/cmaps/`, cMapPacked: true, standardFontDataUrl: `${cdn}/standard_fonts/` })
-      .promise.then(d => { if (!cancelled) setDoc(d); })
-      .catch(() => { if (!cancelled) setError('教材を開けませんでした。通信を確認して、開き直してください。'); });
-    return () => { cancelled = true; };
+    setDoc(null); setError('');
+    const task = pdfjs.getDocument({ url: uri, cMapUrl: `${cdn}/cmaps/`, cMapPacked: true, standardFontDataUrl: `${cdn}/standard_fonts/` });
+    void task.promise.then(async pdf => {
+      const first = await pdf.getPage(1);
+      if (cancelled) return;
+      const viewport = first.getViewport({ scale: 1 });
+      setPaper({ width: viewport.width, height: viewport.height }); setDoc(pdf);
+    }).catch(() => { if (!cancelled) setError('教材を開けませんでした。通信を確認して、開き直してください。'); });
+    return () => { cancelled = true; void task.destroy(); };
   }, [uri]);
 
-  // 横に余裕があるときだけ見開きにする。狭い画面では1ページずつ。
-  useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const observer = new ResizeObserver(() => setSpread(stage.clientWidth >= 760));
-    observer.observe(stage);
-    return () => observer.disconnect();
-  }, []);
+  function jump(number: number) {
+    const target = Math.max(1, Math.min(total || 1, number));
+    const start = target - ((target - 1) % step);
+    const row = stageRef.current?.querySelector<HTMLElement>(`[data-page="${start}"]`);
+    if (row && stageRef.current) stageRef.current.scrollTop = row.offsetTop - 16;
+    position.current = start; setPage(start);
+  }
+  useEffect(() => { position.current = initialPage; jump(initialPage); }, [initialPage, doc]);
+  // 倍率・表示方式の変更では、読んでいたページへ戻して読書位置を保つ。
+  useEffect(() => { if (doc) jump(position.current); }, [zoom, spread, size, doc]);
 
-  useEffect(() => {
-    if (!doc || !stageRef.current) return;
-    const stage = stageRef.current;
-    const targets = spread ? [leftRef.current, rightRef.current] : [leftRef.current];
-    const tasks: pdfjs.RenderTask[] = [];
-
-    targets.forEach((canvas, i) => {
-      const number = page + i;
-      if (!canvas) return;
-      if (number > doc.numPages) { canvas.width = 0; canvas.height = 0; return; }
-      void doc.getPage(number).then(p => {
-        // 紙面の高さに収まる倍率を求め、画面の解像度に合わせて鮮明に描く
-        const base = p.getViewport({ scale: 1 });
-        const maxW = (stage.clientWidth - 48) / targets.length;
-        const maxH = stage.clientHeight - 32;
-        const scale = Math.min(maxW / base.width, maxH / base.height);
-        const ratio = window.devicePixelRatio || 1;
-        const view = p.getViewport({ scale: scale * ratio });
-        canvas.width = view.width;
-        canvas.height = view.height;
-        canvas.style.width = `${view.width / ratio}px`;
-        canvas.style.height = `${view.height / ratio}px`;
-        const task = p.render({ canvas, viewport: view });
-        tasks.push(task);
-        task.promise.catch(() => {});
-      });
+  function onScroll() {
+    if (frame.current !== null) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      const stage = stageRef.current;
+      if (!stage) return;
+      const probe = stage.scrollTop + Math.min(stage.clientHeight * .3, 120);
+      let current = 1;
+      for (const row of stage.querySelectorAll<HTMLElement>('[data-page]')) {
+        if (row.offsetTop > probe) break;
+        current = Number(row.dataset.page);
+      }
+      position.current = current; setPage(current);
     });
-    return () => tasks.forEach(t => t.cancel());
-  }, [doc, page, spread]);
-
-  const step = spread ? 2 : 1;
-  const total = doc?.numPages ?? 0;
-  const last = Math.min(page + step - 1, total);
-
-  return (
-    <div style={styles.root}>
-      {/* スマホではスワイプでめくる。横書きの教材なので、指を左へ動かすと次のページ */}
-      <div
-        ref={stageRef}
-        style={styles.stage}
-        onTouchStart={e => { touchX.current = e.touches[0].clientX; }}
-        onTouchEnd={e => {
-          const startX = touchX.current;
-          touchX.current = null;
-          if (startX === null || !total) return;
-          const dx = e.changedTouches[0].clientX - startX;
-          if (dx < -40 && page + step <= total) setPage(p => p + step);
-          else if (dx > 40 && page > 1) setPage(p => Math.max(1, p - step));
-        }}
-      >
-        {error ? <p style={styles.message}>{error}</p> : !doc ? <p style={styles.message}>教材を読み込んでいます…</p> : null}
-        <canvas ref={leftRef} style={styles.page} />
-        {spread && <canvas ref={rightRef} style={styles.page} />}
-      </div>
-      <div style={styles.bar}>
-        <button style={styles.button} disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - step))}>‹ 前</button>
-        {/* 今どのあたりを読んでいるかを示すバー。ドラッグで好きなページへ飛べる */}
-        <input
-          type="range"
-          aria-label="ページの位置"
-          min={1}
-          max={Math.max(1, total)}
-          value={page}
-          disabled={!total}
-          style={styles.seek}
-          onChange={e => {
-            const p = Number(e.target.value);
-            // 見開きのときは、左ページが奇数になるようにそろえる
-            setPage(spread ? p - ((p - 1) % 2) : p);
-          }}
-        />
-        <span style={styles.count}>{total ? `${page}${last > page ? `–${last}` : ''} / ${total}` : ''}</span>
-        <button style={styles.button} disabled={!total || page + step > total} onClick={() => setPage(p => p + step)}>次 ›</button>
-      </div>
+  }
+  return <div style={styles.root}>
+    <div ref={stageRef} style={styles.stage} onScroll={onScroll} aria-label="原文PDF・縦スクロール">
+      {error ? <p role="alert" style={styles.message}>{error}</p> : !doc ? <p role="status" style={styles.message}>教材を読み込んでいます…</p> : size.width > 0 && <div style={styles.paperList}>
+        {Array.from({ length: Math.ceil(total / step) }, (_, index) => {
+          const start = index * step + 1;
+          return <div key={start} data-page={start} style={styles.paperRow}>
+            {Array.from({ length: Math.min(step, total - start + 1) }, (_, offset) => <PdfPage key={`${uri}:${start + offset}`} doc={doc} number={start + offset} width={pageWidth} height={pageHeight} root={stageRef.current} />)}
+          </div>;
+        })}
+      </div>}
     </div>
-  );
+    <div style={styles.bar}>
+      <button style={styles.button} disabled={!total || page <= 1} onClick={() => jump(page - step)}>‹ 前</button>
+      <input type="range" aria-label="ページの位置" min={1} max={Math.max(1, total)} value={page} disabled={!total} style={styles.seek} onChange={e => jump(Number(e.target.value))} />
+      <span aria-live="polite" style={styles.count}>{total ? `${page}${spread && page < total ? `–${page + 1}` : ''} / ${total}` : ''}</span>
+      <button style={styles.button} disabled={!total || page + step > total} onClick={() => jump(page + step)}>次 ›</button>
+    </div>
+  </div>;
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', height: '100%', background: '#F6F2E9', fontFamily: 'system-ui, sans-serif' },
-  stage: { position: 'relative', flex: 1, minHeight: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, padding: 16, overflow: 'hidden' },
-  page: { background: '#fff', boxShadow: '0 2px 10px rgba(41,46,41,0.12)' },
-  message: { position: 'absolute', color: '#73776E', fontSize: 13 },
-  bar: { flex: 'none', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, padding: 10, borderTop: '1px solid #DEDFD4' },
-  button: { font: 'inherit', fontSize: 13, padding: '8px 16px', borderRadius: 10, border: '1px solid #DEDFD4', background: '#FFFDF8', color: '#386149', cursor: 'pointer' },
-  count: { fontSize: 12, color: '#73776E', minWidth: 90, textAlign: 'center' },
-  seek: { flex: 1, maxWidth: 520, accentColor: '#386149' },
+  root: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, minWidth: 0, background: '#F6F2E9', fontFamily: 'system-ui, sans-serif' },
+  stage: { position: 'relative', flex: 1, minHeight: 0, overflow: 'auto', overscrollBehavior: 'contain', overflowAnchor: 'none' },
+  paperList: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, width: 'max-content', minWidth: '100%', boxSizing: 'border-box', padding: 16 },
+  paperRow: { display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'flex-start', scrollMarginTop: 16 },
+  page: { position: 'relative', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', boxShadow: '0 2px 10px rgba(41,46,41,0.12)' },
+  pageNumber: { position: 'absolute', bottom: 3, right: 6, color: '#73776E', fontSize: 10 },
+  pageMessage: { position: 'absolute', padding: 16, fontSize: 13, color: '#73776E' },
+  message: { color: '#73776E', fontSize: 13, padding: 16 },
+  bar: { flex: 'none', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, padding: 10, borderTop: '1px solid #DEDFD4' },
+  button: { font: 'inherit', fontSize: 13, padding: '8px 12px', borderRadius: 10, border: '1px solid #DEDFD4', background: '#FFFDF8', color: '#386149', cursor: 'pointer' },
+  count: { fontSize: 12, color: '#73776E', minWidth: 80, textAlign: 'center' },
+  seek: { flex: 1, minWidth: 40, maxWidth: 520, accentColor: '#386149' },
 };

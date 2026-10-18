@@ -5,6 +5,7 @@ import type { Book } from '@/content/books';
 import type { StudyState } from '@/server/study.mjs';
 import { BookReading } from '@/features/bookmark/BookReading';
 import PdfBook from '@/features/pdf/PdfBook';
+import { PdfDisplayControls } from '@/features/pdf/PdfDisplayControls';
 import { colors } from '@/shared/theme';
 import { studySectionNumber } from './format.mjs';
 import { StudyMusic } from '@/features/music/StudyMusic';
@@ -17,6 +18,8 @@ const levels: { id: Level; label: string; description: string }[] = [
 ];
 export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | null }) {
   const [level, setLevel] = useState<Level>('beginner');
+  const [pdfZoom, setPdfZoom] = useState(1);
+  const [pdfSpread, setPdfSpread] = useState(false);
   const [state, setState] = useState<StudyState | null>(null);
   const [displayControl, setDisplayControl] = useState<ReactNode>(null);
   const [index, setIndex] = useState(0);
@@ -172,12 +175,12 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
       {studyToolbar}
       {lessonCreateAction}
       {supplementAction}
-      {displayControl}
+      {level === 'original' ? <PdfDisplayControls zoom={pdfZoom} spread={pdfSpread} onZoom={setPdfZoom} onSpread={setPdfSpread} /> : displayControl}
       <StudyMusic />
       <Text numberOfLines={1} style={styles.originalInfo}>{studyInfo}</Text>
     </View>
     {level === 'original' ? <>
-      {pdfUri ? <PdfBook uri={pdfUri} initialPage={chapter?.firstPage ?? 1} dom={{ style: { flex: 1 } }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
+      {pdfUri ? <PdfBook uri={pdfUri} initialPage={chapter?.firstPage ?? 1} zoom={pdfZoom} spread={pdfSpread} dom={{ style: { flex: 1 } }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
     </>
       : chapterHasLesson && current && state && chapter ? <BookReading key={`${book.id}:${state.hash}:${level}:${chapterIndex}`} study onStudyDisplayControl={setDisplayControl}
         studyScrollTarget={scrollRequest} onStudyPosition={updateSelectedSection} trackingId={book.id} studyVisuals={chapterVisuals} sourceLabel={`${book.author}「${book.title}」・${book.license}／AIによる翻案`}

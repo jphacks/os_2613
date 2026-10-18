@@ -2,7 +2,7 @@ import { ReviewText } from './ReviewText';
 import { ReviewOverlays, type ReviewPerson } from './ReviewOverlays';
 import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAccount } from '@/features/account/AccountProvider';
 import { Avatar } from '@/shared/Avatar';
 import { colors } from '@/shared/theme';
@@ -30,7 +30,7 @@ function ReviewRow({ review, avatar, own }: { review: Review; avatar?: string; o
   const [bookOpen, setBookOpen] = useState(false);
   const [postOpen, setPostOpen] = useState(false);
   const [personOpen, setPersonOpen] = useState(false);
-  return <Pressable style={p.row} accessibilityRole="button" accessibilityLabel={`${review.displayName}の感想全文を読む`} onPress={() => setPostOpen(true)}>
+  return <Pressable style={p.row} accessibilityRole={Platform.OS === 'web' ? undefined : "button"} role={Platform.OS === 'web' ? "article" : undefined} {...(Platform.OS === 'web' ? { onKeyDown: (event: { key?: string; target: unknown; currentTarget: unknown; preventDefault: () => void }) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setPostOpen(true); } } } : {})} accessibilityLabel={`${review.displayName}の感想全文を読む`} onPress={() => setPostOpen(true)}>
     <Pressable accessibilityRole="button" accessibilityLabel={`${review.displayName}のプロフィール`} onPress={event => { event.stopPropagation(); setPersonOpen(true); }}><Avatar uri={(own && avatar) || review.avatar} size={40} /></Pressable>
     <View style={p.rowBody}>
       <Text accessibilityRole="button" onPress={event => { event.stopPropagation(); setPersonOpen(true); }} style={p.rowHead} numberOfLines={1}><Text style={p.rowName}>{review.displayName}</Text>　@{review.handle}・{new Date(review.updatedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}</Text>
