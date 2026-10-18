@@ -9,6 +9,7 @@ import { LogBox, Platform, Text, View } from 'react-native';
 
 import { colors } from '@/shared/theme';
 import { LibraryProvider } from '@/features/library/LibraryProvider';
+import { widgetEntryOptions } from '@/features/widget/navigation.mjs';
 
 // 縦書きの紙面やPDF（DOMコンポーネント）を開いた瞬間に、Expo が準備前の内部ブラウザへ
 // 表示内容を送ろうとして出る開発中だけのエラー。表示内容は別の経路で渡るので動作に影響はない。
@@ -41,7 +42,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         {/* 本の中ではスワイプでページをめくるので、スワイプで本棚へ戻る操作は切る（戻るのは左上のボタンだけ） */}
-        <Stack.Screen name="book/[id]" options={{ title: '', gestureEnabled: false, fullScreenGestureEnabled: false }} />
+        <Stack.Screen name="book/[id]" options={({ route }) => ({ title: '', gestureEnabled: false, fullScreenGestureEnabled: false, ...(Platform.OS === 'web' ? {} : widgetEntryOptions(route.params)) })} />
         <Stack.Screen name="settings" options={{ title: '設定' }} />
         <Stack.Screen name="stats" options={{ title: '読書の記録' }} />
         <Stack.Screen name="focus" options={{ title: '読書集中モード' }} />
