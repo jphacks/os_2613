@@ -5,14 +5,19 @@
   },
   "build": {
     "base": {
-      "node": "24.15.0"
+      "node": "24.15.0",
+      "env": {
+        "EXPO_PUBLIC_ATPROTO_NATIVE_CLIENT_ID": "https://dopabooks-auth.expo.app/oauth-native-client-metadata.json"
+      }
     },
     "development": {
       "extends": "base",
       "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
-      "ios": { "simulator": false }
+      "ios": {
+        "simulator": false
+      }
     },
     "preview": {
       "extends": "base",

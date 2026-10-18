@@ -32,7 +32,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
     try { await action(); } catch (e) { setFailed(true); setMessage(e instanceof Error ? e.message : '操作を完了できませんでした。'); }
     finally { setBusy(false); }
   }
-  const available = loginAvailable && (loopback || !!process.env.EXPO_PUBLIC_ATPROTO_CLIENT_ID);
+  const available = loginAvailable && (Platform.OS !== 'web' || loopback || !!process.env.EXPO_PUBLIC_ATPROTO_CLIENT_ID);
   if (identity && ready && !prefs.nameChosen) return <ScrollView style={s.screen} contentContainerStyle={s.onboarding} keyboardShouldPersistTaps="handled">
     <Stack.Screen options={{ headerShown: false }} />
     <View style={s.welcome}>

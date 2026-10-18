@@ -3,6 +3,10 @@
 // 手元では .env（コミットしない）に置き、EAS のビルドでは EAS の環境変数から渡す。
 module.exports = ({ config }) => ({
   ...config,
+  scheme: [...new Set([
+    ...(Array.isArray(config.scheme) ? config.scheme : config.scheme ? [config.scheme] : []),
+    ...(process.env.EXPO_PUBLIC_ATPROTO_NATIVE_CLIENT_ID ? [new URL(process.env.EXPO_PUBLIC_ATPROTO_NATIVE_CLIENT_ID).hostname.split('.').reverse().join('.')] : []),
+  ])],
   ...(process.env.EXPO_OWNER ? { owner: process.env.EXPO_OWNER } : {}),
   ios: {
     ...config.ios,

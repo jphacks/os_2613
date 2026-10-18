@@ -1,0 +1,12 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { nativeMetadata } from '../src/features/account/native-metadata.mjs';
+const clientId = process.argv[2];
+const output = resolve(process.argv[3] || '.local/oauth-host');
+const metadata = nativeMetadata(clientId);
+const filename = new URL(clientId).pathname.slice(1);
+if (!filename || filename.includes('/') || !filename.endsWith('.json')) throw new Error('メタデータは公開先の直下のJSONファイルにしてください。');
+await mkdir(output, { recursive: true });
+await writeFile(resolve(output, filename), JSON.stringify(metadata, null, 2));
+await writeFile(resolve(output, 'index.html'), '<!doctype html><html lang="ja"><meta charset="utf-8"><title>ドパBOOKs 認証</title><body><h1>ドパBOOKs</h1><p>iPhoneアプリのBluesky認証用ページです。アプリからサインインしてください。</p></body></html>');
+console.log('認証用公開ファイルを作成しました。');
