@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { documentVersion, type Mark } from '@/features/bookmark/model.mjs';
 import { colors, coverColors } from '@/shared/theme';
 import { artifactRequest } from '@/features/comic/api';
@@ -83,11 +83,19 @@ function Avatar({ index }: { index: number }) {
 function Diagram({ graph, person, choose }: { graph: Graph; person: string | null; choose: (id: string | null) => void }) {
   const layout = characterLayout(graph);
   const scroller = useRef<ComponentRef<typeof ScrollView>>(null);
+  const [overview, setOverview] = useState(Platform.OS !== 'web');
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const scale = overview ? Math.min(1, viewportWidth / layout.width) : 1;
+  useEffect(() => {
+    if (viewportWidth > 0) scroller.current?.scrollTo({ x: overview ? 0 : Math.max(0, (layout.width - viewportWidth) / 2), animated: false });
+  }, [overview, viewportWidth, layout.width]);
   const related = new Set(graph.relations.filter(item => item.from === person || item.to === person).flatMap(item => [item.from, item.to]));
   return <View style={styles.diagram}>
-    <Text style={styles.small}>左右に動かして図を見られます。人物を押すと、その人のつながりが強調されます。</Text>
-    <ScrollView ref={scroller} horizontal nestedScrollEnabled style={styles.graphScroll} onLayout={event => scroller.current?.scrollTo({ x: Math.max(0, (layout.width - event.nativeEvent.layout.width) / 2), animated: false })}>
-      <View accessibilityLabel="人物と関係の図" style={{ width: layout.width, height: layout.height }}>
+    {Platform.OS !== 'web' && <View style={styles.row}><Action selected={overview} press={() => setOverview(true)}>全体表示</Action><Action selected={!overview} press={() => setOverview(false)}>拡大表示</Action></View>}
+    <Text style={styles.small}>{overview ? '図全体を表示しています。拡大表示にすると、人物名や関係を詳しく確認できます。' : '左右に動かして図を見られます。人物を押すと、その人のつながりが強調されます。'}</Text>
+    <ScrollView ref={scroller} horizontal nestedScrollEnabled scrollEnabled={!overview} showsHorizontalScrollIndicator={!overview} style={styles.graphScroll} onLayout={event => setViewportWidth(Math.max(0, event.nativeEvent.layout.width - 2))}>
+      <View style={{ width: layout.width * scale, height: layout.height * scale, overflow: 'hidden' }}>
+      <View accessibilityLabel="人物と関係の図" style={{ width: layout.width, height: layout.height, ...(overview ? { position: 'absolute', left: (layout.width * scale - layout.width) / 2, top: (layout.height * scale - layout.height) / 2, transform: [{ scale }] } : {}) }}>
         {layout.edges.map((edge, index) => {
           const highlighted = !person || edge.from === person || edge.to === person;
           const middleX = edge.x + Math.cos(edge.angle) * edge.length / 2, middleY = edge.y + Math.sin(edge.angle) * edge.length / 2;
@@ -104,12 +112,13 @@ function Diagram({ graph, person, choose }: { graph: Graph; person: string | nul
           <Avatar index={index} /><Text style={styles.personName}>{node.name}</Text>
         </Pressable>)}
       </View>
+      </View>
     </ScrollView>
     {!graph.relations.length && <Text style={styles.small}>人物は確認できましたが、関係の根拠はまだ確認できていません。表示していない関係を推測で補うことはありません。</Text>}
   </View>;
 }
 const styles = StyleSheet.create({
-  diagram: { gap: 12 }, graphScroll: { borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }, graphPerson: { position: 'absolute', width: 100, minHeight: 108, padding: 8, alignItems: 'center', gap: 6, borderRadius: 14, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }, edgeLabel: { position: 'absolute', height: 24, paddingHorizontal: 4, borderRadius: 4, backgroundColor: colors.surface, justifyContent: 'center' },
+  diagram: { gap: 12 }, graphScroll: { maxWidth: '100%', flexGrow: 0, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }, graphPerson: { position: 'absolute', width: 100, minHeight: 108, padding: 8, alignItems: 'center', gap: 6, borderRadius: 14, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }, edgeLabel: { position: 'absolute', height: 24, paddingHorizontal: 4, borderRadius: 4, backgroundColor: colors.surface, justifyContent: 'center' },
   personSelected: { backgroundColor: '#EAF0E8', borderColor: colors.accent }, personName: { color: colors.ink, fontSize: 14, lineHeight: 20, textAlign: 'center', fontWeight: '600' },
   avatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', overflow: 'hidden' }, avatarHead: { position: 'absolute', width: 16, height: 16, borderRadius: 8, top: 9 }, avatarShoulders: { position: 'absolute', width: 32, height: 24, borderTopLeftRadius: 16, borderTopRightRadius: 16, top: 29 },
   relationLabel: { color: colors.accent, fontSize: 13, lineHeight: 20, textAlign: 'center', fontWeight: '600' },
