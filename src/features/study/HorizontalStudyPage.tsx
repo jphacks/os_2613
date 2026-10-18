@@ -38,6 +38,12 @@ export default function HorizontalStudyPage(props: Props) {
     root.current.querySelector<HTMLElement>(`[data-end="${focus.offset}"]`)?.scrollIntoView({ block: 'center' });
   }, [focus]);
   useEffect(() => {
+    if (disabled || !focus || !root.current) return;
+    // WebViewを裏で準備している間も、描画フレーム待ちにはしない。
+    const timer = setTimeout(() => latest.current.onReady?.(), 0);
+    return () => clearTimeout(timer);
+  }, [disabled, focus, text]);
+  useEffect(() => {
     if (!guide || !running || disabled || picking) return;
     const timer = setTimeout(() => {
       const offset = cursor - start;

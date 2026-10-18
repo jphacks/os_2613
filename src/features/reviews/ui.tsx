@@ -15,8 +15,8 @@ export function Stars({ value, onChange, disabled = false }: { value: number; on
 export function Button({ children, onPress, subtle = false, disabled = false }: { children: string; onPress: () => void; subtle?: boolean; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[s.button, subtle && s.subtleButton, disabled && { opacity: 0.4 }]}><Text style={subtle ? s.link : s.light}>{children}</Text></Pressable>;
 }
-export function RefreshButton({ loading, onPress }: { loading: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel="更新" disabled={loading} onPress={onPress} style={[s.refresh, loading && { opacity: 0.4 }]}><AppIcon name="refresh" size={18} /><Text style={s.link}>{loading ? '更新中…' : '更新'}</Text></Pressable>;
+export function RefreshButton({ loading, onPress, compact = false }: { loading: boolean; onPress: () => void; compact?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={loading ? '更新中' : '更新'} disabled={loading} onPress={onPress} style={[s.refresh, compact && { width: 44, minHeight: 44, paddingHorizontal: 0, justifyContent: 'center', flexShrink: 0 }, loading && { opacity: 0.4 }]}><AppIcon name="refresh" size={18} />{!compact && <Text style={s.link}>{loading ? '更新中…' : '更新'}</Text>}</Pressable>;
 }
 export function ReviewCard({ review, own = false, hideBook = false, expanded = false, beforeNavigate }: { expanded?: boolean; review: Review; own?: boolean; hideBook?: boolean; beforeNavigate?: () => void }) {
   const [reveal, setReveal] = useState(false);

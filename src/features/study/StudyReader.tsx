@@ -2,7 +2,7 @@ import { AppIcon } from '@/shared/AppIcon';
 import { StudyToolsContext, StudyToolPanel, type StudyTool } from './StudyToolPanel';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Book } from '@/content/books';
 import type { StudyState } from '@/server/study.mjs';
 import { BookReading } from '@/features/bookmark/BookReading';
@@ -12,6 +12,7 @@ import { NavigationButton } from '@/shared/NavigationButton';
 import { colors } from '@/shared/theme';
 import { studySectionNumber } from './format.mjs';
 import { StudyMusic } from '@/features/music/StudyMusic';
+import { artifactUrl } from '@/features/comic/api';
 
 type Level = 'beginner' | 'standard' | 'original';
 const levels: { id: Level; label: string; description: string }[] = [
@@ -37,6 +38,9 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
+  const [readerAttempt, setReaderAttempt] = useState(0);
+  const [readyContent, setReadyContent] = useState('');
+  const [contentError, setContentError] = useState({ key: '', message: '' });
   const running = useRef(false), alive = useRef(true), controller = useRef<AbortController | null>(null);
   const preference = `dopabooks:study-level:v2:${book.id}`;
   useEffect(() => {
@@ -59,7 +63,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   }, [index, chapterIndex, state]);
   async function request(action: 'status' | 'generate' | 'enhance', chapter?: number): Promise<StudyState> {
     controller.current = new AbortController();
-    const response = await fetch('/api/study', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.current.signal,
+    const response = await fetch(artifactUrl('/api/study'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.current.signal,
       body: JSON.stringify({ action, id: book.id, ...(action !== 'status' ? { chapter } : {}) }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? '教材を読み込めませんでした。');
@@ -106,6 +110,21 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   const chapterVisuals = chapterSections.flatMap(section => section.unit.lesson
     ? (level === 'beginner' ? section.unit.lesson.beginnerVisuals : section.unit.lesson.standardVisuals) ?? []
     : []);
+  const contentKey = `${book.id}:${level}:${level === 'original' ? `${pdfUri}:${chapter?.firstPage ?? 1}` : `${state?.hash}:${chapterIndex}`}:${readerAttempt}`;
+  const contentReady = useCallback(() => setReadyContent(contentKey), [contentKey]);
+  const contentFailed = useCallback((message: string) => setContentError({ key: contentKey, message }), [contentKey]);
+  const waiting = !ready || (level === 'original' ? !pdfUri || readyContent !== contentKey : loading || (chapterHasLesson && readyContent !== contentKey));
+  const waitingError = contentError.key === contentKey ? contentError.message : '';
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(() => contentFailed('教材の準備に時間がかかっています。接続を確認して、もう一度お試しください。'), 30000);
+    return () => clearTimeout(timer);
+  }, [waiting, contentFailed]);
+  function retryContent() {
+    setReaderAttempt(value => value + 1);
+    setContentError({ key: '', message: '' });
+    if (level !== 'original' && !state) { controller.current?.abort(); void load(); }
+  }
   function updateSelectedSection(offset: number) {
     const section = [...chapterSections].reverse().find(item => item.startOffset <= offset);
     if (section && section.unit.index !== index) setIndex(section.unit.index);
@@ -184,20 +203,33 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
       {level === 'original' ? <PdfDisplayControls zoom={pdfZoom} spread={pdfSpread} onZoom={setPdfZoom} onSpread={setPdfSpread} /> : displayControl}
       <StudyMusic open={activeTool === 'music'} onOpenChange={changeMusicOpen} />
     </View>
+    <View style={styles.pageContent}>
     {level === 'original' ? <>
-      {pdfUri ? <PdfBook uri={pdfUri} initialPage={chapter?.firstPage ?? 1} zoom={pdfZoom} spread={pdfSpread} dom={{ style: { flex: 1 } }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
+      {pdfUri ? <PdfBook key={contentKey} uri={pdfUri} initialPage={chapter?.firstPage ?? 1} zoom={pdfZoom} spread={pdfSpread} onReady={contentReady} onLoadError={contentFailed} dom={{ style: { flex: 1 }, onError: () => contentFailed('PDF画面を読み込めませんでした。もう一度お試しください。'), onContentProcessDidTerminate: () => contentFailed('PDF画面の処理が停止しました。もう一度お試しください。') }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
     </>
-      : chapterHasLesson && current && state && chapter ? <BookReading key={`${book.id}:${state.hash}:${level}:${chapterIndex}`} study onStudyDisplayControl={setDisplayControl}
+      : chapterHasLesson && current && state && chapter ? <BookReading key={contentKey} study onStudyDisplayControl={setDisplayControl} onReady={contentReady} onLoadError={contentFailed}
         studyScrollTarget={scrollRequest} onStudyPosition={updateSelectedSection} trackingId={book.id} studyVisuals={chapterVisuals} sourceLabel={`${book.author}「${book.title}」・${book.license}／AIによる翻案`}
         book={{ id: `study:${book.id}:${state.hash}:${level}:${chapterIndex}`, aozoraId: 0, title: `${book.title}・${selected.label}`, subtitle: chapter.title, author: book.author,
           cardUrl: book.source ?? '', htmlUrl: book.source ?? '', characters: '', importedAt: state.hash,
           text: `${chapterContent}\n\nAIによる学習補助教材です。図・式・厳密な条件は原文でも確認してください。` }} />
         : <View style={styles.empty}><Text style={styles.text}>{chapter?.title ?? '学びたい章を選んでください。'}</Text><Text style={styles.note}>上の難易度ボタンから章を選び、教材作成ボタンを押すと、選択中の章の初級・中級教材、図・グラフ・挿絵をまとめて作成・保存します。他の章は作成せず、保存済みの教材を開くだけではAPIを使いません。</Text></View>}
+      {waiting && <View style={styles.loadingOverlay}>
+        <View accessibilityLiveRegion="polite" accessibilityState={{ busy: !waitingError }} style={styles.loadingCard}>
+          {!waitingError && <ActivityIndicator size="large" color={colors.accent} />}
+          <Text style={styles.loadingText}>{waitingError || (level === 'original' ? '原文PDFを読み込んでいます…' : '教材を読み込んでいます…')}</Text>
+          {!!waitingError && action('もう一度読み込む', retryContent)}
+        </View>
+      </View>}
+    </View>
       </View>
     </View>
   </View></StudyToolsContext.Provider>;
 }
 const styles = StyleSheet.create({
+  pageContent: { flex: 1, minWidth: 0, minHeight: 0 },
+  loadingOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: `${colors.paper}DD` },
+  loadingCard: { maxWidth: 320, margin: 24, padding: 24, gap: 16, alignItems: 'center', backgroundColor: colors.surface, borderRadius: 16 },
+  loadingText: { color: colors.ink, fontSize: 15, lineHeight: 24, textAlign: 'center' },
   featureButton: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.button, alignItems: 'center', justifyContent: 'center' }, aa: { color: colors.accent, fontSize: 20, fontWeight: '700' },
   container: { flex: 1 }, controls: { padding: 8, gap: 5, backgroundColor: colors.surface, borderBottomWidth: 1, borderColor: colors.line },
   topRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },

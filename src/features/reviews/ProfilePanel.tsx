@@ -1,7 +1,7 @@
 import { ReviewText } from './ReviewText';
 import { ReviewOverlays, type ReviewPerson } from './ReviewOverlays';
 import { router, type Href } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAccount } from '@/features/account/AccountProvider';
 import { Avatar } from '@/shared/Avatar';
@@ -49,20 +49,29 @@ function ReviewRow({ review, avatar, own }: { review: Review; avatar?: string; o
   </Pressable>;
 }
 
-export function ProfilePanel({ actor }: { actor?: ReviewPerson } = {}) {
+export function ProfilePanel({ actor, refreshVersion = 0, onLoadingChange, showRefresh = true }: { actor?: ReviewPerson; refreshVersion?: number; onLoadingChange?: (loading: boolean) => void; showRefresh?: boolean } = {}) {
   const { identity } = useAccount();
   const person = actor || identity;
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const lastRefresh = useRef(refreshVersion);
   // タブ：「感想」は自分が書いた感想、「いいね」は自分がいいねした感想
   const [tab, setTab] = useState<'reviews' | 'likes'>('reviews');
   const { data, loading, error, refresh, more } = useReviewFeed(undefined, tab === 'reviews' ? person?.did : undefined, tab === 'likes' ? person?.did : undefined);
   const [reviewCount, setReviewCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (lastRefresh.current === refreshVersion) return;
+    lastRefresh.current = refreshVersion;
+    if (person) void refresh();
+  }, [refreshVersion, person?.did, refresh]);
+  useEffect(() => { onLoadingChange?.(!!person && (loading || profileLoading)); }, [person?.did, loading, profileLoading, onLoadingChange]);
   useEffect(() => { if (tab === 'reviews' && data) setReviewCount(data.total); }, [tab, data]);
   useEffect(() => {
     let active = true;
-    if (person) void publicProfile(person.did).then(value => { if (active) setProfile(value); });
+    setProfileLoading(!!person);
+    if (person) void publicProfile(person.did).then(value => { if (active) { setProfile(value); setProfileLoading(false); } });
     return () => { active = false; };
-  }, [person?.did]);
+  }, [person?.did, refreshVersion]);
 
   if (!person) return <View style={[s.card, { gap: 12 }]}>
     <Text style={s.heading}>あなたのページ</Text>
@@ -73,7 +82,7 @@ export function ProfilePanel({ actor }: { actor?: ReviewPerson } = {}) {
   const name = profile?.displayName?.trim() || person.name;
   const avatar = profile?.avatar || person.avatar;
   return <ScrollView style={p.card}>
-    <View style={p.refresh}><RefreshButton loading={loading} onPress={() => void refresh()} /></View>
+    {showRefresh && <View style={p.refresh}><RefreshButton loading={loading} onPress={() => void refresh()} /></View>}
     {/* 背景の画像（無ければ淡い色） */}
     {profile?.banner ? <Image source={{ uri: profile.banner }} style={p.banner} resizeMode="cover" accessibilityLabel="プロフィールの背景" /> : <View style={[p.banner, { backgroundColor: colors.line }]} />}
     <View style={p.body}>
