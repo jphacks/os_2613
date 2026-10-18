@@ -8,6 +8,7 @@ import { bindGuideKeyboard } from './guide-keyboard.mjs';
 
 type Paint = { background: string; ink: string; muted: string; accent: string; chosen: string };
 export type Props = {
+  onReady?: () => void;
   visuals?: import('../study/visuals.mjs').StudyVisual[];
   text: string; start: number; sub: number; marks: number[]; faded: number | null; picking: boolean; draft: number | null;
   guideLift?: number; guide: boolean; running: boolean; speed: number; display: DisplayPreferences; paint: Paint; disabled: boolean;
@@ -110,6 +111,17 @@ export default function VerticalPage(props: Props) {
     focusSeen.current = focus.token;
     latest.current.onReflow(pageAtOffset(layout.starts, focus.offset - start));
   }, [focus, layout, start, text]);
+  useEffect(() => {
+    if (disabled || calculating || !layout.width || !focus || page !== pageAtOffset(layout.starts, focus.offset - start)) return;
+    let active = true;
+    let frame = 0;
+    // フォント・改ページ・保存位置の反映後、紙面が描画されるまで待って画面を切り替える。
+    void document.fonts.ready.then(() => {
+      if (!active) return;
+      frame = requestAnimationFrame(() => { frame = requestAnimationFrame(() => { if (active) latest.current.onReady?.(); }); });
+    });
+    return () => { active = false; cancelAnimationFrame(frame); };
+  }, [disabled, calculating, layout, focus, page, start]);
   useEffect(() => {
     if (!guide || !running || picking || ghost || props.headerDrag || disabled || calculating || !layout.width) return;
     const timer = setTimeout(() => {
