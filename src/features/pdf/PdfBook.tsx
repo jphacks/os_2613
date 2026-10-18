@@ -3,12 +3,13 @@
 import * as pdfjs from 'pdfjs-dist';
 import { useEffect, useRef, useState } from 'react';
 import { pdfSource } from './source.mjs';
+import type { ReadLocalPdf } from './source.mjs';
 
 // iOSではWebView内でPDFを描画する。画面付近だけ描き、離れたページのCanvasは解放する。
 const cdn = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}`;
 pdfjs.GlobalWorkerOptions.workerSrc = `${cdn}/build/pdf.worker.min.mjs`;
 
-type Props = { uri: string; readLocalPdf?: () => Promise<string>; initialPage?: number; zoom?: number; spread?: boolean; onReady?: () => void; onLoadError?: (message: string) => void; dom?: import('expo/dom').DOMProps };
+type Props = { uri: string; readLocalPdf?: ReadLocalPdf; initialPage?: number; zoom?: number; spread?: boolean; onReady?: () => void; onLoadError?: (message: string) => void; dom?: import('expo/dom').DOMProps };
 
 function PdfPage({ doc, number, width, height, root, onRendered, onLoadError }: { doc: pdfjs.PDFDocumentProxy; number: number; width: number; height: number; root: HTMLDivElement | null; onRendered: (page: number) => void; onLoadError?: (message: string) => void }) {
   const slot = useRef<HTMLDivElement>(null);
@@ -82,7 +83,7 @@ export default function PdfBook({ uri, readLocalPdf, initialPage = 1, zoom = 1, 
     let cancelled = false;
     setDoc(null); setError('');
     let task: pdfjs.PDFDocumentLoadingTask | undefined;
-    void pdfSource(uri, readLocalPdf).then(source => {
+    void pdfSource(uri, readLocalPdf, () => cancelled).then(source => {
       if (cancelled) return;
       task = pdfjs.getDocument({ ...source, cMapUrl: `${cdn}/cmaps/`, cMapPacked: true, standardFontDataUrl: `${cdn}/standard_fonts/` });
       return task.promise;

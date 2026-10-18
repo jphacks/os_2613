@@ -113,10 +113,13 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   const contentKey = `${book.id}:${level}:${level === 'original' ? `${pdfUri}:${chapter?.firstPage ?? 1}` : `${state?.hash}:${chapterIndex}`}:${readerAttempt}`;
   const contentReady = useCallback(() => setReadyContent(contentKey), [contentKey]);
   const contentFailed = useCallback((message: string) => setContentError({ key: contentKey, message }), [contentKey]);
-  const readLocalPdf = useCallback(async () => {
+  const readLocalPdf = useCallback(async (offset: number, length: number) => {
     if (!pdfUri) throw new Error('PDF_NOT_AVAILABLE');
-    const { File } = await import('expo-file-system');
-    return new File(pdfUri).base64();
+    const { getInfoAsync, readAsStringAsync } = await import('expo-file-system/legacy');
+    const info = await getInfoAsync(pdfUri);
+    if (!info.exists || info.isDirectory) throw new Error('PDF_NOT_AVAILABLE');
+    const base64 = await readAsStringAsync(pdfUri, { encoding: 'base64', position: offset, length });
+    return { size: info.size, base64 };
   }, [pdfUri]);
   const waiting = !ready || (level === 'original' ? !pdfUri || readyContent !== contentKey : loading || (chapterHasLesson && readyContent !== contentKey));
   const waitingError = contentError.key === contentKey ? contentError.message : '';
