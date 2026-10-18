@@ -3,7 +3,7 @@ import { useAccount } from '@/features/account/AccountProvider';
 import { Asset } from 'expo-asset';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { findBook } from '@/content/books';
 import { colors } from '@/shared/theme';
@@ -38,7 +38,11 @@ export default function BookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   return <>
-    <Stack.Screen options={{ headerLeft: () => <NavigationButton label="本棚へ" onPress={() => router.dismissTo('/shelf')} /> }} />
+    <Stack.Screen options={{
+      headerLeft: () => <NavigationButton filled label="本棚へ" onPress={() => router.dismissTo('/shelf')} />,
+      // iOSの共有背景が独自ボタンの外側に重なると、白い枠のように見えるため隠す。
+      ...(Platform.OS === 'ios' ? { unstable_headerLeftItems: () => [{ type: 'custom' as const, hidesSharedBackground: true, element: <NavigationButton filled label="本棚へ" onPress={() => router.dismissTo('/shelf')} /> }] } : {}),
+    }} />
     {pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook key={id} id={id} />}
   </>;
 }

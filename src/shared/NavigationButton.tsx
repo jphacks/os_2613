@@ -1,10 +1,10 @@
 import { AppIcon } from './AppIcon';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from './theme';
-export function NavigationButton({ onPress, label = '戻る', close = false, disabled = false }: { onPress: () => void; label?: string; close?: boolean; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({ pressed }) => [s.button, pressed && { backgroundColor: colors.line }, disabled && { opacity: 0.4 }]}>
-    <AppIcon name={close ? 'close' : 'arrow_back'} size={22} />
-    <Text numberOfLines={1} style={s.label}>{label}</Text>
+export function NavigationButton({ onPress, label = '戻る', close = false, disabled = false, filled = false }: { onPress: () => void; label?: string; close?: boolean; disabled?: boolean; filled?: boolean }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({ pressed }) => [s.button, filled && { backgroundColor: colors.accent, borderWidth: 0 }, pressed && (filled ? { opacity: 0.75 } : { backgroundColor: colors.line }), disabled && { opacity: 0.4 }]}>
+    <AppIcon name={close ? 'close' : 'arrow_back'} size={22} color={filled ? colors.surface : colors.accent} />
+    <Text numberOfLines={1} style={[s.label, filled && { color: colors.surface }]}>{label}</Text>
   </Pressable>;
 }
 const s = StyleSheet.create({ button: { flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingHorizontal: 14, marginHorizontal: 8, borderRadius: 22, backgroundColor: colors.button, flexShrink: 0 }, chevron: { width: 9, height: 9, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: colors.accent, transform: [{ rotate: '45deg' }], marginLeft: 3 }, cross: { color: colors.accent, fontSize: 23, lineHeight: 25 }, label: { color: colors.accent, fontSize: 13, fontWeight: '600' } });
