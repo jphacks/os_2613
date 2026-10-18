@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { edgeTurn } from './gestures.mjs';
-import { visibleScrollPage } from './scroll-position.mjs';
+import { guideScrollLeft, visibleScrollPage } from './scroll-position.mjs';
 import { measuredPagesAsync, pageAtOffset } from './pagination.mjs';
 import { fontFamilies, type DisplayPreferences } from './preferences.mjs';
 import { bindGuideKeyboard } from './guide-keyboard.mjs';
@@ -31,10 +31,11 @@ export default function VerticalPage(props: Props) {
   const rootRef = useRef<HTMLDivElement>(null), viewRef = useRef<HTMLDivElement>(null), textRef = useRef<HTMLDivElement>(null), measureRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const observedPage = useRef(-1);
+  const autoScroll = useRef(false), scrollFrame = useRef<number | null>(null);
   const latest = useRef(props); latest.current = props;
   useEffect(() => bindGuideKeyboard(document, () => latest.current.disabled || latest.current.picking ? undefined : latest.current.onToggleGuide), []);
   const [layout, setLayout] = useState({ count: 1, width: 0, viewport: 0, starts: [0, 0] });
-  const [cursor, setCursor] = useState(0);
+  const [guideCursor, setGuideCursor] = useState({ page: 0, index: 0 });
   const gesture = useRef<Gesture | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
   const [dragOffset, setDragOffset] = useState<number | null>(null);
@@ -48,6 +49,8 @@ export default function VerticalPage(props: Props) {
   const headerDropSeen = useRef<number | null>(null);
   const step = Math.round(display.fontSize * display.lineHeight);
   const page = Math.min(Math.max(0, sub), layout.count - 1);
+  const cursor = guideCursor.page === page ? guideCursor.index : 0;
+  function setCursor(index: number) { setGuideCursor({ page, index }); }
   const begin = layout.starts[page] ?? 0, end = layout.starts[page + 1] ?? text.length;
   const chars = useMemo(() => {
     if (!layout.width) return [];
@@ -113,11 +116,36 @@ export default function VerticalPage(props: Props) {
     const scroll = scrollRef.current;
     if (!scroll || !layout.viewport || observedPage.current === page) return;
     observedPage.current = page;
+    // ガイドのページ更新では先頭へ飛ばさず、文字位置への追従を続ける。
+    if (guide && running) return;
+    stopScroll();
     scroll.scrollTo({ left: -page * layout.viewport, behavior: 'instant' as ScrollBehavior });
   }, [page, layout]);
+  function stopScroll() {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = null;
+  }
+  useEffect(() => {
+    if (!guide || !running || picking || ghost || props.headerDrag || disabled || calculating) return;
+    const scroll = scrollRef.current, char = chars[cursor];
+    const node = char && textRef.current?.querySelector<HTMLElement>(`[data-i][data-offset="${char.end}"]`);
+    if (!scroll || !node || !layout.viewport) return;
+    const target = guideScrollLeft(scroll.scrollLeft, scroll.getBoundingClientRect().right, node.getBoundingClientRect().right, layout.viewport, scroll.scrollWidth);
+    const from = scroll.scrollLeft;
+    if (Math.abs(target - from) < 0.5) return;
+    autoScroll.current = true;
+    const began = performance.now();
+    const frame = (now: number) => {
+      const progress = Math.min(1, (now - began) / 240);
+      scroll.scrollLeft = from + (target - from) * (1 - (1 - progress) ** 3);
+      scrollFrame.current = progress < 1 ? requestAnimationFrame(frame) : null;
+    };
+    scrollFrame.current = requestAnimationFrame(frame);
+    return stopScroll;
+  }, [guide, running, cursor, chars, page, layout, picking, ghost, props.headerDrag, disabled, calculating]);
   function onScroll() {
     const scroll = scrollRef.current;
-    if (!scroll || !layout.viewport) return;
+    if (!scroll || !layout.viewport || autoScroll.current) return;
     const visible = visibleScrollPage(scroll.scrollLeft, layout.viewport, layout.count);
     if (observedPage.current !== visible) {
       observedPage.current = visible;
@@ -193,6 +221,7 @@ export default function VerticalPage(props: Props) {
   }, [props.headerDrag, disabled, calculating, page, layout]);
   function pointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (disabled || calculating || props.headerDrag || !event.isPrimary || event.button !== 0 || gesture.current) return;
+    stopScroll(); autoScroll.current = false;
     let target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-mark]') : null;
     if (!target && !picking) {
       let nearest = 18;
@@ -257,7 +286,12 @@ export default function VerticalPage(props: Props) {
     <div ref={viewRef} style={styles.view}>
       <div ref={measureRef} aria-hidden="true" style={{ ...styles.text, visibility: 'hidden', pointerEvents: 'none', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>{text}</div>
       <div ref={scrollRef} role="region" aria-label="本文・横スクロール" tabIndex={0} onScroll={onScroll}
-        onWheel={event => { if (!picking && !disabled && scrollRef.current && Math.abs(event.deltaY) > Math.abs(event.deltaX)) { scrollRef.current.scrollLeft -= event.deltaY; latest.current.onPause(); } }}
+        onWheel={event => {
+          if (picking || disabled || !scrollRef.current) return;
+          stopScroll(); autoScroll.current = false; latest.current.onPause();
+          if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) scrollRef.current.scrollLeft -= event.deltaY;
+        }}
+        onKeyDown={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { stopScroll(); autoScroll.current = false; latest.current.onPause(); } }}
         style={{ ...styles.scroll, overflowX: picking || disabled || !!ghost ? 'hidden' : 'auto' }}>
         <div ref={textRef} style={styles.track}>
           {Array.from({ length: layout.count }, (_, sheet) => {

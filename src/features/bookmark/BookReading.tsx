@@ -5,7 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { router, Stack } from 'expo-router';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import type { SavedBook } from '@/features/library/types';
 import { colors } from '@/shared/theme';
 import { readerToolButton, readerToolSymbol } from '@/features/reader/toolStyles';
@@ -377,15 +378,20 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     </Modal>
     {settingsOpen && <DisplaySettings value={display} onPreview={setDisplay} close={() => setSettingsOpen(false)} apply={applyDisplay} />}
     <Modal visible={feature !== null} animationType="slide" onRequestClose={() => setFeature(null)}>
-      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}><View style={styles.toolbar}><Text style={styles.heading}>{feature === 'comic' ? '紹介4コマ' : '人物相関図'}</Text><Action onPress={() => setFeature(null)}>閉じる</Action></View>
+      {/* 全画面モーダルは読書画面とは別の座標系で安全領域を計測する。 */}
+      <SafeAreaProvider style={styles.screen}>
+      {feature !== null && <StatusBar style="dark" />}
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom', 'left', 'right']}><View style={styles.featureHeader}><Text style={styles.heading}>{feature === 'comic' ? '紹介4コマ' : '人物相関図'}</Text><Action onPress={() => setFeature(null)}>閉じる</Action></View>
         {feature === 'comic' && <IntroComic book={book} read={() => { setFocus({ offset: 0, token: Date.now() }); setFeature(null); }} />}
         {feature === 'characters' && <Characters text={book.text} marks={reading.marks} jump={offset => { setFocus({ offset, token: Date.now() }); setFeature(null); }} />}
       </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   </View>;
 }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper }, toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: 10 },
+  featureHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.line },
   button: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.button },
   waveIcon: readerToolSymbol,
   buttonText: { color: colors.accent, fontSize: 16, fontWeight: '700' }, filled: { backgroundColor: colors.accent }, light: { color: colors.surface }, disabled: { opacity: 0.4 },
