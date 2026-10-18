@@ -47,10 +47,10 @@ const wideStyles = StyleSheet.create({
 });
 const seg = StyleSheet.create({
   // 角は半円（端が丸くなるよう、十分大きな角丸にする）
-  track: { flexDirection: 'row', backgroundColor: '#E6E3DA', borderRadius: 999, padding: 4, flex: 1, maxWidth: 520 },
-  item: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 999 },
+  track: { flexDirection: 'row', backgroundColor: '#E6E3DA', borderRadius: 999, padding: 4, flex: 1, minWidth: 0, maxWidth: 520 },
+  item: { flex: 1, minWidth: 0, justifyContent: 'center', alignItems: 'center', minHeight: 44, paddingVertical: 11, borderRadius: 999 },
   active: { backgroundColor: '#FFFDF8', boxShadow: '0 1px 4px rgba(41,46,41,0.15)' },
-  label: { color: '#6E7468', fontSize: 14, fontWeight: '600' },
+  label: { color: '#6E7468', fontSize: 14, fontWeight: '600', textAlign: 'center' },
   activeLabel: { color: '#292E29' },
 });
 
@@ -62,6 +62,8 @@ export default function TimelineScreen() {
   useFocusEffect(useCallback(() => { const message = takeReviewNotice(); if (message) setToast(message); }, []));
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(null), 4500); return () => clearTimeout(timer); }, [toast]);
   const [tab, setTab] = useState<Tab>('recommend');
+  const [profileRefresh, setProfileRefresh] = useState(0);
+  const [profileLoading, setProfileLoading] = useState(false);
   // 広い画面では「自分」は右の欄に常に出すので、左は「おすすめ／フォロー中」だけにする
   const current: Tab = wide && tab === 'mine' ? 'recommend' : tab;
   const { data, loading, error, refresh, more } = useReviewFeed();
@@ -80,15 +82,19 @@ export default function TimelineScreen() {
   }, [data, current, follows]);
 
   const feed = <View style={{ gap: 20 }}>
-    <View style={s.between}>
+    <View style={[s.between, width < 360 && { flexDirection: 'column', alignItems: 'stretch' }]}>
       <Segmented value={current} onChange={setTab} items={[
         { id: 'recommend', label: 'おすすめ' },
-        ...(identity ? [{ id: 'following' as Tab, label: 'フォロー中' }] : []),
-        ...(!wide && identity ? [{ id: 'mine' as Tab, label: '自分' }] : []),
+        { id: 'following', label: 'フォロー中' },
+        ...(!wide ? [{ id: 'mine' as Tab, label: '自分' }] : []),
       ]} />
-      {current !== 'mine' && <RefreshButton loading={loading} onPress={() => void refresh()} />}
+      <View style={width < 360 ? { alignSelf: 'flex-end' } : undefined}><RefreshButton compact={!wide} loading={current === 'mine' ? profileLoading : loading} onPress={() => { if (current === 'mine') setProfileRefresh(value => value + 1); else void refresh(); }} /></View>
     </View>
-    {current === 'mine' ? <ProfilePanel /> : <>
+    {current === 'mine' ? <ProfilePanel refreshVersion={profileRefresh} onLoadingChange={setProfileLoading} showRefresh={false} /> : current === 'following' && !identity ? <View style={[s.card, { gap: 12 }]}>
+      <Text style={s.heading}>フォロー中の人の感想</Text>
+      <Text style={s.note}>Blueskyと接続すると、フォローしている人の感想がここに並びます。</Text>
+      <Button subtle onPress={() => router.push('/settings' as Href)}>接続する ↗</Button>
+    </View> : <>
       {!identity && <View style={s.bookLink}><View style={s.grow}><Text style={s.bookTitle}>あなたの感想も、ここに。</Text><Text style={s.note}>レビューを書くにはBlueskyと接続します。</Text></View><Button subtle onPress={() => router.push('/compose-review' as Href)}>接続する ↗</Button></View>}
       {error ? <View style={s.section}><Text accessibilityRole="alert" style={s.error}>{error}</Text><Button subtle onPress={() => void refresh()}>再試行</Button></View> : null}
       {(loading && !data) || (current === 'following' && !follows) ? <Text style={s.note}>感想を読み込んでいます…</Text> : null}
@@ -102,7 +108,7 @@ export default function TimelineScreen() {
   </View>;
 
   const header = <>
-    <View style={s.between}><View><Text style={s.title}>タイムライン</Text></View><Button onPress={() => router.push('/compose-review' as Href)}>＋ 感想を書く</Button></View>
+    <View style={[s.between, { flexWrap: 'wrap' }]}><View><Text style={s.title}>タイムライン</Text></View><Button onPress={() => router.push('/compose-review' as Href)}>＋ 感想を書く</Button></View>
     {!!toast && <View style={{ backgroundColor: '#E8EEE5', borderRadius: 12, padding: 12, gap: 6 }}><Text accessibilityRole="status" accessibilityLiveRegion="polite" style={s.link}>{toast.message}</Text>{toast.blueskyUrl && <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(toast.blueskyUrl!)}><Text style={s.link}>Blueskyで確認 ↗</Text></Pressable>}</View>}
   </>;
 

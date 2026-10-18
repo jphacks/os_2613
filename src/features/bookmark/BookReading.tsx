@@ -315,6 +315,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     <View ref={paperRef} collapsable={false} style={[styles.paper, { backgroundColor: paint.background }]}>
       <ReadingPage
         onReady={onReady}
+        onLoadError={onLoadError}
         visuals={studyVisuals}
         text={book.text}
         start={0}
@@ -346,7 +347,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
         onDrop={(from, to) => { void dropMark(from, to); }}
         headerDrag={headerDrag}
         onHeaderDrop={(token, offset) => { void dropFromHeader(token, offset); }}
-        dom={{ style: { flex: 1 } }}
+        dom={{ style: { flex: 1 }, onError: () => onLoadError?.('本文画面を読み込めませんでした。接続を確認して、もう一度お試しください。'), onContentProcessDidTerminate: () => onLoadError?.('本文画面の処理が停止しました。もう一度お試しください。') }}
       />
       {(!!error || !!notice) && <View style={styles.feedback}>
         {!!error && <Text accessibilityRole="alert" style={styles.message}>{error}</Text>}

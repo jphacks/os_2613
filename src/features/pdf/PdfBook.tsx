@@ -7,13 +7,14 @@ import { useEffect, useRef, useState } from 'react';
 const cdn = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}`;
 pdfjs.GlobalWorkerOptions.workerSrc = `${cdn}/build/pdf.worker.min.mjs`;
 
-type Props = { uri: string; initialPage?: number; zoom?: number; spread?: boolean; dom?: import('expo/dom').DOMProps };
+type Props = { uri: string; initialPage?: number; zoom?: number; spread?: boolean; onReady?: () => void; onLoadError?: (message: string) => void; dom?: import('expo/dom').DOMProps };
 
-function PdfPage({ doc, number, width, height, root }: { doc: pdfjs.PDFDocumentProxy; number: number; width: number; height: number; root: HTMLDivElement | null }) {
+function PdfPage({ doc, number, width, height, root, onRendered, onLoadError }: { doc: pdfjs.PDFDocumentProxy; number: number; width: number; height: number; root: HTMLDivElement | null; onRendered: (page: number) => void; onLoadError?: (message: string) => void }) {
   const slot = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [nearby, setNearby] = useState(false);
   const [error, setError] = useState(false);
+  const callbacks = useRef({ onRendered, onLoadError }); callbacks.current = { onRendered, onLoadError };
   useEffect(() => {
     if (!root || !slot.current) return;
     const observer = new IntersectionObserver(([entry]) => setNearby(entry.isIntersecting), { root, rootMargin: '800px 0px' });
@@ -36,7 +37,8 @@ function PdfPage({ doc, number, width, height, root }: { doc: pdfjs.PDFDocumentP
       target.style.width = `${viewport.width / ratio}px`; target.style.height = `${viewport.height / ratio}px`;
       task = page.render({ canvas: target, viewport });
       return task.promise;
-    }).catch(() => { if (!cancelled) setError(true); });
+    }).then(() => { if (!cancelled) callbacks.current.onRendered(number); })
+      .catch(() => { if (!cancelled) { setError(true); callbacks.current.onLoadError?.('PDFのページを表示できませんでした。もう一度お試しください。'); } });
     // 中断後のCanvasを再利用しないよう、画面外では要素ごと外す。
     return () => { cancelled = true; task?.cancel(); };
   }, [doc, number, width, height, nearby]);
@@ -47,7 +49,8 @@ function PdfPage({ doc, number, width, height, root }: { doc: pdfjs.PDFDocumentP
   </div>;
 }
 
-export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false }: Props) {
+export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false, onReady, onLoadError }: Props) {
+  const callbacks = useRef({ onReady, onLoadError }); callbacks.current = { onReady, onLoadError };
   const stageRef = useRef<HTMLDivElement>(null);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(initialPage);
@@ -83,7 +86,7 @@ export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false
       if (cancelled) return;
       const viewport = first.getViewport({ scale: 1 });
       setPaper({ width: viewport.width, height: viewport.height }); setDoc(pdf);
-    }).catch(() => { if (!cancelled) setError('教材を開けませんでした。通信を確認して、開き直してください。'); });
+    }).catch(() => { if (!cancelled) { const message = '教材を開けませんでした。通信を確認して、もう一度お試しください。'; setError(message); callbacks.current.onLoadError?.(message); } });
     return () => { cancelled = true; void task.destroy(); };
   }, [uri]);
 
@@ -123,7 +126,8 @@ export default function PdfBook({ uri, initialPage = 1, zoom = 1, spread = false
           const start = index * step + 1;
           if (spread && start !== page) return null;
           return <div key={start} data-page={start} style={{ ...styles.paperRow, gap: spread ? 2 : 0 }}>
-            {Array.from({ length: Math.min(step, total - start + 1) }, (_, offset) => <PdfPage key={`${uri}:${start + offset}`} doc={doc} number={start + offset} width={pageWidth} height={pageHeight} root={stageRef.current} />)}
+            {Array.from({ length: Math.min(step, total - start + 1) }, (_, offset) => <PdfPage key={`${uri}:${start + offset}`} doc={doc} number={start + offset} width={pageWidth} height={pageHeight} root={stageRef.current}
+              onRendered={number => { const target = Math.max(1, Math.min(total, initialPage)); if (number === target - ((target - 1) % step)) callbacks.current.onReady?.(); }} onLoadError={onLoadError} />)}
           </div>;
         })}
       </div>}

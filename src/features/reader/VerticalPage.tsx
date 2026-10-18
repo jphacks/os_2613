@@ -10,6 +10,7 @@ import { bindGuideKeyboard } from './guide-keyboard.mjs';
 type Paint = { background: string; ink: string; muted: string; accent: string; chosen: string };
 export type Props = {
   onReady?: () => void;
+  onLoadError?: (message: string) => void;
   visuals?: import('../study/visuals.mjs').StudyVisual[];
   text: string; start: number; sub: number; marks: number[]; faded: number | null; picking: boolean; draft: number | null;
   guideLift?: number; guide: boolean; running: boolean; speed: number; display: DisplayPreferences; paint: Paint; disabled: boolean;
@@ -89,6 +90,8 @@ export default function VerticalPage(props: Props) {
       latest.current.onPages(count);
       // 設定や画面幅が変わっても、読んでいた文字のあるページを残す。
       if (sameText) latest.current.onReflow(pageAtOffset(starts, anchor.current.offset - start));
+    }).catch(() => {
+      if (measurement.current === job) latest.current.onLoadError?.('本文のページを準備できませんでした。もう一度お試しください。');
     }).finally(() => { if (measurement.current === job) { measuring.current = ''; setCalculating(false); } });
   }, [text, start, step, display.font, display.fontSize]);
   useLayoutEffect(() => {
@@ -161,14 +164,10 @@ export default function VerticalPage(props: Props) {
   }, [focus, layout, start, text]);
   useEffect(() => {
     if (disabled || calculating || !layout.width || !focus || page !== pageAtOffset(layout.starts, focus.offset - start)) return;
-    let active = true;
-    let frame = 0;
-    // フォント・改ページ・保存位置の反映後、紙面が描画されるまで待って画面を切り替える。
-    void document.fonts.ready.then(() => {
-      if (!active) return;
-      frame = requestAnimationFrame(() => { frame = requestAnimationFrame(() => { if (active) latest.current.onReady?.(); }); });
-    });
-    return () => { active = false; cancelAnimationFrame(frame); };
+    // 非表示のiOS WebViewは描画フレームが来ない場合がある。
+    // 実測ページと保存位置の反映を完了条件にし、描画フレームは待たない。
+    const timer = setTimeout(() => latest.current.onReady?.(), 0);
+    return () => clearTimeout(timer);
   }, [disabled, calculating, layout, focus, page, start]);
   useEffect(() => {
     if (!guide || !running || picking || ghost || props.headerDrag || disabled || calculating || !layout.width) return;

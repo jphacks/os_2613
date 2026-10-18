@@ -56,22 +56,29 @@ function NovelBook({ id }: { id: string }) {
   const markOffset = book && validOffset(book.text, markPosition) ? Math.max(0, markPosition - 1) : undefined;
   const [entry, setEntry] = useState<'intro' | 'loading' | 'read'>('intro');
   const [readingError, setReadingError] = useState('');
+  const [readerAttempt, setReaderAttempt] = useState(0);
   const showIntro = markOffset === undefined && prefs.comic && entry !== 'read';
   const readerReady = useCallback(() => setEntry(value => value === 'loading' ? 'read' : value), []);
   const readerFailed = useCallback((message: string) => setReadingError(message), []);
+  useEffect(() => {
+    if (entry !== 'loading') return;
+    const timer = setTimeout(() => setReadingError(message => message || '本文の準備に時間がかかっています。接続を確認して、もう一度お試しください。'), 30000);
+    return () => clearTimeout(timer);
+  }, [entry, readerAttempt]);
   // 本棚からは漫画、しおりのウィジェットからは指定位置の本文を開く。
   useFocusEffect(useCallback(() => { setEntry(markOffset === undefined ? 'intro' : 'read'); }, [id, markOffset]));
 
   if (ready && book) return <View key={`${book.id}:${book.importedAt}:${mark ?? ''}`} style={{ flex: 1 }}>
     <Stack.Screen options={{ title: book.title }} />
-    {(!showIntro || entry === 'loading') && <View pointerEvents={showIntro ? 'none' : 'auto'} accessibilityElementsHidden={showIntro} importantForAccessibility={showIntro ? 'no-hide-descendants' : 'auto'} style={[StyleSheet.absoluteFill, showIntro && { opacity: 0 }]}>
-      <BookReading book={book} initialOffset={markOffset ?? 0} onReady={readerReady} onLoadError={readerFailed} />
+    {(!showIntro || entry === 'loading') && <View pointerEvents={showIntro ? 'none' : 'auto'} accessibilityElementsHidden={showIntro} importantForAccessibility={showIntro ? 'no-hide-descendants' : 'auto'} style={StyleSheet.absoluteFill}>
+      <BookReading key={readerAttempt} book={book} initialOffset={markOffset ?? 0} onReady={readerReady} onLoadError={readerFailed} />
     </View>}
     {showIntro && <View style={StyleSheet.absoluteFill}><IntroComic book={book} read={() => { setReadingError(''); setEntry('loading'); }} /></View>}
     {showIntro && entry === 'loading' && <View style={styles.readingOverlay}>
       <View style={styles.readingLoading} accessibilityLiveRegion="polite" accessibilityState={{ busy: !readingError }}>
         {!readingError && <ActivityIndicator size="large" color={colors.accent} />}
         <Text style={styles.loadingText}>{readingError || '原文を読み込んでいます…'}</Text>
+        {!!readingError && <Pressable accessibilityRole="button" onPress={() => { setReadingError(''); setReaderAttempt(value => value + 1); }} style={styles.loadingCancel}><Text style={styles.link}>もう一度読み込む</Text></Pressable>}
         <Pressable accessibilityRole="button" onPress={() => { setEntry('intro'); setReadingError(''); }} style={styles.loadingCancel}><Text style={styles.link}>漫画に戻る</Text></Pressable>
       </View>
     </View>}
