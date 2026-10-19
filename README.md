@@ -1,10 +1,10 @@
-# ドパBOOKs
+え# ドパBOOKs
 
 ![ドパBOOKs](assets/branding/logo-green-on-cream.png)
 
 **読み始めるきっかけから、続きを開く瞬間まで。読書を続けたい人のための読書支援アプリ。**
 
-デモ動画:https://youtu.be/VFz8o_5DOlw?si=rvyObBkcwNUFeDRf
+デモ動画:https://youtu.be/SYZGfeJ7518?si=92lnV1JZvRzBa3bq
 
 ## 製品概要
 ### 背景(製品開発のきっかけ、課題等）
