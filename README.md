@@ -1,4 +1,4 @@
-え# ドパBOOKs
+# ドパBOOKs
 
 ![ドパBOOKs](assets/branding/logo-green-on-cream.png)
 
