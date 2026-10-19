@@ -53,7 +53,7 @@ function PdfPage({ doc, number, width, height, root, onRendered, onLoadError }: 
 }
 
 export default function PdfBook({ uri, readLocalPdf, initialPage = 1, zoom = 1, spread = false, onReady, onLoadError, onPosition, pageRequest }: Props) {
-  const callbacks = useRef({ onReady, onLoadError }); callbacks.current = { onReady, onLoadError };
+  const callbacks = useRef({ onReady, onLoadError, onPosition, readLocalPdf }); callbacks.current = { onReady, onLoadError, onPosition, readLocalPdf };
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
@@ -91,7 +91,9 @@ export default function PdfBook({ uri, readLocalPdf, initialPage = 1, zoom = 1, 
     let cancelled = false;
     setDoc(null); setError('');
     let task: pdfjs.PDFDocumentLoadingTask | undefined;
-    void pdfSource(uri, readLocalPdf, () => cancelled).then(source => {
+    // Expo DOMの関数プロキシはprops受信のたびに変わる。ページ通知でPDFを破棄・再取得しない。
+    const read = callbacks.current.readLocalPdf ? (offset: number, length: number) => callbacks.current.readLocalPdf!(offset, length) : undefined;
+    void pdfSource(uri, read, () => cancelled).then(source => {
       if (cancelled) return;
       task = pdfjs.getDocument({ ...source, cMapUrl: `${cdn}/cmaps/`, cMapPacked: true, standardFontDataUrl: `${cdn}/standard_fonts/` });
       return task.promise;
@@ -103,10 +105,10 @@ export default function PdfBook({ uri, readLocalPdf, initialPage = 1, zoom = 1, 
       setPaper({ width: viewport.width, height: viewport.height }); setDoc(pdf);
     }).catch(reason => { if (!cancelled) { const message = reason instanceof Error && reason.message.startsWith('LOCAL_PDF_') ? '端末内のPDFを読み込めませんでした。教材を開き直してください。' : '教材を開けませんでした。通信を確認して、もう一度お試しください。'; setError(message); callbacks.current.onLoadError?.(message); } });
     return () => { cancelled = true; void task?.destroy(); };
-  }, [uri, readLocalPdf]);
+  }, [uri]);
 
   useEffect(() => { if (pageRequest) jump(pageRequest.page); }, [pageRequest]);
-  useEffect(() => { onPosition?.(page, total); }, [page, total, onPosition]);
+  useEffect(() => { callbacks.current.onPosition?.(page, total); }, [page, total]);
 
   function jump(number: number) {
     const target = Math.max(1, Math.min(total || 1, number));

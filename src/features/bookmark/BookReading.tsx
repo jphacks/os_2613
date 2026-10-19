@@ -368,7 +368,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
         onDrop={(from, to) => { void dropMark(from, to); }}
         headerDrag={headerDrag}
         onHeaderDrop={(token, offset) => { void dropFromHeader(token, offset); }}
-        dom={{ useExpoDOMWebView: study, style: Platform.OS === 'web' ? { flex: 1 } : { width: paperSize.width, height: paperSize.height }, containerStyle: { flex: 1 }, bounces: false, overScrollMode: 'never', directionalLockEnabled: true, onError: () => onLoadError?.('本文画面を読み込めませんでした。接続を確認して、もう一度お試しください。'), onContentProcessDidTerminate: () => onLoadError?.('本文画面の処理が停止しました。もう一度お試しください。') }}
+        dom={{ useExpoDOMWebView: true, style: Platform.OS === 'web' ? { flex: 1 } : { width: paperSize.width, height: paperSize.height }, containerStyle: { flex: 1 }, bounces: false, overScrollMode: 'never', directionalLockEnabled: true, onError: () => onLoadError?.('本文画面を読み込めませんでした。接続を確認して、もう一度お試しください。'), onContentProcessDidTerminate: () => onLoadError?.('本文画面の処理が停止しました。もう一度お試しください。') }}
       />}
       </View>
       {(!!error || !!notice) && <View style={styles.feedback}>
