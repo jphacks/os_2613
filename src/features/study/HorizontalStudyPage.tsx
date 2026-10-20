@@ -9,7 +9,8 @@ import { mathSegments } from './math.mjs';
 import { bindGuideKeyboard } from '../reader/guide-keyboard.mjs';
 
 export default function HorizontalStudyPage(props: Props) {
-  const { text, start, paint, display, guide, running, speed, disabled, picking, marks, draft, focus } = props;
+  const { start, paint, display, guide, running, speed, disabled, picking, marks, draft, focus } = props;
+  const text = useMemo(() => props.textEncoded ? decodeURIComponent(props.text) : props.text, [props.text, props.textEncoded]);
   const root = useRef<HTMLDivElement>(null), latest = useRef(props); latest.current = props;
   useEffect(() => bindGuideKeyboard(document, () => latest.current.disabled || latest.current.picking ? undefined : latest.current.onToggleGuide), []);
   const [cursor, setCursor] = useState(start);
@@ -27,11 +28,12 @@ export default function HorizontalStudyPage(props: Props) {
   }, [props.visuals, text, lines]);
   useEffect(() => {
     const host = (window as any).$$EXPO_DOM_HOST_OS;
-    if (host !== 'ios' && host !== 'android' && !(window as any).ReactNativeWebView) return;
+    if (!props.viewportSize && host !== 'ios' && host !== 'android' && !(window as any).ReactNativeWebView) return;
     for (const node of [document.documentElement, document.body, document.getElementById('root')]) {
       if (node) { node.style.height = '100%'; node.style.margin = '0'; }
     }
-  }, []);
+    if (root.current && props.viewportSize) { root.current.style.width = `${props.viewportSize.width}px`; root.current.style.height = `${props.viewportSize.height}px`; }
+  }, [props.viewportSize?.width, props.viewportSize?.height]);
   useEffect(() => { latest.current.onPages(1); latest.current.onReflow(0); setCursor(start); }, [text, start]);
   useEffect(() => {
     if (!focus || !root.current) return;

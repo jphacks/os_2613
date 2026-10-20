@@ -9,6 +9,8 @@ export const colors = {
   line: '#DEDFD4',
   wood: '#CDBDA3',
   rating: '#D9A12C',
+  danger: '#B33A32',
+  dangerBackground: '#F8E4E2',
 };
 
 // 表紙の色。本ごとに決まった色を使う。

@@ -1,9 +1,10 @@
+import { ProfilePanel } from '@/features/reviews/ProfilePanel';
 import { PullToRefresh } from '@/features/reviews/PullToRefresh';
 import { colors } from '@/shared/theme';
 import { takeReviewNotice, type ReviewNotice } from '@/features/reviews/notice';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect, type Href } from 'expo-router';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAccount } from '@/features/account/AccountProvider';
 import { ReviewCard, Button, s } from '@/features/reviews/ui';
@@ -51,13 +52,15 @@ const seg = StyleSheet.create({
 export default function TimelineScreen() {
   const { identity, prefs } = useAccount();
   const { width } = useWindowDimensions();
-  const wide = width >= 1000;
+  const wide = Platform.OS === 'web' && width >= 1000;
   const [toast, setToast] = useState<ReviewNotice | null>(null);
   useFocusEffect(useCallback(() => { const message = takeReviewNotice(); if (message) setToast(message); }, []));
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(null), 4500); return () => clearTimeout(timer); }, [toast]);
   const [tab, setTab] = useState<Tab>('recommend');
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileVersion, setProfileVersion] = useState(0);
   const current = tab;
+  const scrollPositions = useRef<Record<Tab, number>>({ recommend: 0, following: 0 });
   const { data, loading, error, refresh, more } = useReviewFeed();
   const [follows, setFollows] = useState<Set<string> | null>(null);
   useEffect(() => {
@@ -76,11 +79,11 @@ export default function TimelineScreen() {
   const feed = <View style={{ gap: 20 }}>
     {!!data?.discoveryWarning && <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>{data.discoveryWarning}</Text>}
     <View style={{ gap: 10 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      {!wide && <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <Pressable accessibilityRole="button" accessibilityLabel="自分のプロフィールを開く" onPress={() => identity ? setProfileOpen(true) : router.push('/profile')} style={timelineStyles.identity}>
           <Avatar uri={identity?.avatar} size={42} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={s.name}>{prefs.name}</Text>{identity && <Text numberOfLines={1} style={s.meta}>@{identity.handle}</Text>}</View>
         </Pressable>
-      </View>
+      </View>}
       <Segmented value={current} onChange={setTab} items={[
         { id: 'recommend', label: 'おすすめ' },
         { id: 'following', label: 'フォロー中' },
@@ -110,7 +113,21 @@ export default function TimelineScreen() {
 
   const profile = <ReviewOverlays person={profileOpen ? identity : null} close={() => setProfileOpen(false)} />;
   return <SafeAreaView edges={['top']} style={s.screen}>
-    <PullToRefresh refreshing={loading} onRefresh={refresh} contentContainerStyle={[s.body, wide && { width: '100%', maxWidth: 1000, alignSelf: 'center' }]}>{header}{feed}</PullToRefresh>
+    {wide ? <View style={[s.body, { flex: 1, minHeight: 0, width: '100%', maxWidth: 1400, paddingBottom: 16 }]}>
+      {header}
+      <View style={{ flex: 1, minHeight: 0, flexDirection: 'row', alignItems: 'stretch' }}>
+        {/* 全体をスクロールさせず、おすすめ・フォロー中と自分の欄の高さを画面内に収める。 */}
+        <PullToRefresh key={current} accessibilityLabel={current === 'recommend' ? 'おすすめのタイムライン' : 'フォロー中のタイムライン'}
+          style={{ flex: 1, minWidth: 0, minHeight: 0 }} contentContainerStyle={{ paddingRight: 20, paddingBottom: 32 }}
+          contentOffset={{ x: 0, y: scrollPositions.current[current] }} onScroll={event => { scrollPositions.current[current] = event.nativeEvent.contentOffset.y; }}
+          refreshing={loading} onRefresh={async () => { setProfileVersion(value => value + 1); await refresh(); }}>{feed}</PullToRefresh>
+        <View accessibilityLabel="自分のタイムライン" style={{ width: 340, flexShrink: 0, minHeight: 0, borderLeftWidth: 1, borderLeftColor: colors.line, paddingLeft: 20 }}>
+          <ProfilePanel refreshVersion={profileVersion} showRefresh={false} />
+        </View>
+      </View>
+    </View> : <PullToRefresh refreshing={loading} onRefresh={async () => { setProfileVersion(value => value + 1); await refresh(); }} contentContainerStyle={s.body}>
+      {header}{feed}
+    </PullToRefresh>}
     {profile}
   </SafeAreaView>;
 }

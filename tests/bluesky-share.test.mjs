@@ -25,7 +25,8 @@ test('送信成功後に応答が失われても、画面を開き直した再�
     posts.set(body.rkey, { value: body.record }); writes++;
     throw new Error('応答だけ切断');
   };
-  await assert.rejects(() => shareBluesky({ did, review, request, storage, now: () => 1767225600000 }), /応答/);
+  const first = await shareBluesky({ did, review, request, storage, now: () => 1767225600000 });
+  assert.match(first, /^https:\/\/bsky.app/);
   const url = await shareBluesky({ did, review, request, storage, now: () => 1767225900000 });
   assert.equal(writes, 1); assert.equal(posts.size, 1);
   assert.equal(url.split('/').at(-1), [...posts.keys()][0]);
@@ -47,4 +48,40 @@ test('旧レイアウトで公開済みの同じ感想は変更・二重投稿�
   const storage = { getItem: async () => JSON.stringify({ key: blueskyTid(1767225600000), createdAt: '2026-01-01T00:00:00Z' }), setItem: async () => {} };
   await shareBluesky({ did, review, storage, request: async (_path, init) => { assert.ok(!init?.body); calls++; return { value: { text: blueskyText(review, true) } }; } });
   assert.equal(calls, 1);
+});
+
+
+test('確認直後に同じ投稿が作られても作成済みを成功として扱う', async () => {
+  let reads = 0, writes = 0;
+  const storage = { getItem: async () => JSON.stringify({ key: blueskyTid(1767225600000), createdAt: '2026-01-01T00:00:00Z' }), setItem: async () => {} };
+  const url = await shareBluesky({ did, review, storage, request: async (path) => {
+    if (path.includes('getRecord')) return ++reads === 1 ? null : { value: { text: blueskyText(review) } };
+    writes++; throw new Error('RecordAlreadyExists');
+  } });
+  assert.match(url, /bsky.app/); assert.equal(reads, 2); assert.equal(writes, 1);
+});
+
+test('作成エラー後に別内容の投稿や取得エラーがあっても成功にしない', async () => {
+  for (const saved of [null, { value: { text: '別の投稿' } }]) {
+    let reads = 0;
+    const storage = { getItem: async () => JSON.stringify({ key: blueskyTid(1767225600000), createdAt: '2026-01-01T00:00:00Z' }), setItem: async () => {} };
+    await assert.rejects(() => shareBluesky({ did, review, storage, request: async path => {
+      if (path.includes('getRecord')) return ++reads === 1 ? null : saved;
+      throw new Error('元の投稿エラー');
+    } }), /元の投稿エラー/);
+  }
+});
+
+
+test('iPhoneのようにブラウザーcryptoがなくても注入したSHA-256で共有できる', async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  const cache = new Map(); let input = '', posts = 0;
+  try {
+    Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true });
+    const url = await shareBluesky({ did, review, digest: async value => { input = value; return 'a'.repeat(64); },
+      storage: { getItem: async key => cache.get(key) ?? null, setItem: async (key, value) => { cache.set(key, value); } },
+      request: async path => { if (path.includes('getRecord')) return null; posts++; return {}; } });
+    assert.equal(input, `${review.book.id}:${review.rating}:${review.spoiler}:${review.text}`);
+    assert.equal(posts, 1); assert.match(url, /bsky.app/);
+  } finally { if (descriptor) Object.defineProperty(globalThis, 'crypto', descriptor); else delete globalThis.crypto; }
 });

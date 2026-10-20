@@ -1,3 +1,4 @@
+import { DesktopReaderPopover } from './DesktopReaderPopover';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Animated, Modal, PanResponder, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +23,7 @@ export function ReaderPanel({ visible, onClose, children, desktop, label }: { vi
     onPanResponderRelease: (_, gesture) => { const target = sheetDestination(start.current, gesture.dy, gesture.vy, latest.current.height); animate(target, target === 0); },
     onPanResponderTerminate: () => animate(sheetHeights(latest.current.height).compact),
   })).current;
+  if (!mobile && Platform.OS === 'web' && label !== 'しおり') return <DesktopReaderPopover visible={visible} label={label} onClose={onClose}>{children}</DesktopReaderPopover>;
   if (!mobile) return <>{desktop}</>;
   return <Modal visible={visible} transparent animationType="none" onRequestClose={() => animate(0, true)} statusBarTranslucent>
     <View style={s.host}>

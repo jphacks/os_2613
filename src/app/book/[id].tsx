@@ -1,3 +1,4 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NavigationButton } from '@/shared/NavigationButton';
 import { useAccount } from '@/features/account/AccountProvider';
 import { Asset } from 'expo-asset';
@@ -41,9 +42,9 @@ export default function BookScreen() {
   const router = useRouter();
   return <>
     <Stack.Screen options={{
-      headerLeft: () => <NavigationButton filled flushLeft label="本棚へ" onPress={() => router.dismissTo('/shelf')} />,
+      headerLeft: () => <NavigationButton filled flushLeft={Platform.OS !== 'web'} label="本棚へ" onPress={() => router.dismissTo('/shelf')} />,
       // iOSの共有背景が独自ボタンの外側に重なると、白い枠のように見えるため隠す。
-      ...(Platform.OS === 'ios' ? { unstable_headerLeftItems: () => [{ type: 'custom' as const, hidesSharedBackground: true, element: <NavigationButton filled flushLeft label="本棚へ" onPress={() => router.dismissTo('/shelf')} /> }] } : {}),
+      ...(Platform.OS === 'ios' ? { unstable_headerLeftItems: () => [{ type: 'custom' as const, hidesSharedBackground: true, element: <NavigationButton filled flushLeft={Platform.OS !== 'web'} label="本棚へ" onPress={() => router.dismissTo('/shelf')} /> }] } : {}),
     }} />
     {pdfFiles[id] ? <StudyBook id={id} /> : <NovelBook key={id} id={id} />}
   </>;
@@ -97,7 +98,7 @@ function StudyBook({ id }: { id: string }) {
   }
 
   return (
-    <View style={[styles.container, styles.studyContainer]}>
+    <SafeAreaView edges={['bottom']} style={[styles.container, styles.studyContainer]}>
       <Stack.Screen options={{ title: book.title, headerTitleAlign: 'center', headerStyle: { backgroundColor: colors.paper }, headerTintColor: colors.ink, headerTitle: () => <View style={{ alignItems: 'center' }}><Text style={{ color: colors.ink, fontSize: 20 }}>{book.title}</Text><Text style={{ color: colors.muted, fontSize: 13 }}>{book.author}</Text></View> }} />
 
       <View style={styles.page}>
@@ -114,7 +115,7 @@ function StudyBook({ id }: { id: string }) {
           </Pressable>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

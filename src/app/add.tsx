@@ -1,3 +1,4 @@
+import { artifactUrl } from '@/features/comic/api';
 import { books as catalog } from '@/content/books';
 import { libraryStorage } from '@/features/library/storage';
 import { NavigationButton } from '@/shared/NavigationButton';
@@ -43,6 +44,8 @@ export default function AddScreen() {
   const [tab, setTab] = useState<'novel' | 'study'>('novel');
   const [field, setField] = useState('keyword');
   const [query, setQuery] = useState('');
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  useEffect(() => { let active = true; void libraryStorage.getItem('dopabooks:shelf-removed:v1').then(raw => { const ids = JSON.parse(raw ?? '[]'); if (!Array.isArray(ids) || !ids.every(id => typeof id === 'string')) throw new Error(); if (active) setRemovedIds(ids); }).catch(() => { if (active) setError('本棚の削除設定を確認できません。画面を開き直してください。'); }); return () => { active = false; }; }, []);
   const [studyQuery, setStudyQuery] = useState<string | null>(null);
   const studyResults = catalog.filter(book => book.kind === 'study').filter(book => { const normalize = (value: string) => value.normalize('NFKC').replace(/\s/g, '').toLowerCase(); const q = normalize(studyQuery ?? ''); return normalize(field === 'title' ? book.title : field === 'author' ? book.author : `${book.title}${book.author}`).includes(q); });
   const source = sources[tab];
@@ -73,7 +76,7 @@ export default function AddScreen() {
     setLoading(true); setError(''); setMessage('');
     try {
       const params = new URLSearchParams({ q: query.trim(), field, page: String(page) });
-      const response = await fetch(`/api/aozora?${params}`, { signal: controller.signal });
+      const response = await fetch(artifactUrl(`/api/aozora?${params}`), { signal: controller.signal });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       if (!controller.signal.aborted) setResult(data);
@@ -87,7 +90,14 @@ export default function AddScreen() {
     const controller = new AbortController(); importRequest.current = controller;
     setAdding(`aozora-${id}`); setError(''); setMessage('');
     try {
-      const response = await fetch(`/api/aozora?id=${id}`, { signal: controller.signal });
+      const local = books.find(book => book.aozoraId === id);
+      if (local && removedIds.includes(local.id)) {
+        const raw = await libraryStorage.getItem('dopabooks:shelf-removed:v1');
+        const ids = JSON.parse(raw ?? '[]'); if (!Array.isArray(ids) || !ids.every(id => typeof id === 'string')) throw new Error('本棚の保存設定を確認してください。');
+        await libraryStorage.setItem('dopabooks:shelf-removed:v1', JSON.stringify(ids.filter(value => value !== local.id)));
+        complete('add'); router.dismissTo('/shelf'); return;
+      }
+      const response = await fetch(artifactUrl(`/api/aozora?id=${id}`), { signal: controller.signal });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       if (controller.signal.aborted) return;
@@ -162,7 +172,7 @@ export default function AddScreen() {
             <Text style={styles.note}>{result.total.toLocaleString()}件見つかりました（{result.page}ページ）</Text>
             {!result.results.length && <Text style={styles.empty}>見つかりませんでした。別の語句や検索条件でお試しください。</Text>}
             {result.results.map(book => {
-              const exists = books.some(saved => saved.id === book.id);
+              const exists = books.some(saved => saved.id === book.id) && !removedIds.includes(book.id);
               return <View key={book.id} style={styles.result}>
                 <View style={styles.resultInfo}>
                   <Text style={styles.bookTitle}>{book.title}</Text>

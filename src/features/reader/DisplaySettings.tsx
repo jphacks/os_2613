@@ -93,7 +93,6 @@ export function DisplaySettings({ value, close, apply, onPreview }: { onPreview?
 
   const panelContent = <>
     <View style={readerPanelHeader}>
-      {!phoneSheet && <Pressable accessibilityRole="button" accessibilityLabel="戻る" onPress={back} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>}
       <Text style={readerPanelTitle}>表示</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="表示設定をリセット" disabled={saving} onPress={() => setDraft({ ...defaultPreferences })} style={styles.resetIcon}><AppIcon name="refresh" size={22} /></Pressable>
 

@@ -1,5 +1,5 @@
 import { useMemo, useRef, type ReactNode } from 'react';
-import { PanResponder, Pressable, View } from 'react-native';
+import { PanResponder, Platform, Pressable, View } from 'react-native';
 
 export type BookmarkDragPoint = { x: number; y: number; phase: 'move' | 'end' | 'cancel' };
 
@@ -25,7 +25,8 @@ export function BookmarkHandle({ disabled, onOpen, onPlace, onDrag, children }: 
     onPanResponderTerminate: () => { if (dragged.current) latest.current.onDrag({ x: 0, y: 0, phase: 'cancel' }); },
     onPanResponderTerminationRequest: () => false,
   }), []);
-  return <View {...responder.panHandlers}>
+  // ブラウザーの画像ドラッグが始まるとPanResponderが中断され、本文で禁止マークになる。
+  return <View {...responder.panHandlers} {...(Platform.OS === 'web' ? { onDragStart: (event: { preventDefault: () => void }) => event.preventDefault() } : {})} style={{ userSelect: 'none', touchAction: 'none' }}>
     <Pressable accessibilityRole="button" accessibilityLabel="しおり"
       accessibilityHint="タップで一覧、本文へドラッグして挟みます。長押しでも位置を選べます"
       disabled={disabled}

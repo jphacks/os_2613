@@ -1,3 +1,4 @@
+import { shareDigest } from './share-digest';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { shareBluesky } from './bluesky-share.mjs';
 import { reviewRequest, reviewAccess } from '@/features/account/oauth';
@@ -20,7 +21,7 @@ export async function publishReview(did: string, value: ReviewRecord, share: boo
   try { await syncReview(result.uri); } catch (error) { indexError = error instanceof Error ? error.message : 'タイムラインに反映できません。'; }
   if (share) {
     try {
-      blueskyUrl = await shareBluesky({ did, review: record, request: reviewRequest, storage: AsyncStorage });
+      blueskyUrl = await shareBluesky({ did, review: record, request: reviewRequest, storage: AsyncStorage, digest: shareDigest });
     } catch (error) { blueskyError = error instanceof Error ? error.message : 'Blueskyに共有できません。'; }
   }
   return { uri: result.uri as string, indexError, blueskyError, blueskyUrl };

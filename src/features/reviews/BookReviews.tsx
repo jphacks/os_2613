@@ -1,3 +1,4 @@
+import { artifactUrl } from '@/features/comic/api';
 import { PullToRefresh } from './PullToRefresh';
 import { NavigationButton } from '@/shared/NavigationButton';
 import { Stack, router, useLocalSearchParams, type Href } from 'expo-router';
@@ -26,7 +27,7 @@ export default function BookReviews({ bookId, close }: { bookId?: string; close?
     if (local || study) { navigate(`/book/${id}` as Href); return; }
     setOpening(true); setReadError('');
     try {
-      const response = await fetch(`/api/aozora?id=${id.replace('aozora-', '')}`), saved = await response.json();
+      const response = await fetch(artifactUrl(`/api/aozora?id=${id.replace('aozora-', '')}`)), saved = await response.json();
       if (!response.ok || saved.id !== id) throw new Error('本を取得できません。もう一度お試しください。');
       await addBook(saved); navigate(`/book/${id}` as Href);
     } catch (e) { setReadError(e instanceof Error ? e.message : '本棚に追加できません。'); }

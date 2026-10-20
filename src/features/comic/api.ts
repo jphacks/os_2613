@@ -5,7 +5,7 @@ export function artifactUrl(path: string) {
   const config = Constants.expoConfig;
   const plugin = config?.plugins?.find(value => Array.isArray(value) && value[0] === 'expo-router');
   const configured = config?.extra?.apiOrigin ?? (Array.isArray(plugin) ? plugin[1]?.origin : undefined);
-  const origin = __DEV__ && config?.hostUri ? `http://${config.hostUri}` : configured;
+  const origin = __DEV__ && config?.hostUri ? `${/\.(on\.expo\.app|exp\.direct)(?::\d+)?$/.test(config.hostUri) ? 'https' : 'http'}://${config.hostUri}` : configured;
   if (typeof origin !== 'string' || !/^https?:\/\//.test(origin) || (!__DEV__ && !origin.startsWith('https://'))) throw new Error('接続先が設定されていません。アプリの配信設定を確認してください。');
   return new URL(path, origin).toString();
 }

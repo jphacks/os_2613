@@ -1,14 +1,16 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { pageFromTrack } from './pagination.mjs';
 
-export function PageBar({ page, count, disabled, ink, accent, line, onChange }: { page: number; count: number; disabled: boolean; ink: string; accent: string; line: string; onChange: (page: number) => void }) {
+export function PageBar({ page, count, disabled, ink, accent, line, onChange, leading, trailing }: { leading?: ReactNode; trailing?: ReactNode; page: number; count: number; disabled: boolean; ink: string; accent: string; line: string; onChange: (page: number) => void }) {
   const width = useRef(0), latest = useRef(page), dragging = useRef(false);
   const [preview, setPreview] = useState<number | null>(null);
   const shown = Math.min(count - 1, preview ?? page);
   function update(x: number) { latest.current = pageFromTrack(x, width.current, count); setPreview(latest.current); }
   return <View style={styles.row}>
     <Text style={{ color: ink, fontSize: 12, textAlign: 'center' }}>{shown + 1} / {count} ページ</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+    {leading}
     <View accessibilityRole="adjustable" accessibilityLabel="ページ移動" accessibilityState={{ disabled }}
       aria-valuemin={1} aria-valuemax={count} aria-valuenow={shown + 1} aria-valuetext={`${shown + 1} / ${count} ページ`}
       accessibilityValue={{ min: 1, max: count, now: shown + 1, text: `${shown + 1} / ${count} ページ` }}
@@ -20,11 +22,13 @@ export function PageBar({ page, count, disabled, ink, accent, line, onChange }: 
       onResponderMove={event => update(event.nativeEvent.locationX)}
       onResponderRelease={() => { if (dragging.current) onChange(latest.current); dragging.current = false; setPreview(null); }}
       onResponderTerminate={() => { dragging.current = false; setPreview(null); }}
-      style={[styles.touch, { opacity: disabled ? 0.4 : 1 }]}>
+      style={[styles.touch, { flex: 1, minWidth: 0, width: undefined, opacity: disabled ? 0.4 : 1 }]}>
       <View pointerEvents="none" style={[styles.track, { backgroundColor: line }]}>
         <View style={[styles.fill, { backgroundColor: accent, width: `${count <= 1 ? 100 : shown / (count - 1) * 100}%` }]} />
       </View>
       <View pointerEvents="none" style={[styles.thumb, { backgroundColor: accent, right: `${count <= 1 ? 0 : shown / (count - 1) * 100}%` }]} />
+    </View>
+    {trailing}
     </View>
   </View>;
 }

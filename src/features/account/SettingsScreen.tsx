@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useAccount } from '@/features/account/AccountProvider';
-import { loginAvailable } from '@/features/account/oauth';
+import { loginAvailable, prepareSignIn, cancelSignIn } from '@/features/account/oauth';
 import { colors } from '@/shared/theme';
 
 export default function Settings({ embedded = false }: { embedded?: boolean }) {
@@ -27,10 +27,19 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
     }
     if (Platform.OS === 'web' && typeof window !== 'undefined') setLoopback(['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname));
   }, [params.connect]);
+  const acting = useRef(false);
+  useEffect(() => {
+    if (identity || tab !== 'account' || !loginAvailable) return;
+    let active = true;
+    void prepareSignIn().catch(reason => { if (active) { setFailed(true); setMessage(reason instanceof Error ? reason.message : '接続を準備できません。通信を確認してください。'); } });
+    return () => { active = false; };
+  }, [identity, tab]);
   async function act(action: () => Promise<void>) {
+    if (acting.current) return;
+    acting.current = true;
     setBusy(true); setMessage(''); setFailed(false);
     try { await action(); } catch (e) { setFailed(true); setMessage(e instanceof Error ? e.message : '操作を完了できませんでした。'); }
-    finally { setBusy(false); }
+    finally { acting.current = false; setBusy(false); }
   }
   const available = loginAvailable && (Platform.OS !== 'web' || loopback || !!process.env.EXPO_PUBLIC_ATPROTO_CLIENT_ID);
   if (identity && ready && !prefs.nameChosen) return <ScrollView style={s.screen} contentContainerStyle={s.onboarding} keyboardShouldPersistTaps="handled">
@@ -80,7 +89,8 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
 
           <Text style={s.note}>いつものBlueskyアカウントで、読書を始めましょう。</Text>
 
-          <Pressable accessibilityRole="button" disabled={busy || !ready || !available} onPress={() => void act(() => login(''))} style={[s.button, (busy || !ready || !available) && s.disabled]}>{busy ? <ActivityIndicator color={colors.surface} /> : <Text style={s.light}>Blueskyでサインインする　↗</Text>}</Pressable>
+          <Pressable accessibilityRole="button" disabled={busy || !ready || !available} onPress={() => void act(() => login(''))} style={[s.button, (busy || !ready || !available) && s.disabled]}>{busy ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><ActivityIndicator color={colors.surface} /><Text style={s.light}>認証画面で接続しています…</Text></View> : <Text style={s.light}>Blueskyでサインインする　↗</Text>}</Pressable>
+          {busy && Platform.OS === 'web' && <Pressable accessibilityRole="button" onPress={cancelSignIn}><Text style={s.note}>接続を中止する</Text></Pressable>}
           {!available && <View style={s.example}><Text style={s.label}>ログインの接続設定が必要です</Text><Text style={s.note}>{Platform.OS === 'web' ? '公開Webの認証URLが未設定です。開発者がHTTPSのアプリ情報URLを設定すると利用できます。' : 'このiPhone版はまだ認証に接続していません。公開HTTPS URL・コールバック設定とビルドの更新が必要です。現在はゲストで利用できます。'}</Text></View>}
 
           <Text style={s.note}>アドレスとパスワードは、どちらも次のBluesky認証画面で入力します。認証後にアプリで使う名前を設定します。</Text>

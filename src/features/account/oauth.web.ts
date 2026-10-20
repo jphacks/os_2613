@@ -1,3 +1,4 @@
+import { createAuthRequest } from './auth-request.mjs';
 import { avatarUrl } from '@/shared/avatar.mjs';
 import { likeCollection, reviewCollection, reviewScope } from '../reviews/model.mjs';
 import type { BrowserOAuthClient } from '@atproto/oauth-client-browser';
@@ -20,7 +21,7 @@ async function getClient() {
 }
 async function profile(did: string): Promise<Identity> {
   try {
-    const response = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`);
+    const response = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(did)}`, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw new Error();
     const data = await response.json();
     return { did, handle: data.handle || did, avatar: avatarUrl(data.avatar), name: typeof data.displayName === 'string' && data.displayName.trim() ? data.displayName.trim() : 'Blueskyユーザー' };
@@ -39,16 +40,22 @@ export function restoreIdentity(): Promise<Identity | null> {
   }).catch(error => { initialized = undefined; throw new Error(loginError(error)); });
   return initialized;
 }
-async function popupIdentity(scope: string): Promise<Identity> {
+const authentication = createAuthRequest();
+let authController: AbortController | null = null;
+export function cancelSignIn() { authController?.abort(); }
+function popupIdentity(scope: string): Promise<Identity> { return authentication(scope, () => performPopupIdentity(scope)); }
+async function performPopupIdentity(scope: string): Promise<Identity> {
   const popup = window.open('about:blank', 'dopabooks-auth', 'width=600,height=680,menubar=no,toolbar=no');
   if (!popup) throw new Error('Blueskyの認証画面を開けません。ブラウザーでポップアップを許可して、もう一度押してください。');
+  const controller = new AbortController(); authController = controller;
   try {
     const client = await getClient();
-    const session = await client.signInPopup('https://bsky.social', { scope, popupName: 'dopabooks-auth', signal: AbortSignal.timeout(180000) });
+    controller.signal.throwIfAborted();
+    const session = await client.signInPopup('https://bsky.social', { scope, popupName: 'dopabooks-auth', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(180000)]) });
     const identity = await profile(session.sub);
     initialized = Promise.resolve(identity);
     return identity;
-  } finally { popup.close(); }
+  } finally { if (authController === controller) authController = null; popup.close(); }
 }
 // 開発用OAuthではIP表記の戻り先を使う。実際に待ち受けているIPv4・IPv6を確認する。
 async function moveToLoopback() {
@@ -66,9 +73,14 @@ async function moveToLoopback() {
   return true;
 }
 const movingMessage = 'ログイン画面へ移動しています。開き直したら、もう一度ボタンを押してください。';
+export async function prepareSignIn(): Promise<void> {
+  if (window.location.hostname === 'localhost') { await moveToLoopback(); return; }
+  await getClient();
+}
+
 
 export async function signIn(_input: string): Promise<Identity | null> {
-  if (await moveToLoopback()) throw new Error(movingMessage);
+  if (window.location.hostname === 'localhost' && await moveToLoopback()) throw new Error(movingMessage);
   try { return await popupIdentity('atproto'); }
   catch (error) { if (error instanceof Error && /[ぁ-んァ-ン一-龠]/.test(error.message)) throw error; throw new Error(loginError(error)); }
 }
@@ -91,7 +103,7 @@ export async function reviewAccess() {
   return { review: scopes.includes(`repo:${reviewCollection}`), like: scopes.includes(`repo:${likeCollection}`), bluesky: scopes.includes('repo:app.bsky.feed.post?action=create') || scopes.includes('repo:app.bsky.feed.post') };
 }
 export async function authorizeReviews(bluesky = false): Promise<Identity | null> {
-  if (await moveToLoopback()) throw new Error(movingMessage);
+  if (window.location.hostname === 'localhost' && await moveToLoopback()) throw new Error(movingMessage);
   try { return await popupIdentity(bluesky ? reviewScope : `atproto repo:${reviewCollection} repo:${likeCollection}`); }
   catch (error) { if (error instanceof Error && /[ぁ-んァ-ン一-龠]/.test(error.message)) throw error; throw new Error(loginError(error)); }
 }

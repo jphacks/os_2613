@@ -7,8 +7,8 @@ import { colors } from '@/shared/theme';
 import { bookTextLimit, type MusicPlan, type MusicScene } from './plan-model.mjs';
 
 const moods = [{ id: 'calm', label: '穏やか' }, { id: 'tense', label: '緊張・決意' }, { id: 'sad', label: '悲哀' }, { id: 'bright', label: '希望・安堵' }] as const;
-function Button({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, disabled && { opacity: 0.4 }]}><Text style={styles.text}>{label}</Text></Pressable>;
+function Button({ label, onPress, disabled = false, danger = false }: { danger?: boolean; label: string; onPress: () => void; disabled?: boolean }) {
+  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, danger && { backgroundColor: colors.dangerBackground, borderColor: colors.dangerBackground }, disabled && { opacity: 0.4 }]}><Text style={[styles.text, danger && { color: colors.danger }]}>{label}</Text></Pressable>;
 }
 
 export function MusicPlanEditor({ book, visible, onClose, volume = 0.25 }: { book: SavedBook; visible: boolean; onClose: () => void; volume?: number }) {
@@ -145,7 +145,7 @@ export function MusicPlanEditor({ book, visible, onClose, volume = 0.25 }: { boo
               <Button label={`${scene.selectedId === track.id ? '✓ ' : ''}${track.name} / ${track.creator}`} disabled={!!busy} onPress={() => edit(index, { selectedId: track.id })} />
               <Button label="試聴に読み込む" onPress={() => { player.pause(); player.replace({ uri: track.audioUrl }); setPreview(track); setError(''); }} />
             </View>)}
-            <Button label="この場面の曲を外す" disabled={!!busy || scene.selectedId === null} onPress={() => edit(index, { selectedId: null })} />
+            <Button danger label="この場面の曲を外す" disabled={!!busy || scene.selectedId === null} onPress={() => edit(index, { selectedId: null })} />
           </View>)}
         </>}
       </ScrollView>

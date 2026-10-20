@@ -14,6 +14,7 @@ export type Props = {
   onReady?: () => void;
   onLoadError?: (message: string) => void;
   visuals?: import('../study/visuals.mjs').StudyVisual[];
+  textEncoded?: boolean;
   text: string; start: number; sub: number; marks: number[]; faded: number | null; picking: boolean; draft: number | null;
   guideLift?: number; guide: boolean; running: boolean; speed: number; display: DisplayPreferences; paint: Paint; disabled: boolean;
   focus: { offset: number; token: number } | null;
@@ -34,7 +35,9 @@ type Gesture = { id: number; x: number; y: number; from: number | null; dragged:
 function Ribbon() { return <svg width="18" height="28" viewBox="0 0 18 28" aria-hidden="true"><path d="M1 1h16v25l-8-6-8 6z" fill="currentColor" /></svg>; }
 
 export default function VerticalPage(props: Props) {
-  const { guideLift = 1, text, start, sub, marks, faded, picking, draft, guide, running, speed, display, paint, disabled, focus } = props;
+  const { guideLift = 1, start, sub, marks, faded, picking, draft, guide, running, speed, display, paint, disabled, focus } = props;
+  // iOS WebViewの初期JSON内で改行・バックスラッシュが再解釈されない形式で受け取る。
+  const text = useMemo(() => props.textEncoded ? decodeURIComponent(props.text) : props.text, [props.text, props.textEncoded]);
   const rootRef = useRef<HTMLDivElement>(null), viewRef = useRef<HTMLDivElement>(null), textRef = useRef<HTMLDivElement>(null), measureRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const observedPage = useRef(-1);
@@ -118,9 +121,9 @@ export default function VerticalPage(props: Props) {
       }
     }
     const fitNative = () => { if (rootRef.current && (props.viewportSize || native)) { rootRef.current.style.height = `${props.viewportSize?.height ?? window.innerHeight}px`; if (props.viewportSize) rootRef.current.style.width = `${props.viewportSize.width}px`; } };
-    fitNative();
-    if (native) window.addEventListener('resize', fitNative);
     let active = true;
+    fitNative();
+    window.addEventListener('resize', fitNative);
     measure();
     if (document.fonts?.status === 'loading') void document.fonts.ready.then(() => { if (active) { fontRevision.current++; measure(); } });
     const view = viewRef.current;
@@ -365,7 +368,7 @@ export default function VerticalPage(props: Props) {
       onKeyDown={event => { if (guide && running) return; if (event.key === 'Enter' && marked && !picking) latest.current.onMarkPress(offset); }}
       style={{ ...styles.ribbon, ...(first ? { top: 0, right: 0, left: 'auto' } : {}), color: paint.accent, opacity: marked && (faded === offset || (ghost && gesture.current?.from === offset)) ? 0.25 : 1 }}><span style={{ pointerEvents: 'none', display: 'block' }}><Ribbon /></span></span>;
   }
-  return <div ref={rootRef} style={{ ...styles.root, ...(props.viewportSize ? { width: props.viewportSize.width, height: props.viewportSize.height } : {}), background: paint.background, touchAction: 'none', cursor: ghost ? 'grabbing' : undefined }} onDragStart={event => event.preventDefault()} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)}>
+  return <div ref={rootRef} style={{ ...styles.root, background: paint.background, touchAction: 'none', cursor: ghost ? 'grabbing' : undefined }} onDragStart={event => event.preventDefault()} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)}>
     {calculating && <div role="status" style={{ position: 'absolute', top: 4, left: 24, color: paint.muted, fontSize: 12, pointerEvents: 'none' }}>ページを整えています…</div>}
     <div ref={viewRef} style={styles.view}>
       <div ref={measureRef} aria-hidden="true" style={{ ...styles.text, visibility: 'hidden', pointerEvents: 'none', fontFamily: fontFamilies[display.font], fontSize: display.fontSize, lineHeight: `${step}px` }}>{text}</div>
@@ -418,7 +421,7 @@ export default function VerticalPage(props: Props) {
   </div>;
 }
 const styles: Record<string, React.CSSProperties> = {
-  root: { inset: 0, height: '100%', width: '100%', padding: '24px 24px', boxSizing: 'border-box', userSelect: 'none', touchAction: 'pan-x', position: 'absolute', overflow: 'hidden', overscrollBehavior: 'none' },
+  root: { height: '100%', width: '100%', padding: '24px 24px', boxSizing: 'border-box', userSelect: 'none', touchAction: 'pan-x', position: 'relative', overflow: 'hidden', overscrollBehavior: 'none' },
   turnHint: { position: 'absolute', top: '50%', transform: 'translateY(-50%)', fontSize: 22, opacity: 0.16, pointerEvents: 'none', lineHeight: 1 },
   view: { width: '100%', height: '100%', display: 'flex', justifyContent: 'flex-end', position: 'relative', minHeight: 0, overflow: 'hidden' },
   scroll: { position: 'absolute', inset: 0, direction: 'rtl', overflowY: 'hidden', overscrollBehaviorX: 'contain', scrollbarWidth: 'none', touchAction: 'pan-x' },

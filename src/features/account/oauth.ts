@@ -1,3 +1,4 @@
+import { createAuthRequest } from './auth-request.mjs';
 import { nativeOAuthClientId } from '../../../config/oauth.cjs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { avatarUrl } from '@/shared/avatar.mjs';
@@ -20,11 +21,15 @@ async function client() {
   return creating;
 }
 async function identity(session: OAuthSession): Promise<Identity> {
-  const response = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(session.sub)}`);
-  if (!response.ok) throw new Error('プロフィールを取得できません。通信を確認して再試行してください。');
-  const data = await response.json();
-  return { did: session.sub, handle: data.handle || session.sub, name: data.displayName?.trim() || 'Blueskyユーザー', avatar: avatarUrl(data.avatar) };
+  // 認証済みのセッションは、公開プロフィールAPIの一時的な不調だけでは失敗扱いにしない。
+  try {
+    const response = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(session.sub)}`, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    return { did: session.sub, handle: data.handle || session.sub, name: typeof data.displayName === 'string' && data.displayName.trim() ? data.displayName.trim() : 'Blueskyユーザー', avatar: avatarUrl(data.avatar) };
+  } catch { return { did: session.sub, handle: session.sub, name: 'Blueskyユーザー' }; }
 }
+
 export function restoreIdentity(): Promise<Identity | null> {
   if (!loginAvailable) return Promise.resolve(null);
   if (!restoring) restoring = (async () => {
@@ -36,7 +41,12 @@ export function restoreIdentity(): Promise<Identity | null> {
   })().catch(() => { restoring = undefined; throw new Error('ログインを復元できません。通信を確認するか、もう一度サインインしてください。'); });
   return restoring;
 }
-async function authenticate(scope: string): Promise<Identity> {
+const authentication = createAuthRequest();
+function authenticate(scope: string): Promise<Identity> { return authentication(scope, () => performAuthentication(scope)); }
+// iPhoneの中止はOSの認証画面で行う。Webの中止ボタンからは呼ばれない。
+export function cancelSignIn() {}
+export async function prepareSignIn(): Promise<void> { await client(); }
+async function performAuthentication(scope: string): Promise<Identity> {
   try {
     const session = await (await client()).signIn('https://bsky.social', { scope });
     const value = await identity(session);

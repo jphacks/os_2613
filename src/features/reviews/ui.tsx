@@ -12,8 +12,8 @@ import { likeReview } from './publishing';
 export function Stars({ value, onChange, disabled = false }: { value: number; onChange?: (value: number) => void; disabled?: boolean }) {
   return <View style={s.row} accessibilityLabel={`${value} / 5`}>{[1, 2, 3, 4, 5].map(star => onChange ? <Pressable key={star} accessibilityRole="button" accessibilityLabel={`${star}つ星`} accessibilityState={{ selected: star === value, disabled }} disabled={disabled} onPress={() => onChange(star)} style={{ paddingVertical: 8, paddingHorizontal: 3 }}><Text style={s.bigStar}>{star <= value ? '★' : '☆'}</Text></Pressable> : <Text key={star} style={s.star}>{star <= value ? '★' : '☆'}</Text>)}</View>;
 }
-export function Button({ children, onPress, subtle = false, disabled = false }: { children: string; onPress: () => void; subtle?: boolean; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[s.button, subtle && s.subtleButton, disabled && { opacity: 0.4 }]}><Text style={subtle ? s.link : s.light}>{children}</Text></Pressable>;
+export function Button({ children, onPress, subtle = false, disabled = false, danger = false }: { danger?: boolean; children: string; onPress: () => void; subtle?: boolean; disabled?: boolean }) {
+  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[s.button, subtle && s.subtleButton, danger && { backgroundColor: colors.dangerBackground }, disabled && { opacity: 0.4 }]}><Text style={[subtle ? s.link : s.light, danger && { color: colors.danger }]}>{children}</Text></Pressable>;
 }
 export function RefreshButton({ loading, onPress, compact = false }: { loading: boolean; onPress: () => void; compact?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={loading ? '更新中' : '更新'} disabled={loading} onPress={onPress} style={[s.refresh, compact && { width: 44, minHeight: 44, paddingHorizontal: 0, justifyContent: 'center', flexShrink: 0 }, loading && { opacity: 0.4 }]}><AppIcon name="refresh" size={18} />{!compact && <Text style={s.link}>{loading ? '更新中…' : '更新'}</Text>}</Pressable>;

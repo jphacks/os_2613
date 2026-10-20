@@ -28,6 +28,8 @@ export function MusicPanel({ book, position, guideActive, guideEnabled = true, v
   const phoneSheet = usePhoneReaderPanel();
   const [plan, setPlan] = useState<MusicPlan | null>(null);
   const [enabled, setEnabled] = useState(false);
+  const enabledRef = useRef(false);
+  const audioMode = useRef<Promise<void> | null>(null);
   const [localDetails, setLocalDetails] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [mode, setMode] = useState<'focus' | 'story'>('story');
@@ -74,7 +76,7 @@ export function MusicPanel({ book, position, guideActive, guideEnabled = true, v
     const timer = setTimeout(() => { void AsyncStorage.setItem('dopabooks:music-volume:v1', String(volume)).catch(() => {}); }, 300);
     return () => clearTimeout(timer);
   }, [volume, volumeReady, mixer]);
-  const stop = useCallback(() => { mixer.stop(); cueMixer.stop(); setEnabled(false); }, [mixer, cueMixer]);
+  const stop = useCallback(() => { enabledRef.current = false; mixer.stop(); cueMixer.stop(); setEnabled(false); }, [mixer, cueMixer]);
   useEffect(() => { if (!guideEnabled) stop(); }, [guideEnabled, stop]);
   useFocusEffect(useCallback(() => stop, [stop]));
   useEffect(() => {
@@ -130,7 +132,9 @@ export function MusicPanel({ book, position, guideActive, guideEnabled = true, v
     finally { preparing.current = false; if (alive.current) setBusy(false); }
   }
   function start() {
-    void setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false }).catch(() => setError('音声設定を変更できません。端末の音量をご確認ください。'));
+    if (enabledRef.current) return;
+    enabledRef.current = true;
+    if (!audioMode.current) audioMode.current = setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false }).catch(() => { audioMode.current = null; if (alive.current) { stop(); setError('音声設定を変更できません。端末の音量をご確認ください。'); } });
     mixer.arm(); cueMixer.arm(); setEnabled(true); setNotice('');
   }
   if (!visible) return null;
@@ -140,7 +144,7 @@ export function MusicPanel({ book, position, guideActive, guideEnabled = true, v
     {icon('♫', 'BGMの設定を開く', () => setDetails(!details), false, enabled)}
     <ReaderPanel visible={details} label="BGM" onClose={() => setDetails(false)} desktop={<View pointerEvents={details ? "box-none" : "none"} style={[StyleSheet.absoluteFill, !details && { display: 'none' }]}>
       <View style={[styles.backdrop, { width: Math.min(420, width - 24) }]}><View style={[styles.card, Platform.OS !== 'web' && { maxHeight: Math.max(80, Math.min(420, height - insets.top - 164 - Math.max(insets.bottom, 12))) }]}><ScrollView contentContainerStyle={styles.details}>
-        <View style={[readerPanelHeader, { marginHorizontal: -16 }]}>{!phoneSheet && <Pressable accessibilityRole="button" accessibilityLabel="BGM設定を閉じる" onPress={() => setDetails(false)} style={styles.button}><AppIcon name="arrow_back" /></Pressable>}<Text style={readerPanelTitle}>BGM</Text></View>
+        <View style={[readerPanelHeader, { marginHorizontal: -16 }]}><Text style={readerPanelTitle}>BGM</Text></View>
         <View style={styles.modeToggle}>
           {([{ id: 'focus', label: '集中BGM' }, { id: 'story', label: '世界観BGM' }] as const).map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: mode === item.id }} onPress={() => { if (mode !== item.id) stop(); setMode(item.id); }} style={[styles.modeOption, mode === item.id && styles.active]}><Text style={[styles.text, mode === item.id && styles.light]}>{item.label}</Text></Pressable>)}
         </View>
@@ -153,7 +157,7 @@ export function MusicPanel({ book, position, guideActive, guideEnabled = true, v
     </View>
     <View style={styles.volume}>
       <View style={styles.volumeLabel}><Text style={styles.text}>音量</Text><Text style={styles.text}>{Math.round(volume * 100)}%</Text></View>
-<View style={styles.row}><SpeakerButton enabled={enabled} disabled={!guideEnabled} onToggle={enabled ? stop : start} /><View style={{ flex: 1 }}><VolumeBar value={volume} onChange={setVolume} /></View></View>
+<View style={styles.row}><SpeakerButton enabled={enabled} disabled={!guideEnabled} onToggle={() => enabledRef.current ? stop() : start()} /><View style={{ flex: 1 }}><VolumeBar value={volume} onChange={setVolume} /></View></View>
     </View>
     {!!error && <Pressable onPress={() => setDetails(true)}><Text accessibilityRole="alert" style={styles.text} numberOfLines={1}>{error}</Text></Pressable>}
 
@@ -165,7 +169,7 @@ export function MusicPanel({ book, position, guideActive, guideEnabled = true, v
         </View>}
         </View>
       </ScrollView></View></View></View>}><ScrollView contentContainerStyle={styles.details}>
-        <View style={[readerPanelHeader, { marginHorizontal: -16 }]}>{!phoneSheet && <Pressable accessibilityRole="button" accessibilityLabel="BGM設定を閉じる" onPress={() => setDetails(false)} style={styles.button}><AppIcon name="arrow_back" /></Pressable>}<Text style={readerPanelTitle}>BGM</Text></View>
+        <View style={[readerPanelHeader, { marginHorizontal: -16 }]}><Text style={readerPanelTitle}>BGM</Text></View>
         <View style={styles.modeToggle}>
           {([{ id: 'focus', label: '集中BGM' }, { id: 'story', label: '世界観BGM' }] as const).map(item => <Pressable key={item.id} accessibilityRole="tab" accessibilityState={{ selected: mode === item.id }} onPress={() => { if (mode !== item.id) stop(); setMode(item.id); }} style={[styles.modeOption, mode === item.id && styles.active]}><Text style={[styles.text, mode === item.id && styles.light]}>{item.label}</Text></Pressable>)}
         </View>
@@ -178,7 +182,7 @@ export function MusicPanel({ book, position, guideActive, guideEnabled = true, v
     </View>
     <View style={styles.volume}>
       <View style={styles.volumeLabel}><Text style={styles.text}>音量</Text><Text style={styles.text}>{Math.round(volume * 100)}%</Text></View>
-<View style={styles.row}><SpeakerButton enabled={enabled} disabled={!guideEnabled} onToggle={enabled ? stop : start} /><View style={{ flex: 1 }}><VolumeBar value={volume} onChange={setVolume} /></View></View>
+<View style={styles.row}><SpeakerButton enabled={enabled} disabled={!guideEnabled} onToggle={() => enabledRef.current ? stop() : start()} /><View style={{ flex: 1 }}><VolumeBar value={volume} onChange={setVolume} /></View></View>
     </View>
     {!!error && <Pressable onPress={() => setDetails(true)}><Text accessibilityRole="alert" style={styles.text} numberOfLines={1}>{error}</Text></Pressable>}
 
