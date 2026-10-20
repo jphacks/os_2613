@@ -7,6 +7,7 @@ type Props = {
   title: string;
   author: string;
   label: string;
+  demo?: boolean;
   color: string;
   onPress?: () => void;
   onDetails?: () => void;
@@ -33,7 +34,7 @@ const shortAuthor = (text: string) => {
   return chars.length > AUTHOR_MAX ? chars.slice(0, AUTHOR_MAX).join('') + '⋮' : chars.join('');
 };
 
-export function Cover({ title, author, label, color, onPress, onDetails, hoverDetails = false, width = 112 }: Props) {
+export function Cover({ title, author, label, color, onPress, onDetails, hoverDetails = false, width = 112, demo = false }: Props) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const showDetails = hovered || focused;
@@ -48,6 +49,7 @@ export function Cover({ title, author, label, color, onPress, onDetails, hoverDe
         <Text style={styles.author}>{vertical(shortAuthor(author))}</Text>
       </View>
       <Text style={styles.tag}>{label}</Text>
+      {demo && <View pointerEvents="none" style={styles.demo}><Text style={styles.demoText}>デモ</Text></View>}
     </Pressable>
     {onDetails && hoverDetails && <Pressable accessibilityRole="button" accessibilityLabel={`${title}の紹介を開く`} onPress={onDetails} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} pointerEvents={showDetails ? 'auto' : 'none'} style={[styles.details, { opacity: showDetails ? 1 : 0 }]}><Text style={styles.dots}>…</Text></Pressable>}
     </View>
@@ -55,6 +57,8 @@ export function Cover({ title, author, label, color, onPress, onDetails, hoverDe
 }
 
 const styles = StyleSheet.create({
+  demo: { position: 'absolute', top: 0, left: 0, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: 'rgba(255,253,248,0.78)', borderWidth: 1, borderColor: 'rgba(255,253,248,0.5)' },
+  demoText: { color: colors.accent, fontSize: 11, fontWeight: '700' },
   details: { position: 'absolute', top: -3, right: -3, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.68)', alignItems: 'center', justifyContent: 'center', zIndex: 2, boxShadow: '0 1px 5px rgba(0,0,0,0.12)' },
   dots: { color: colors.ink, fontSize: 15, fontWeight: '700', lineHeight: 18, marginTop: -4 },
   cover: {

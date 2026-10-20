@@ -59,6 +59,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   const [notice, setNotice] = useState('');
   const [panel, setPanel] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [resetConfirm, setResetConfirm] = useState(false);
   const [scope, setScope] = useState<Scope>('previous');
   const [moving, setMoving] = useState<string | null>(null);
   const [draft, setDraft] = useState<number | null>(null);
@@ -279,11 +280,12 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
   }
   const target = reading.marks.find(mark => mark.id === selected);
   const range = target ? summaryRange(book.text, reading.marks, target.id, scope) : null;
-  const sorted = [...reading.marks].sort((a, b) => b.updatedAt - a.updatedAt);
+  const numbered = [...reading.marks].sort((a, b) => a.offset - b.offset);
+  const sorted = [...numbered].reverse();
   // 紙面のしおりを押したら、そのしおりのふりかえりを開く
   function openMark(offset: number) {
     const mark = reading.marks.find(item => item.offset === offset);
-    if (mark && !moving) { setRunning(false); setSelected(mark.id); setScope('previous'); setPanel(true); }
+    if (mark && !moving) { setRunning(false); setSelected(selected === mark.id ? null : mark.id); setScope('previous'); setPanel(true); }
   }
   const bookmarkActions = useRef({ onDrag: dragFromHeader, onPlace: () => begin() });
   bookmarkActions.current = { onDrag: dragFromHeader, onPlace: () => begin() };
@@ -346,7 +348,7 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
         textEncoded={Platform.OS !== 'web'}
         start={0}
         sub={ending && !study ? subCount : sub}
-        marks={reading.marks.map(mark => mark.offset)}
+        marks={numbered.map(mark => mark.offset)}
         faded={reading.marks.find(mark => mark.id === moving)?.offset ?? null}
         picking={!!moving}
         draft={draft}
@@ -394,44 +396,35 @@ export function BookReading({ book, initialOffset, study = false, sourceLabel = 
     </View>
     {reviewOpen && <ReviewLayer bookId={book.id} close={() => setReviewOpen(false)} />}
     <ReaderPanel visible={panel} label="しおり" onClose={() => setPanel(false)} desktop={<Modal visible={panel} transparent animationType="fade" onRequestClose={() => setPanel(false)}>
-      <View style={styles.markOverlay}><View style={styles.markSheet}>{!phoneSheet && <View style={{ alignSelf: 'flex-start', paddingHorizontal: 16 }}><Pressable accessibilityRole="button" accessibilityLabel="しおりを閉じる" onPress={() => setPanel(false)} style={styles.toolIcon}><Text style={styles.waveIcon}>‹</Text></Pressable></View>}<View style={styles.toolbar}><Text style={styles.heading}>{target ? 'ふりかえり' : 'しおり'}</Text></View>
-        <ScrollView contentContainerStyle={styles.sheetContent}>
+      <View style={styles.markOverlay}><View style={styles.markSheet}>{!phoneSheet && <View style={{ alignSelf: 'flex-start', paddingHorizontal: 16 }}><Pressable accessibilityRole="button" accessibilityLabel="しおりを閉じる" onPress={() => setPanel(false)} style={styles.toolIcon}><Text style={styles.waveIcon}>‹</Text></Pressable></View>}<View style={[styles.toolbar, { justifyContent: 'space-between' }]}><Text style={styles.heading}>しおり</Text><Pressable accessibilityRole="button" accessibilityLabel="しおりを一括リセット" disabled={busy || !reading.marks.length} onPress={() => setResetConfirm(true)} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: busy || !reading.marks.length ? 0.4 : 1 }}><AppIcon name="refresh" color={colors.danger} size={24} /></Pressable></View>
+        <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
           <View style={styles.bookmarkActions}>
             {!study && prefs.comic && <Action compact onPress={() => { setPanel(false); setFeature('comic'); }}>紹介4コマ</Action>}
             {!study && prefs.characters && <Action compact onPress={() => { setPanel(false); setFeature('characters'); }}>人物相関図</Action>}
-            {!target && <Action compact disabled={!ready || busy} onPress={() => begin()}>しおりを挟む</Action>}
+            <Action compact disabled={!ready || busy || reading.marks.length >= 99} onPress={() => begin()}>しおりを挟む</Action>
           </View>
-          {target && range ? <>
-            <Action onPress={() => setSelected(null)}>‹ しおり一覧へ</Action>
-            <View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View>
-            <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`}
- />
-            <View style={styles.toolbar}><Action disabled={busy} filled onPress={() => { resume(target); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(target.id)}>しおりを移動</Action><Action danger disabled={busy} onPress={() => { void save(state => removeMark(state, target.id)).then(ok => { if (ok) { setSelected(null); setUndo(null); } }); }}>外す</Action></View>
-          </> : <>
+          <>
             {!sorted.length && <Text style={styles.note}>しおりはまだありません。本文の文字を選んで挟めます。</Text>}
-            {sorted.map((mark, index) => <View key={mark.id} style={styles.markCard}><Text style={styles.heading}>しおり {sorted.length - index}</Text><Text style={styles.note}>{book.text.slice(Math.max(0, mark.offset - 65), mark.offset) || '本文のはじまり'}</Text><View style={styles.toolbar}><Action onPress={() => { setSelected(mark.id); setScope('previous'); }}>ふりかえり</Action><Action disabled={busy} onPress={() => { resume(mark); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(mark.id)}>移動</Action><Action danger disabled={busy} onPress={() => { void save(state => removeMark(state, mark.id)).then(ok => { if (ok) setUndo(null); }); }}>外す</Action></View></View>)}
-          </>}
+            {sorted.map((mark, index) => <View key={mark.id} style={styles.markCard}><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Pressable accessibilityRole="button" accessibilityLabel={`しおり${sorted.length - index}の場面へ移動`} disabled={busy} onPress={() => resume(mark)}><Text style={styles.heading}>しおり {sorted.length - index}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`しおり${sorted.length - index}を外す`} disabled={busy} onPress={() => { void save(state => removeMark(state, mark.id)).then(ok => { if (ok) { if (selected === mark.id) setSelected(null); setUndo(null); } }); }} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Image source={{ uri: `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${colors.danger}" fill-rule="evenodd" d="M9 2h6l1 3h4a2 2 0 0 1 2 2v2H2V7a2 2 0 0 1 2-2h4l1-3ZM4 10h16l-1 11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 10Zm3 3v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0Zm4 0v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0Zm4 0v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0Z"/></svg>`)}` }} style={{ width: 22, height: 22 }} /></Pressable></View><Text style={styles.note}>{(book.text.slice(Math.max(0, mark.offset - 65), mark.offset) || '本文のはじまり') + '…'}</Text><View style={styles.toolbar}><Action filled={selected === mark.id} onPress={() => { setSelected(selected === mark.id ? null : mark.id); setScope('previous'); }}>ふりかえり</Action></View>{selected === mark.id && range && <View style={{ gap: 12, paddingTop: 12 }}><View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View><Summary key={`${mark.id}:${mark.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`} /></View>}</View>)}
+          </>
         </ScrollView>
       </View></View>
-    </Modal>}>{!phoneSheet && <View style={{ alignSelf: 'flex-start', paddingHorizontal: 16 }}><Pressable accessibilityRole="button" accessibilityLabel="しおりを閉じる" onPress={() => setPanel(false)} style={styles.toolIcon}><Text style={styles.waveIcon}>‹</Text></Pressable></View>}<View style={styles.toolbar}><Text style={styles.heading}>{target ? 'ふりかえり' : 'しおり'}</Text></View>
-        <ScrollView contentContainerStyle={styles.sheetContent}>
+    </Modal>}>{!phoneSheet && <View style={{ alignSelf: 'flex-start', paddingHorizontal: 16 }}><Pressable accessibilityRole="button" accessibilityLabel="しおりを閉じる" onPress={() => setPanel(false)} style={styles.toolIcon}><Text style={styles.waveIcon}>‹</Text></Pressable></View>}<View style={[styles.toolbar, { justifyContent: 'space-between' }]}><Text style={styles.heading}>しおり</Text><Pressable accessibilityRole="button" accessibilityLabel="しおりを一括リセット" disabled={busy || !reading.marks.length} onPress={() => setResetConfirm(true)} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: busy || !reading.marks.length ? 0.4 : 1 }}><AppIcon name="refresh" color={colors.danger} size={24} /></Pressable></View>
+        <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
           <View style={styles.bookmarkActions}>
             {!study && prefs.comic && <Action compact onPress={() => { setPanel(false); setFeature('comic'); }}>紹介4コマ</Action>}
             {!study && prefs.characters && <Action compact onPress={() => { setPanel(false); setFeature('characters'); }}>人物相関図</Action>}
-            {!target && <Action compact disabled={!ready || busy} onPress={() => begin()}>しおりを挟む</Action>}
+            <Action compact disabled={!ready || busy || reading.marks.length >= 99} onPress={() => begin()}>しおりを挟む</Action>
           </View>
-          {target && range ? <>
-            <Action onPress={() => setSelected(null)}>‹ しおり一覧へ</Action>
-            <View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View>
-            <Summary key={`${target.id}:${target.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`}
- />
-            <View style={styles.toolbar}><Action disabled={busy} filled onPress={() => { resume(target); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(target.id)}>しおりを移動</Action><Action danger disabled={busy} onPress={() => { void save(state => removeMark(state, target.id)).then(ok => { if (ok) { setSelected(null); setUndo(null); } }); }}>外す</Action></View>
-          </> : <>
+          <>
             {!sorted.length && <Text style={styles.note}>しおりはまだありません。本文の文字を選んで挟めます。</Text>}
-            {sorted.map((mark, index) => <View key={mark.id} style={styles.markCard}><Text style={styles.heading}>しおり {sorted.length - index}</Text><Text style={styles.note}>{book.text.slice(Math.max(0, mark.offset - 65), mark.offset) || '本文のはじまり'}</Text><View style={styles.toolbar}><Action onPress={() => { setSelected(mark.id); setScope('previous'); }}>ふりかえり</Action><Action disabled={busy} onPress={() => { resume(mark); }}>ここから読む</Action><Action disabled={busy} onPress={() => begin(mark.id)}>移動</Action><Action danger disabled={busy} onPress={() => { void save(state => removeMark(state, mark.id)).then(ok => { if (ok) setUndo(null); }); }}>外す</Action></View></View>)}
-          </>}
+            {sorted.map((mark, index) => <View key={mark.id} style={styles.markCard}><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Pressable accessibilityRole="button" accessibilityLabel={`しおり${sorted.length - index}の場面へ移動`} disabled={busy} onPress={() => resume(mark)}><Text style={styles.heading}>しおり {sorted.length - index}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`しおり${sorted.length - index}を外す`} disabled={busy} onPress={() => { void save(state => removeMark(state, mark.id)).then(ok => { if (ok) { if (selected === mark.id) setSelected(null); setUndo(null); } }); }} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Image source={{ uri: `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${colors.danger}" fill-rule="evenodd" d="M9 2h6l1 3h4a2 2 0 0 1 2 2v2H2V7a2 2 0 0 1 2-2h4l1-3ZM4 10h16l-1 11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 10Zm3 3v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0Zm4 0v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0Zm4 0v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0Z"/></svg>`)}` }} style={{ width: 22, height: 22 }} /></Pressable></View><Text style={styles.note}>{(book.text.slice(Math.max(0, mark.offset - 65), mark.offset) || '本文のはじまり') + '…'}</Text><View style={styles.toolbar}><Action filled={selected === mark.id} onPress={() => { setSelected(selected === mark.id ? null : mark.id); setScope('previous'); }}>ふりかえり</Action></View>{selected === mark.id && range && <View style={{ gap: 12, paddingTop: 12 }}><View style={styles.toolbar}>{([{ id: 'previous', label: '前回から' }, { id: 'chapter', label: 'この章' }, { id: 'start', label: '最初から' }] as const).map(item => <Action key={item.id} filled={scope === item.id} onPress={() => setScope(item.id)}>{item.label}</Action>)}</View><Summary key={`${mark.id}:${mark.updatedAt}:${scope}:${range.start}:${range.end}`} text={range.text} cacheKey={`dopabooks:summary:v1:${book.id}:${reading.source}:${range.start}:${range.end}`} /></View>}</View>)}
+          </>
         </ScrollView>
       </ReaderPanel>
+    <Modal visible={resetConfirm} transparent animationType="fade" onRequestClose={() => { if (!busy) setResetConfirm(false); }}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(41,46,41,0.3)', alignItems: 'center', justifyContent: 'center', padding: 24 }}><View style={{ width: '100%', maxWidth: 340, backgroundColor: colors.surface, borderRadius: 20, padding: 24, gap: 20 }}><Text style={styles.heading}>この本のしおりをすべて外しますか？</Text><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8 }}><Action disabled={busy} onPress={() => setResetConfirm(false)}>キャンセル</Action><Action danger disabled={busy} onPress={() => { void save(state => ({ ...state, marks: [] })).then(ok => { if (ok) { setSelected(null); setUndo(null); setResetConfirm(false); } }); }}>すべて外す</Action></View></View></View>
+    </Modal>
     {settingsOpen && <DisplaySettings value={display} onPreview={setDisplay} close={() => setSettingsOpen(false)} apply={applyDisplay} />}
     <Modal visible={feature !== null} animationType="slide" onRequestClose={() => setFeature(null)}>
       {/* 全画面モーダルは読書画面とは別の座標系で安全領域を計測する。 */}

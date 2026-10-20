@@ -32,7 +32,7 @@ export type Props = {
   dom?: import('expo/dom').DOMProps;
 };
 type Gesture = { id: number; x: number; y: number; from: number | null; dragged: boolean; placing: boolean; scroll: number; mouse: boolean; continuous: boolean };
-function Ribbon() { return <svg width="18" height="28" viewBox="0 0 18 28" aria-hidden="true"><path d="M1 1h16v25l-8-6-8 6z" fill="currentColor" /></svg>; }
+function Ribbon({ number }: { number?: number }) { return <svg width="18" height="28" viewBox="0 0 18 28" aria-hidden="true"><path d="M1 1h16v25l-8-6-8 6z" fill="currentColor" />{number !== undefined && <text textAnchor="middle" fill="#FFFDF8" fontSize="9" fontFamily="sans-serif" fontWeight="700" style={{ writingMode: 'horizontal-tb' }}>{Array.from(String(number)).map((digit, index, digits) => <tspan key={index} x="9" y={digits.length === 1 ? 14 : 10 + index * 9}>{digit}</tspan>)}</text>}</svg>; }
 
 export default function VerticalPage(props: Props) {
   const { guideLift = 1, start, sub, marks, faded, picking, draft, guide, running, speed, display, paint, disabled, focus } = props;
@@ -364,9 +364,9 @@ export default function VerticalPage(props: Props) {
   function ribbon(offset: number, first = false) {
     const marked = marks.includes(offset), chosen = picking && draft === offset;
     if (!marked && !chosen) return null;
-    return <span role="button" tabIndex={0} aria-label="しおり" data-offset={offset} data-mark={marked ? offset : undefined}
+    return <span role="button" tabIndex={0} aria-label={marked ? `しおり${marks.indexOf(offset) + 1}` : 'しおり'} data-offset={offset} data-mark={marked ? offset : undefined}
       onKeyDown={event => { if (guide && running) return; if (event.key === 'Enter' && marked && !picking) latest.current.onMarkPress(offset); }}
-      style={{ ...styles.ribbon, ...(first ? { top: 0, right: 0, left: 'auto' } : {}), color: paint.accent, opacity: marked && (faded === offset || (ghost && gesture.current?.from === offset)) ? 0.25 : 1 }}><span style={{ pointerEvents: 'none', display: 'block' }}><Ribbon /></span></span>;
+      style={{ ...styles.ribbon, ...(first ? { top: 0, right: 0, left: 'auto' } : {}), color: paint.accent, opacity: marked && (faded === offset || (ghost && gesture.current?.from === offset)) ? 0.25 : 1 }}><span style={{ pointerEvents: 'none', display: 'block' }}><Ribbon number={marked ? marks.indexOf(offset) + 1 : Math.min(99, marks.length + 1)} /></span></span>;
   }
   return <div ref={rootRef} style={{ ...styles.root, background: paint.background, touchAction: 'none', cursor: ghost ? 'grabbing' : undefined }} onDragStart={event => event.preventDefault()} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)}>
     {calculating && <div role="status" style={{ position: 'absolute', top: 4, left: 24, color: paint.muted, fontSize: 12, pointerEvents: 'none' }}>ページを整えています…</div>}

@@ -141,7 +141,8 @@ export function ReadingQuests() {
   const [foldedOverride, setFolded] = useState<boolean | null>(null);
   const folded = foldedOverride ?? mobile;
   const [selected, setSelected] = useState<Item | null>(null);
-  if (!ready || !prefs.quests || visibleItems.every(item => prefs.done.includes(item.id))) return null;
+  // 完了後も手順を見返せるよう、非表示は設定からの操作だけにする。
+  if (!ready || !prefs.quests) return null;
   const doneCount = visibleItems.filter(item => prefs.done.includes(item.id)).length;
   return <>
     <View style={s.panel}>

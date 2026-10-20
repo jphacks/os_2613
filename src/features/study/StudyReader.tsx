@@ -1,3 +1,5 @@
+import { Summary } from '@/features/bookmark/Summary';
+import { BookmarkHandle, type BookmarkDragPoint } from '@/features/bookmark/BookmarkHandle';
 import { domBootstrap } from '@/features/reader/dom-bootstrap.mjs';
 import { Stack } from 'expo-router';
 import { parsePdfMarks, type PdfMark } from '@/features/pdf/bookmarks.mjs';
@@ -6,8 +8,8 @@ import { ReaderPanel, usePhoneReaderPanel } from '@/shared/ReaderPanel';
 import { AppIcon } from '@/shared/AppIcon';
 import { StudyToolsContext, StudyToolPanel, type StudyTool } from './StudyToolPanel';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Book } from '@/content/books';
 import type { StudyState } from '@/server/study.mjs';
 import { BookReading } from '@/features/bookmark/BookReading';
@@ -27,6 +29,11 @@ const levels: { id: Level; label: string; description: string }[] = [
 ];
 export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | null }) {
   const phone = usePhoneReaderPanel();
+  const screenRef = useRef<ComponentRef<typeof View>>(null);
+  const [dragIcon, setDragIcon] = useState<{ x: number; y: number } | null>(null);
+  const pdfPaperRef = useRef<ComponentRef<typeof View>>(null);
+  const [headerDrag, setHeaderDrag] = useState<{ token: number; x: number; y: number; phase: 'move' | 'end' | 'cancel' } | null>(null);
+  const dragSequence = useRef(0), dragToken = useRef<number | null>(null);
   const [pdfSize, setPdfSize] = useState({ width: 0, height: 0 });
   const [level, setLevel] = useState<Level>('original');
   const [pdfPosition, setPdfPosition] = useState({ page: 1, total: 0 });
@@ -59,6 +66,12 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   const [marksReady, setMarksReady] = useState(false), [savingMark, setSavingMark] = useState(false);
   const [marksOpen, setMarksOpen] = useState(false), [pickingMark, setPickingMark] = useState(false);
   const [pdfFingerprint, setPdfFingerprint] = useState('');
+  const [summaryMark, setSummaryMark] = useState<string | null>(null);
+  const [summaryScope, setSummaryScope] = useState<'previous' | 'page' | 'start'>('previous');
+  const [summaryRequest, setSummaryRequest] = useState<{ token: number; source: string; startPage: number; startOffset: number; endPage: number; endOffset: number } | null>(null);
+  const [summaryResult, setSummaryResult] = useState<{ token: number; text: string; error: string } | null>(null);
+  const [resetMarks, setResetMarks] = useState(false);
+  const numberedMarks = pdfMarks.filter(mark => mark.source === pdfFingerprint).sort((a, b) => a.page - b.page || (a.offset ?? 0) - (b.offset ?? 0));
   const markKey = `dopabooks:pdf-marks:v1:${book.id}`;
   useEffect(() => { let active = true; void AsyncStorage.getItem(markKey).then(raw => { const marks = parsePdfMarks(raw); if (active) { setPdfMarks(marks); setMarksReady(true); } }).catch(() => { if (active) setError('しおりを読み込めません。保存設定を確認して教材を開き直してください。記録は上書きしていません。'); }); return () => { active = false; }; }, [markKey]);
   async function savePdfMarks(next: PdfMark[]) {
@@ -70,6 +83,7 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
   }
   function placePdfMark(mark: Omit<PdfMark, 'id'>) {
     if (pdfMarks.some(saved => saved.source === mark.source && saved.page === mark.page && saved.offset === mark.offset)) { setPickingMark(false); return; }
+    if (pdfMarks.length >= 99) { setError('しおりは99個までです。不要なしおりを外してから追加してください。'); setPickingMark(false); return; }
     void savePdfMarks([...pdfMarks, { ...mark, id: `pdf-${Date.now()}-${Math.random().toString(36).slice(2)}` }]);
   }
   useEffect(() => {
@@ -188,14 +202,36 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
     <Pressable accessibilityRole="button" accessibilityLabel="表示設定" onPress={() => setActiveTool('display')} style={styles.featureButton}><Text style={styles.aa}>Aa</Text></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel="曲を選択" onPress={() => setActiveTool('music')} style={styles.featureButton}><AppIcon name="music_note" size={28} /></Pressable>
   </View>;
-  return <StudyToolsContext.Provider value={{ active: activeTool, select: setActiveTool, toolbar: panelToolbar }}><View style={styles.container}>
-    {level === 'original' && <Stack.Screen options={{ headerRight: () => <Pressable accessibilityRole="button" accessibilityLabel="PDFのしおり" onPress={() => setMarksOpen(true)} style={styles.button}><Text style={styles.text}>しおり</Text></Pressable> }} />}
-    <ReaderPanel visible={marksOpen && level === 'original'} label="しおり" onClose={() => setMarksOpen(false)} desktop={<Modal visible={marksOpen && level === 'original'} transparent animationType="fade" onRequestClose={() => setMarksOpen(false)}><View style={{ flex: 1, alignItems: 'flex-end' }}><Pressable style={StyleSheet.absoluteFill} onPress={() => setMarksOpen(false)} /><View style={[styles.sidebar, { margin: 12, flex: 1 }]}><Text style={styles.sidebarTitle}>しおり</Text><ScrollView>{pdfMarks.filter(mark => mark.source === pdfFingerprint).map(mark => <View key={mark.id} style={styles.chapter}><Pressable onPress={() => { requestPdfPage(mark.page); setMarksOpen(false); }}><Text style={styles.text}>{mark.page}ページ · {mark.offset === null ? 'ページのしおり' : mark.quote}</Text></Pressable><Pressable accessibilityRole="button" style={{ backgroundColor: colors.dangerBackground, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, alignSelf: 'flex-start' }} onPress={() => void savePdfMarks(pdfMarks.filter(saved => saved.id !== mark.id))}><Text style={[styles.note, { color: colors.danger }]}>外す</Text></Pressable></View>)}</ScrollView>{action('文字を選んで挟む', () => { setPickingMark(true); setMarksOpen(false); }, !marksReady || !pdfFingerprint || savingMark)}{action('このページに挟む', () => { placePdfMark({ page: pdfPosition.page, offset: null, quote: '', source: pdfFingerprint }); setMarksOpen(false); }, !marksReady || !pdfFingerprint || savingMark)}{action('閉じる', () => setMarksOpen(false))}</View></View></Modal>}>
-      <Text style={styles.sidebarTitle}>しおり</Text>
-      {action('文字を選んで挟む', () => { setPickingMark(true); setMarksOpen(false); }, !marksReady || !pdfFingerprint || savingMark)}
-      {action('このページに挟む', () => { placePdfMark({ page: pdfPosition.page, offset: null, quote: '', source: pdfFingerprint }); setMarksOpen(false); }, !marksReady || !pdfFingerprint || savingMark)}
-      <ScrollView>{pdfMarks.filter(mark => mark.source === pdfFingerprint).map(mark => <View key={mark.id} style={styles.chapter}><Pressable onPress={() => { requestPdfPage(mark.page); setMarksOpen(false); }}><Text style={styles.text}>{mark.page}ページ · {mark.offset === null ? 'ページのしおり' : mark.quote}</Text></Pressable><Pressable accessibilityRole="button" style={{ backgroundColor: colors.dangerBackground, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, alignSelf: 'flex-start' }} onPress={() => void savePdfMarks(pdfMarks.filter(saved => saved.id !== mark.id))}><Text style={[styles.note, { color: colors.danger }]}>外す</Text></Pressable></View>)}</ScrollView>
-    </ReaderPanel>
+  function dragBookmark(point: BookmarkDragPoint) {
+    if (savingMark || !marksReady || pdfMarks.length >= 99) return;
+    if (dragToken.current === null) dragToken.current = ++dragSequence.current;
+    const token = dragToken.current;
+    screenRef.current?.measureInWindow((left, top) => setDragIcon(point.phase === 'move' ? { x: point.x - left, y: point.y - top } : null));
+    pdfPaperRef.current?.measureInWindow((left, top, width, height) => {
+      if (!width || !height) return;
+      setHeaderDrag({ token, x: (point.x - left) / width, y: (point.y - top) / height, phase: point.phase });
+    });
+    if (point.phase !== 'move') dragToken.current = null;
+  }
+  const headerActions = useRef({ drag: dragBookmark, open: () => setMarksOpen(true), place: () => setPickingMark(true) });
+  headerActions.current = { drag: dragBookmark, open: () => setMarksOpen(true), place: () => setPickingMark(true) };
+  const bookmarkHeader = useMemo(() => () => <BookmarkHandle disabled={!marksReady || savingMark} onOpen={() => headerActions.current.open()} onPlace={() => headerActions.current.place()} onDrag={point => headerActions.current.drag(point)}><View pointerEvents="none" style={{ width: 22, height: 32 }}><View style={{ width: 22, height: 22, backgroundColor: colors.accent, borderTopLeftRadius: 2, borderTopRightRadius: 2 }} /><View style={{ flexDirection: 'row' }}><View style={{ borderLeftWidth: 11, borderLeftColor: colors.accent, borderBottomWidth: 9, borderBottomColor: 'transparent' }} /><View style={{ borderRightWidth: 11, borderRightColor: colors.accent, borderBottomWidth: 9, borderBottomColor: 'transparent' }} /></View></View></BookmarkHandle>, [marksReady, savingMark]);
+  function openSummary(mark: PdfMark, scope: 'previous' | 'page' | 'start', toggle = false) {
+    if (toggle && summaryMark === mark.id) { setSummaryMark(null); setSummaryRequest(null); return; }
+    const previous = numberedMarks[numberedMarks.findIndex(item => item.id === mark.id) - 1];
+    setSummaryMark(mark.id); setSummaryScope(scope); setSummaryResult(null);
+    setSummaryRequest({ token: Date.now(), source: mark.source, startPage: scope === 'page' ? mark.page : scope === 'previous' && previous ? previous.page : 1, startOffset: scope === 'previous' && previous ? previous.offset ?? 0 : 0, endPage: mark.page, endOffset: mark.offset ?? 0 });
+  }
+  const bookmarkContents = () => <><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700' }}>しおり</Text><Pressable accessibilityRole="button" accessibilityLabel="しおりを一括リセット" disabled={savingMark || !numberedMarks.length} onPress={() => setResetMarks(true)} style={{ padding: 10 }}><AppIcon name="refresh" color={colors.danger} /></Pressable></View>
+
+
+<ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 20 }}>{numberedMarks.map((mark, index) => <View key={mark.id} style={{ gap: 8, paddingBottom: 16, borderBottomWidth: 1, borderColor: colors.line }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Pressable accessibilityRole="button" onPress={() => { requestPdfPage(mark.page); setMarksOpen(false); }}><Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700' }}>しおり {index + 1}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`しおり${index + 1}を外す`} disabled={savingMark} style={{ padding: 10 }} onPress={() => void savePdfMarks(pdfMarks.filter(saved => saved.id !== mark.id))}><Image source={{ uri: `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${colors.danger}" fill-rule="evenodd" d="M9 2h6l1 3h4a2 2 0 0 1 2 2v2H2V7a2 2 0 0 1 2-2h4l1-3ZM4 10h16l-1 11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 10Zm3 3v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0Zm4 0v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0Zm4 0v6a1 1 0 0 0 2 0v-6a1 1 0 0 0-2 0Z"/></svg>`)}` }} style={{ width: 22, height: 22 }} /></Pressable></View><Text style={{ color: colors.muted, fontSize: 14, lineHeight: 24 }}>{mark.page}ページ · {mark.offset === null ? 'ページのしおり' : mark.quote + '…'}</Text><Pressable accessibilityRole="button" accessibilityState={{ selected: summaryMark === mark.id }} onPress={() => openSummary(mark, 'previous', true)} style={[styles.button, { alignSelf: 'flex-start', backgroundColor: summaryMark === mark.id ? colors.accent : colors.button }]}><Text style={{ color: summaryMark === mark.id ? colors.surface : colors.accent, fontSize: 16, fontWeight: '700' }}>ふりかえり</Text></Pressable>{summaryMark === mark.id && <View style={{ gap: 12, paddingTop: 12 }}><View style={{ flexDirection: 'row', gap: 6 }}>{([{ id: 'previous', label: '前回から' }, { id: 'page', label: 'このページ' }, { id: 'start', label: '最初から' }] as const).map(item => <Pressable key={item.id} onPress={() => openSummary(mark, item.id)} style={[styles.button, { flex: 1, minWidth: 0, paddingHorizontal: 4, paddingVertical: 10, backgroundColor: summaryScope === item.id ? colors.accent : colors.button }]}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: 13, color: summaryScope === item.id ? colors.surface : colors.accent }}>{item.label}</Text></Pressable>)}</View>{!summaryResult ? <ActivityIndicator color={colors.accent} /> : summaryResult.error ? <Text accessibilityRole="alert" style={styles.note}>{summaryResult.error}</Text> : <Summary key={`${mark.id}:${summaryScope}:${summaryResult.token}`} text={summaryResult.text} cacheKey={`dopabooks:pdf-summary:v1:${book.id}:${mark.source}:${summaryRequest?.startPage}:${summaryRequest?.startOffset}:${mark.page}:${mark.offset}`} />}</View>}</View>)}</ScrollView></>;
+  return <StudyToolsContext.Provider value={{ active: activeTool, select: setActiveTool, toolbar: panelToolbar }}><View ref={screenRef} style={styles.container}>
+    {dragIcon && <View pointerEvents="none" style={{ position: 'absolute', zIndex: 1000, left: dragIcon.x - 10, top: dragIcon.y - 5, width: 20, height: 30, backgroundColor: colors.accent, alignItems: 'center', borderBottomLeftRadius: 6, borderBottomRightRadius: 6 }}><Text style={{ color: colors.surface, fontSize: 10 }}>{String(Math.min(99, pdfMarks.length + 1)).split('').join('\n')}</Text></View>}
+    {level === 'original' && pickingMark && <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 }}><Text style={styles.note}>しおりを挟む文字をタップしてください</Text><Pressable onPress={() => setPickingMark(false)} accessibilityRole="button"><Text style={styles.text}>キャンセル</Text></Pressable></View>}
+    {level === 'original' && <Stack.Screen options={{ headerRight: bookmarkHeader }} />}
+    <ReaderPanel visible={marksOpen && level === 'original'} label="しおり" onClose={() => setMarksOpen(false)} desktop={<Modal visible={marksOpen && level === 'original'} transparent animationType="fade" onRequestClose={() => setMarksOpen(false)}><View style={{ flex: 1, alignItems: 'flex-end' }}><Pressable style={StyleSheet.absoluteFill} onPress={() => setMarksOpen(false)} /><View style={[styles.sidebar, { margin: 12, flex: 1 }]}>{bookmarkContents()}</View></View></Modal>}>{bookmarkContents()}</ReaderPanel>
+    <Modal visible={resetMarks} transparent animationType="fade" onRequestClose={() => setResetMarks(false)}><View style={{ flex: 1, backgroundColor: 'rgba(41,46,41,0.3)', alignItems: 'center', justifyContent: 'center', padding: 24 }}><View style={{ width: '100%', maxWidth: 340, backgroundColor: colors.surface, borderRadius: 20, padding: 24, gap: 20 }}><Text style={styles.sidebarTitle}>この本のしおりをすべて外しますか？</Text><View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>{action('キャンセル', () => setResetMarks(false), savingMark)}<Pressable disabled={savingMark} style={[styles.button, { backgroundColor: colors.dangerBackground }]} onPress={() => { void savePdfMarks(pdfMarks.filter(mark => mark.source !== pdfFingerprint)).then(() => setResetMarks(false)); }}><Text style={{ color: colors.danger }}>すべて外す</Text></Pressable></View></View></View></Modal>
     {((!state && !loading) || !!(error || current?.error)) && <View style={styles.controls}>
       {!state && !loading && action('保存状態を再確認', () => void load())}
       {!!(error || current?.error) && <Text accessibilityLiveRegion="polite" style={styles.error}>{error || current?.error}</Text>}
@@ -214,9 +250,9 @@ export function StudyReader({ book, pdfUri }: { book: Book; pdfUri: string | nul
       <StudyMusic open={activeTool === 'music'} onOpenChange={changeMusicOpen} />
     </View>
     {pickingMark && <View style={styles.row}><Text style={styles.note}>挟む文字を押してください。画像部分は「このページに挟む」を使えます。</Text>{action('キャンセル', () => setPickingMark(false))}</View>}
-<View style={styles.pageContent} onLayout={event => { const { width, height } = event.nativeEvent.layout; setPdfSize(before => before.width === width && before.height === height ? before : { width, height }); }}>
+<View ref={pdfPaperRef} style={styles.pageContent} onLayout={event => { const { width, height } = event.nativeEvent.layout; setPdfSize(before => before.width === width && before.height === height ? before : { width, height }); }}>
     {level === 'original' ? <>
-      {pdfUri && (Platform.OS === 'web' || pdfSize.width > 0 && pdfSize.height > 0) ? <PdfBook viewportSize={Platform.OS === 'web' ? undefined : pdfSize} marks={pdfMarks} picking={pickingMark && !savingMark} onPick={placePdfMark} onDocument={setPdfFingerprint} key={contentKey} onPosition={updatePdfPosition} pageRequest={pdfRequest} uri={pdfUri} readLocalPdf={Platform.OS === 'web' ? undefined : readLocalPdf} initialPage={chapter?.firstPage ?? 1} zoom={pdfZoom} spread={pdfSpread} onReady={contentReady} onLoadError={contentFailed} dom={{ useExpoDOMWebView: false, injectedJavaScriptBeforeContentLoaded: __DEV__ ? domBootstrap : undefined, contentInsetAdjustmentBehavior: 'never', style: Platform.OS === 'web' ? { flex: 1 } : { width: pdfSize.width, height: pdfSize.height }, containerStyle: { flex: 1 }, bounces: false, allowsBackForwardNavigationGestures: false, onError: () => contentFailed('PDF画面を読み込めませんでした。もう一度お試しください。'), onContentProcessDidTerminate: () => { setContentError({ key: '', message: '' }); setReaderAttempt(value => value + 1); } }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
+      {pdfUri && (Platform.OS === 'web' || pdfSize.width > 0 && pdfSize.height > 0) ? <PdfBook summaryRequest={summaryRequest} onSummaryText={(token, text, error) => setSummaryResult({ token, text, error })} headerDrag={headerDrag} viewportSize={Platform.OS === 'web' ? undefined : pdfSize} marks={pdfMarks} picking={pickingMark && !savingMark} onPick={placePdfMark} onDocument={setPdfFingerprint} key={contentKey} onPosition={updatePdfPosition} pageRequest={pdfRequest} uri={pdfUri} readLocalPdf={Platform.OS === 'web' ? undefined : readLocalPdf} initialPage={chapter?.firstPage ?? 1} zoom={pdfZoom} spread={pdfSpread} onReady={contentReady} onLoadError={contentFailed} dom={{ useExpoDOMWebView: false, injectedJavaScriptBeforeContentLoaded: __DEV__ ? domBootstrap : undefined, contentInsetAdjustmentBehavior: 'never', style: Platform.OS === 'web' ? { flex: 1 } : { width: pdfSize.width, height: pdfSize.height }, containerStyle: { flex: 1 }, bounces: false, allowsBackForwardNavigationGestures: false, onError: () => contentFailed('PDF画面を読み込めませんでした。もう一度お試しください。'), onContentProcessDidTerminate: () => { setContentError({ key: '', message: '' }); setReaderAttempt(value => value + 1); } }} /> : <Text style={styles.empty}>原文PDFを準備しています…</Text>}
     </>
       : chapterHasLesson && current && state && chapter ? <BookReading key={contentKey} study onStudyDisplayControl={setDisplayControl} onReady={contentReady} onLoadError={contentFailed}
         studyScrollTarget={scrollRequest} onStudyPosition={updateSelectedSection} trackingId={book.id} studyVisuals={chapterVisuals} sourceLabel={`${book.author}「${book.title}」・${book.license}／AIによる翻案`}

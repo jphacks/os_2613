@@ -1,3 +1,4 @@
+import { artifactUrl } from '@/features/comic/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -27,7 +28,7 @@ export function Summary({ text, cacheKey, onSummary }: { text: string; cacheKey:
     const timer = setTimeout(() => controller.abort(), 55000);
     setBusy(true); setError('');
     try {
-      const response = await fetch('/api/summary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }), signal: controller.signal });
+      const response = await fetch(artifactUrl('/api/summary'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }), signal: controller.signal });
       const value = await response.json();
       if (!response.ok) throw new Error(summaryFailure(value?.code).code);
       if (typeof value.summary !== 'string' || !value.summary.trim() || value.summary.length > 5000) throw new Error('UNKNOWN');
@@ -54,5 +55,5 @@ export function Summary({ text, cacheKey, onSummary }: { text: string; cacheKey:
 const styles = StyleSheet.create({
   box: { gap: 16 }, heading: { fontSize: 16, fontWeight: '700', color: colors.ink },
   text: { fontSize: 16, lineHeight: 29, color: colors.ink }, note: { fontSize: 14, lineHeight: 24, color: colors.muted },
-  button: { backgroundColor: colors.accent, borderRadius: 10, padding: 14, alignItems: 'center' }, buttonText: { color: colors.surface, fontSize: 15 }, disabled: { opacity: 0.4 },
+  button: { backgroundColor: colors.accent, borderRadius: 999, padding: 14, alignItems: 'center' }, buttonText: { color: colors.surface, fontSize: 15 }, disabled: { opacity: 0.4 },
 });

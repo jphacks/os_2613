@@ -59,7 +59,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
     <ScrollView style={s.screen} contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
     {!embedded && <Stack.Screen options={{ headerShown: false }} />}
     <View style={[s.layout, wide && s.wideLayout]}>
-    <View style={[s.tabs, wide && s.wideTabs]}>{[['account', 'アカウント'], ['features', '読書機能'], ['help', '使い方']].map(([id, label]) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: tab === id }} key={id} onPress={() => setTab(id)} style={[s.tab, wide && s.wideTab, tab === id && s.selected]}><Text style={tab === id ? s.light : s.text}>{label}</Text></Pressable>)}</View>
+    <View style={[s.tabs, wide && s.wideTabs]}>{[['account', 'アカウント'], ['features', '機能']].map(([id, label]) => <Pressable accessibilityRole="tab" accessibilityState={{ selected: tab === id }} key={id} onPress={() => setTab(id)} style={[s.tab, wide && s.wideTab, tab === id && s.selected]}><Text style={tab === id ? s.light : s.text}>{label}</Text></Pressable>)}</View>
     <View style={s.panel}>
     {tab === 'account' ? <>
       {identity ? <View style={s.profileCard}>
@@ -102,22 +102,17 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         {loopback && <Text style={s.footnote}>開発用の初回接続ではURLが変わります。本棚は接続先ごとに保存されます。</Text>}
       </View>}
       <Text style={s.footnote}>感想は投稿画面で公開を選んだときだけ共有します。本棚としおりは端末内で共通保存され、端末間同期はしません。</Text>
-    </> : tab === 'features' ? <View style={s.card}>
+    </> : <View style={s.card}>
       <Text style={s.section}>使いたい機能を選ぶ</Text>
       {([
-        ['music', '♫', 'BGM', '物語に合う音を読みガイドとともに'],
         ['comic', '▤', '紹介4コマ', '読む前に、物語の入り口をのぞく'],
-        ['characters', '♧', '人物相関図', 'しおりまでの登場人物を整理'],
+        ['quests', '✓', '読書クエスト', '本棚に操作ガイドを表示する'],
 
       ] as const).map(([key, icon, title, description]) => <View key={key} style={s.featureRow}>
         <View style={s.featureIcon}><Text style={s.featureSymbol}>{icon}</Text></View>
         <View style={s.grow}><Text style={s.featureTitle}>{title}</Text><Text style={s.featureDescription}>{description}</Text></View>
         <FeatureToggle label={title} value={prefs[key]} disabled={busy || !ready} onChange={value => void act(async () => { await update({ [key]: value }); setMessage(`${title}を${value ? 'ON' : 'OFF'}にしました。`); })} />
       </View>)}
-    </View> : <View style={s.card}>
-      <Text style={s.section}>使い方と読書の準備</Text>
-      <View style={s.featureRow}><View style={s.grow}><Text style={s.featureTitle}>読書クエスト</Text><Text style={s.featureDescription}>本棚に操作ガイドを表示する</Text></View><FeatureToggle label="読書クエスト" value={prefs.quests} disabled={busy || !ready} onChange={value => void act(() => update({ quests: value }))} /></View>
-      <Pressable accessibilityRole="button" onPress={() => router.push('/focus')} style={s.row}><Text style={s.text}>iPhoneの読書集中モード</Text><Text style={s.link}>設定方法 ›</Text></Pressable>
     </View>}
     {!!(message || error) && <View style={s.feedback}><Text accessibilityRole={failed || (!message && !!error) ? 'alert' : undefined} accessibilityLiveRegion="polite" style={s.text}>{message || error}</Text>{failed && <Text style={s.note}>もう一度「Blueskyでサインインする」からお試しください。</Text>}</View>}
     </View></View>

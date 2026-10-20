@@ -129,6 +129,7 @@ export default function ShelfScreen() {
                     title={book.title}
                     author={book.author}
                     label={book.label}
+                    demo={book.id === 'aozora-1567' || book.title === '走れメロス'}
                     color={coverColors[(r * perRow + i) % coverColors.length]}
                     width={Math.min(112, slot - 12)}
                     onPress={() => router.push(`/book/${book.id}`)}

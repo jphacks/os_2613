@@ -72,3 +72,15 @@ test('保存先を本ごとに分離し、再読み込みでしおりを復元�
   assert.equal((await createReadingStore(adapter, 'book-b', text).load()).marks.length, 0);
   assert.equal((await createReadingStore(adapter, 'book-a', text).load()).marks[0].offset, 7);
 });
+
+test('しおりは99個まで追加でき、移動と削除後の追加はできる', () => {
+  const body = 'あ'.repeat(110);
+  let reading = emptyReading(body);
+  for (let i = 0; i < 99; i++) reading = placeMark(reading, body, i, String(i), i);
+  assert.throws(() => placeMark(reading, body, 100, 'extra', 100), /99個/);
+  reading = placeMark(reading, body, 101, '0', 101);
+  assert.equal(reading.marks.length, 99);
+  reading = removeMark(reading, '1');
+  reading = placeMark(reading, body, 100, 'extra', 102);
+  assert.equal(reading.marks.length, 99);
+});

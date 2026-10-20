@@ -13,7 +13,9 @@ import type { ReadLocalPdf } from './source.mjs';
 const cdn = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}`;
 pdfjs.GlobalWorkerOptions.workerSrc = `${cdn}/build/pdf.worker.min.mjs`;
 
-type Props = { viewportSize?: { width: number; height: number }; marks?: PdfMark[]; picking?: boolean; onPick?: (mark: Omit<PdfMark, 'id'>) => void; onDocument?: (source: string) => void; uri: string; readLocalPdf?: ReadLocalPdf; initialPage?: number; zoom?: number; spread?: boolean; onPosition?: (page: number, total: number) => void; pageRequest?: { page: number; token: number } | null; onReady?: () => void; onLoadError?: (message: string) => void; dom?: import('expo/dom').DOMProps };
+type HeaderDrop = { token: number; x: number; y: number; phase: 'move' | 'end' | 'cancel' };
+type SummaryRequest = { token: number; source: string; startPage: number; startOffset: number; endPage: number; endOffset: number };
+type Props = { summaryRequest?: SummaryRequest | null; onSummaryText?: (token: number, text: string, error: string) => void; headerDrag?: HeaderDrop | null; viewportSize?: { width: number; height: number }; marks?: PdfMark[]; picking?: boolean; onPick?: (mark: Omit<PdfMark, 'id'>) => void; onDocument?: (source: string) => void; uri: string; readLocalPdf?: ReadLocalPdf; initialPage?: number; zoom?: number; spread?: boolean; onPosition?: (page: number, total: number) => void; pageRequest?: { page: number; token: number } | null; onReady?: () => void; onLoadError?: (message: string) => void; dom?: import('expo/dom').DOMProps };
 
 function PdfPage({ doc, number, width, height, root, onRendered, onLoadError, marks = [], picking = false, onPick }: { marks?: PdfMark[]; picking?: boolean; onPick?: Props['onPick']; doc: pdfjs.PDFDocumentProxy; number: number; width: number; height: number; root: HTMLDivElement | null; onRendered: (page: number) => void; onLoadError?: (message: string) => void }) {
   const slot = useRef<HTMLDivElement>(null);
@@ -33,19 +35,39 @@ function PdfPage({ doc, number, width, height, root, onRendered, onLoadError, ma
     }
     setPins(next);
   }, [marks, textReady, width, height, number, doc]);
-  function pick(event: React.MouseEvent<HTMLDivElement>) {
-    if (!picking || !onPick) return;
-    event.stopPropagation();
-    const hit = document.caretPositionFromPoint?.(event.clientX, event.clientY);
-    const range = !hit ? (document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null }).caretRangeFromPoint?.(event.clientX, event.clientY) : null;
-    const node = hit?.offsetNode ?? range?.startContainer, offset = hit?.offset ?? range?.startOffset;
-    if (!node || offset === undefined) return;
-    const spans = textDivs.current; const index = spans.findIndex(span => span.contains(node)); if (index < 0) return;
-    const text = spans[index].textContent ?? ''; const character = pdfCharacter(text, Math.min(offset, text.length - 1)); if (!character || !character.quote.trim()) return;
-    const rect = spans[index].getBoundingClientRect(); if (event.clientX < rect.left - 2 || event.clientX > rect.right + 2 || event.clientY < rect.top - 2 || event.clientY > rect.bottom + 2) return;
-    onPick({ source: doc.fingerprints[0] ?? '', page: number, offset: spans.slice(0, index).reduce((total, span) => total + (span.textContent?.length ?? 0), 0) + character.offset, quote: character.quote });
+  function pickAt(clientX: number, clientY: number) {
+    if (!onPick) return;
+    const spans = textDivs.current;
+    // Safariのcaret APIが透明な文字層を返さない場合も、実際の文字の矩形で選ぶ。
+    for (let index = 0; index < spans.length; index++) {
+      const span = spans[index], text = span.textContent ?? '', node = span.firstChild;
+      if (!node || node.nodeType !== Node.TEXT_NODE) continue;
+      const rect = span.getBoundingClientRect();
+      if (clientX < rect.left - 4 || clientX > rect.right + 4 || clientY < rect.top - 4 || clientY > rect.bottom + 4) continue;
+      let best: { offset: number; quote: string; distance: number } | null = null;
+      for (let at = 0; at < text.length;) {
+        const character = pdfCharacter(text, at); if (!character) break;
+        if (character.quote.trim()) {
+          const range = document.createRange(); range.setStart(node, at); range.setEnd(node, at + character.length);
+          const box = range.getBoundingClientRect();
+          const dx = Math.max(box.left - clientX, 0, clientX - box.right);
+          const dy = Math.max(box.top - clientY, 0, clientY - box.bottom);
+          const distance = Math.hypot(dx, dy);
+          if (!best || distance < best.distance) best = { offset: at, quote: character.quote, distance };
+        }
+        at += character.length;
+      }
+      if (!best || best.distance > 6) continue;
+      onPick({ source: doc.fingerprints[0] ?? '', page: number, offset: spans.slice(0, index).reduce((total, item) => total + (item.textContent?.length ?? 0), 0) + best.offset, quote: text.slice(best.offset, best.offset + 65) });
+      return;
+    }
   }
 
+  useEffect(() => {
+    const drop = (event: Event) => { const point = (event as CustomEvent<{ x: number; y: number }>).detail; pickAt(point.x, point.y); };
+    document.addEventListener('pdf-bookmark-drop', drop);
+    return () => document.removeEventListener('pdf-bookmark-drop', drop);
+  });
   const [nearby, setNearby] = useState(false);
   const [error, setError] = useState(false);
   const callbacks = useRef({ onRendered, onLoadError }); callbacks.current = { onRendered, onLoadError };
@@ -93,14 +115,21 @@ function PdfPage({ doc, number, width, height, root, onRendered, onLoadError, ma
   return <div ref={slot} aria-label={`${number}ページ`} style={{ ...styles.page, width, height }}>
     <style>{`.pdf-book-text{position:absolute;inset:0;overflow:clip;line-height:1;text-align:initial;letter-spacing:normal;word-spacing:normal;text-size-adjust:none;transform-origin:0 0;--min-font-size:1;--text-scale-factor:calc(var(--total-scale-factor) * var(--min-font-size));--min-font-size-inv:calc(1 / var(--min-font-size));}.pdf-book-text :is(span,br){color:transparent;position:absolute;white-space:pre;transform-origin:0 0;user-select:text;cursor:crosshair;}.pdf-book-text > :not(.markedContent),.pdf-book-text .markedContent span:not(.markedContent){--font-height:0;font-size:calc(var(--text-scale-factor) * var(--font-height));--scale-x:1;--rotate:0deg;transform:rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));}.pdf-book-text .markedContent{display:contents;}`}</style>
     {nearby && <canvas key={`${width}:${height}`} ref={canvas} style={{ display: 'block', maxWidth: '100%' }} />}
-    <div ref={textLayerRef} className="pdf-book-text" onClick={pick} style={{ pointerEvents: picking ? 'auto' : 'none', touchAction: picking ? 'none' : undefined }} />
-    {pins.map(pin => <span key={pin.id} aria-label="文字のしおり" style={{ position: 'absolute', left: pin.left, top: pin.top - 13, width: 10, height: 16, background: '#386149', clipPath: 'polygon(0 0,100% 0,100% 100%,50% 75%,0 100%)', pointerEvents: 'none' }} />)}
+    <div ref={textLayerRef} className="pdf-book-text" onPointerUp={event => { if (picking) { event.stopPropagation(); event.preventDefault(); pickAt(event.clientX, event.clientY); } }} style={{ pointerEvents: picking ? 'auto' : 'none', touchAction: picking ? 'none' : undefined }} />
+    {marks.filter(mark => mark.source === doc.fingerprints[0]).sort((a, b) => a.page - b.page || (a.offset ?? 0) - (b.offset ?? 0)).map((mark, index) => { const pin = pins.find(pin => pin.id === mark.id); if (mark.page !== number || (!pin && mark.offset !== null)) return null; return <span key={mark.id} aria-label={`しおり${index + 1}`} style={{ position: 'absolute', left: pin?.left ?? 4, top: pin ? pin.top - 17 : 4, width: 18, height: 28, background: '#386149', clipPath: 'polygon(0 0,100% 0,100% 100%,50% 75%,0 100%)', pointerEvents: 'none', color: '#FFFDF8', font: 'bold 9px sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 2, boxSizing: 'border-box' }}>{Array.from(String(index + 1)).map((digit, i) => <span key={i}>{digit}</span>)}</span>; })}
     {error && <p role="alert" style={styles.pageMessage}>表示できません。ページを画面外へスクロールしてから戻すか、教材を開き直してください。</p>}
     <span style={styles.pageNumber}>{number}</span>
   </div>;
 }
 
-export default function PdfBook({ viewportSize, uri, readLocalPdf, initialPage = 1, zoom = 1, spread = false, onReady, onLoadError, onPosition, pageRequest, marks = [], picking = false, onPick, onDocument }: Props) {
+export default function PdfBook({ summaryRequest, onSummaryText, headerDrag, viewportSize, uri, readLocalPdf, initialPage = 1, zoom = 1, spread = false, onReady, onLoadError, onPosition, pageRequest, marks = [], picking = false, onPick, onDocument }: Props) {
+  const droppedToken = useRef<number | null>(null);
+  useEffect(() => {
+    if (!headerDrag || headerDrag.phase !== 'end' || droppedToken.current === headerDrag.token) return;
+    droppedToken.current = headerDrag.token;
+    if (headerDrag.x < 0 || headerDrag.x > 1 || headerDrag.y < 0 || headerDrag.y > 1) return;
+    document.dispatchEvent(new CustomEvent('pdf-bookmark-drop', { detail: { x: (stageRef.current?.getBoundingClientRect().left ?? 0) + headerDrag.x * (stageRef.current?.getBoundingClientRect().width ?? window.innerWidth), y: (stageRef.current?.getBoundingClientRect().top ?? 0) + headerDrag.y * (stageRef.current?.getBoundingClientRect().height ?? window.innerHeight) } }));
+  }, [headerDrag]);
   const callbacks = useRef({ onReady, onLoadError, onPosition, readLocalPdf, onDocument }); callbacks.current = { onReady, onLoadError, onPosition, readLocalPdf, onDocument };
   const rootRef = useRef<HTMLDivElement>(null);
   const readySent = useRef(false); // 「準備できた」は最初の1回だけ親へ知らせる（何度も知らせると描き直しが繰り返される）
@@ -175,6 +204,31 @@ export default function PdfBook({ viewportSize, uri, readLocalPdf, initialPage =
   // 倍率・表示方式の変更では、読んでいたページへ戻して読書位置を保つ。
   useEffect(() => { if (doc) jump(position.current); }, [zoom, spread, size, doc]);
 
+  useEffect(() => {
+    if (!summaryRequest || !doc) return;
+    let cancelled = false;
+    const request = summaryRequest;
+    void (async () => {
+      if (request.source !== doc.fingerprints[0]) throw new Error();
+      const parts: string[] = []; let length = 0;
+      for (let number = request.startPage; number <= request.endPage; number++) {
+        if (cancelled) return;
+        // ページしおりはそのページの先頭まで。未読のページ本文は含めない。
+        if (number === request.endPage && request.endOffset === 0) break;
+        const page = await doc.getPage(number);
+        const [content, operators] = await Promise.all([page.getTextContent(), page.getOperatorList()]);
+        const fonts: Record<string, string> = {};
+        for (const item of content.items) if ('fontName' in item) fonts[item.fontName] = page.commonObjs.get(item.fontName)?.name ?? '';
+        const corrected = repairMathText(content, fonts, missingMathBars(operators, pdfjs.OPS, fonts));
+        const text = corrected.items.map(item => 'str' in item ? item.str : '').join('');
+        const part = text.slice(number === request.startPage ? request.startOffset : 0, number === request.endPage ? request.endOffset : text.length);
+        parts.push(part); length += part.length + 1;
+        if (length > 20000) break;
+      }
+      if (!cancelled) onSummaryText?.(request.token, parts.join('\n'), '');
+    })().catch(() => { if (!cancelled) onSummaryText?.(request.token, '', 'まとめ用の本文を取得できません。教材を開き直して再試行してください。'); });
+    return () => { cancelled = true; };
+  }, [summaryRequest, doc]);
   return <div ref={rootRef} style={styles.root}>
     <div ref={stageRef} style={{ ...styles.stage, overflow: !spread && zoom > 1 ? 'auto' : 'hidden', touchAction: spread ? 'none' : 'pan-y' }}
       onPointerDown={event => { if (!picking && !spread && event.isPrimary && event.button === 0) swipe.current = { id: event.pointerId, x: event.clientX, y: event.clientY }; }}

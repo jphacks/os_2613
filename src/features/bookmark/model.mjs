@@ -28,7 +28,7 @@ export function placeMark(reading, text, offset, id, now = Date.now()) {
   if (!validOffset(text, offset)) throw new Error('本文の文字を選び直してください。');
   if (reading.marks.some(mark => mark.offset === offset && mark.id !== id)) throw new Error('この位置にはすでにしおりがあります。別の文字を選んでください。');
   const old = reading.marks.find(mark => mark.id === id);
-  if (!old && reading.marks.length >= 200) throw new Error('しおりが多いため、不要なしおりを外してから追加してください。');
+  if (!old && reading.marks.length >= 99) throw new Error('しおりは99個までです。不要なしおりを外してから追加してください。');
   const mark = { id, offset, createdAt: old?.createdAt ?? now, updatedAt: Math.max(now, old?.updatedAt ?? now) };
   return { ...reading, marks: [...reading.marks.filter(item => item.id !== id), mark] };
 }
